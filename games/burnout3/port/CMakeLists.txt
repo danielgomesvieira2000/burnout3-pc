@@ -27,9 +27,11 @@ ps2_add_port(burnout3
             ${CMAKE_CURRENT_LIST_DIR}/iop_servers.cpp
             ${CMAKE_CURRENT_LIST_DIR}/widescreen.cpp
             ${CMAKE_CURRENT_LIST_DIR}/mouse.cpp
+            ${CMAKE_CURRENT_LIST_DIR}/prompts.cpp
+            ${CMAKE_CURRENT_LIST_DIR}/controls.cpp
             ${CMAKE_CURRENT_LIST_DIR}/lan.cpp
             ${CMAKE_CURRENT_LIST_DIR}/lan_libnet.cpp
             ${CMAKE_CURRENT_LIST_DIR}/lan_lobby.cpp)
 if(WIN32)
-    target_link_libraries(burnout3 PRIVATE ws2_32)    # lan.cpp, lan_libnet.cpp: the PC's sockets
+    target_link_libraries(burnout3 PRIVATE ws2_32)    # lan.cpp, lan_libnet.cpp, lan_lobby.cpp: the PC's sockets
 endif()

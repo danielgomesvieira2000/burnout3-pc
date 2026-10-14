@@ -2013,6 +2013,21 @@ Then the GS thread, which the worker fed faster than it could draw:
 The race now runs at 60 for most of a lap; its busiest stretches, at the
 start, at ~52, the worker and the GS thread both near 80% busy.
 
+## The race's controls
+
+Found by holding each button through the first race (no option changes
+them; DRIVER DETAILS > SETTINGS > CONTROLLERS has vibration alone): Cross
+accelerates, Square brakes and reverses, R1 boosts (held in a crash: Impact
+Time, aftertouch), Triangle changes the camera, L1 looks back, L2 skips to
+the next EA Trax song; Circle and R2 do nothing seen. Cross is read for how
+far it is pressed, in a narrow band of the DualShock 2's pressure (`--press
+cross@17650-19400:P`): 30 coasts, 38 holds about 58 mph, 44 about 68, 50
+and up is full throttle. The race's HUD (0x001A0790) is drawn only while
+racing - not paused, not in the menus' and intro's backdrops, which run the
+race's world (0x0019A550) too. Its hints naming R1 ("PRESS R1 BUTTON TO
+BOOST", "...HOLD THE R1 BUTTON FOR AFTERTOUCH") are language-file strings.
+The port's modern controls (port/controls.cpp) rest on this.
+
 ## The mouse in the menus
 
 The port drives the frontend's menus with the mouse (port/mouse.cpp). What
@@ -2048,13 +2063,30 @@ it rests on:
   slot, the slot the button's - 0 Triangle (Back), 1 Cross (Select,
   Confirm), 9 Circle (Driver Details on Crash Nav, Color on car select); the
   D-pad's Change is the pair at +0x94, +0x98.
+* **The name keyboard** (0x01E899C0, opened and closed by 0x00350F80, +0x0A
+  set while it shows): 5 rows of 15 cells, the highlight's row at +0x10
+  (1-4; row 0 is the name) and column at +0x14 (1-14; column 0 the shoulder
+  buttons' icons); Up, Down, Left, Right are 0x00350900, 0x00350830,
+  0x00350B60, 0x003509C0, and 0x0034EEB0(keyboard, (row, column), lit)
+  draws a cell. Each cell's state is a 0x90-byte record in the object, but
+  not its place: the grid is one object (+0x4C, at 52, 207 - or 199 - in
+  the frontend's 640 x 480), its keys measured from the highlight (mouse.cpp).
+  Wide keys: column 1 (Shift and the rest), Backspace (row 3, 9-11), Space
+  (row 4, 2-7), Done (row 4, 8-11); row 2's column 11 is empty.
+* **The car select's column of cars** (0x01E8EC30: the chosen car's index
+  at +0x244 of +0x248, +0x238 set while it turns; Up and Down 0x0042C020,
+  0x0042C090), the screens' input 0x00318A80 (Crash Nav) and 0x003F03D0,
+  0x003F0870: 3D models, so the mouse finds them by place in the 4:3
+  picture (the chosen car x 35-175, y 170-262 of 640 x 448; the one before
+  above, the one after below), widened from the middle in a wider picture.
 
 The mouse moves a highlight as the player would - Up or Down a press at a
 time until the selector shows the row under the pointer - so each screen's
 own input moves it, with its sounds and past rows it skips; a click presses
-Cross once it is there. Screens built otherwise (the keyboard, the map's
-locations, the car carousel) take the wheel (Up, Down), the right button
-(Back) and the legend's buttons. `PS2HOST_MOUSE_PROBE=1` prints every
+Cross once it is there; the name keyboard's keys the same way, Up or Down
+to the key's row, then Left or Right to it. Screens built otherwise (the
+map's locations, the car carousel) take the wheel (Up, Down), the right
+button (Back) and the legend's buttons. `PS2HOST_MOUSE_PROBE=1` prints every
 selector move and the code making it: the way to a menu the mouse does not
 know yet.
 

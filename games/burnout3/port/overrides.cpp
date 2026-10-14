@@ -24,6 +24,9 @@
 #include "ps2host/run.h"
 #include "ps2host/settings.h"
 
+// controls.cpp: the race's hints naming the boost button, as the controls have it.
+void RaceHint(u32 at);
+
 // libmc2's handlers as the game has them, for when no card is given.
 void F_00244218(lifted::Context& c);
 void F_002445D0(lifted::Context& c);
@@ -236,16 +239,34 @@ constexpr u32 kOnlineHelp = 0xEC;           // "PLAY BURNOUT 3 ONLINE", its desc
 constexpr u32 kEntries = 6;                 // the game's five, and QUIT GAME
 constexpr u32 kPcSettingsEntry = 3, kQuitEntry = 5;
 
-/* The settings PC SETTINGS lists: each a few values, Cross going to the
-   next (ON/OFF, or the internal resolution's three). Triangle goes back, as
-   on the game's own screens (the legend says so): no BACK row - the list's
-   six rows are the settings'. */
+/* PC SETTINGS' pages: first VIDEO, GRAPHICS and CONTROLS, Cross on one
+   showing its settings - each a few values, Cross going to the next (ON/OFF,
+   or the internal resolution's three). Triangle goes back a page, as on the
+   game's own screens (the legend says so): no BACK row - a page has at most
+   the list's six rows. */
+enum class Page { kMainMenu, kPcSettings, kVideo, kGraphics, kControls };
+struct PageInfo {
+    Page page;
+    const char* name;
+    const char* help;
+};
+const PageInfo kPages[] = {
+    {Page::kVideo, "VIDEO", "THE WINDOW, RESOLUTION, PICTURE SHAPE AND SMOOTHING"},
+    {Page::kGraphics, "GRAPHICS", "THE GAME'S OWN EFFECTS"},
+    {Page::kControls, "CONTROLS", "THE CONTROLLER AND KEYBOARD"},
+};
+constexpr u32 kPageCount = sizeof kPages / sizeof kPages[0];
+// CONTROLS has nothing yet: a row saying so.
+constexpr const char* kNothingYet = "NOTHING TO SET UP YET";
+constexpr const char* kNothingYetHelp = "CONTROL SETTINGS ARE STILL TO COME";
+
 struct Option {
+    Page page;
     const char* name;
     const char* help;
     int (*now)();                           // the value's index
     void (*set)(int);
-    const char* values[3];
+    const char* values[4];
     int count;
 };
 int Fullscreen() { return ps2host::WindowFullscreen() ? 1 : 0; }
@@ -272,19 +293,36 @@ int Aspect() {
     return 0;
 }
 void SetAspect(int which) { ps2host::SetWindowAspect(kAspects[which]); }
+const char* const kAntiAliasings[] = {"off", "fxaa", "ssaa2", "ssaa4"};
+int AntiAliasing() {
+    const std::string now = ps2host::Setting("antialiasing", "off");
+    for (int i = 0; i < 4; ++i)
+        if (now == kAntiAliasings[i]) return i;
+    return 0;
+}
+void SetAntiAliasing(int which) { ps2host::SetWindowAntiAliasing(kAntiAliasings[which]); }
+int ModernControls() { return ps2host::SettingOn("modern_controls", false) ? 1 : 0; }
+void SetModernControls(int on) { ps2host::SetSettingOn("modern_controls", on != 0); }
+int TriggerEffects() { return ps2host::SettingOn("trigger_effects", true) ? 1 : 0; }
+void SetTriggerEffects(int on) { ps2host::SetSettingOn("trigger_effects", on != 0); }
 const Option kOptions[] = {
-    {"FULLSCREEN", "THE WHOLE SCREEN OR A WINDOW (ALT+ENTER)", Fullscreen, SetFullscreen, {"OFF", "ON"}, 2},
-    {"VERTICAL SYNC", "NO TEARING, OR THE LEAST DELAY", Vsync, SetVsync, {"OFF", "ON"}, 2},
-    {"FRAME PACING", "PICTURES EVENLY SPACED, A LITTLE MORE DELAY", FramePacing, SetFramePacing, {"OFF", "ON"}, 2},
-    {"RESOLUTION", "DRAWN AS THE PS2 DID, TWICE AS SHARP, OR AS SHARP AS THE SCREEN", Resolution, SetResolution,
-     {"ORIGINAL", "2X", "DISPLAY"}, 3},
-    {"BLUR", "THE SPEED BLUR AND GLOW, OR A CLEAR PICTURE", Blur, SetBlur, {"ORIGINAL", "OFF"}, 2},
-    {"ASPECT RATIO", "THE PICTURE'S SHAPE: A TELEVISION'S, WIDESCREEN, OR THE SCREEN'S OWN", Aspect, SetAspect,
-     {"ORIGINAL (4:3)", "WIDESCREEN (16:9)", "AUTO"}, 3},
+    {Page::kVideo, "FULLSCREEN", "THE WHOLE SCREEN OR A WINDOW (ALT+ENTER)", Fullscreen, SetFullscreen, {"OFF", "ON"}, 2},
+    {Page::kVideo, "VERTICAL SYNC", "NO TEARING, OR THE LEAST DELAY", Vsync, SetVsync, {"OFF", "ON"}, 2},
+    {Page::kVideo, "FRAME PACING", "PICTURES EVENLY SPACED, A LITTLE MORE DELAY", FramePacing, SetFramePacing,
+     {"OFF", "ON"}, 2},
+    {Page::kVideo, "RESOLUTION", "DRAWN AS THE PS2 DID, TWICE AS SHARP, OR AS SHARP AS THE SCREEN", Resolution,
+     SetResolution, {"ORIGINAL", "2X", "DISPLAY"}, 3},
+    {Page::kVideo, "ASPECT RATIO", "THE PICTURE'S SHAPE: A TELEVISION'S, WIDESCREEN, OR THE SCREEN'S OWN", Aspect,
+     SetAspect, {"ORIGINAL (4:3)", "WIDESCREEN (16:9)", "AUTO"}, 3},
+    {Page::kVideo, "ANTIALIASING", "EDGES AS DRAWN, SMOOTHED (FXAA), OR SUPERSAMPLED (SSAA)",
+     AntiAliasing, SetAntiAliasing, {"OFF", "FXAA", "SSAA 2X", "SSAA 4X"}, 4},
+    {Page::kGraphics, "BLUR", "THE SPEED BLUR AND GLOW, OR A CLEAR PICTURE", Blur, SetBlur, {"ORIGINAL", "OFF"}, 2},
+    {Page::kControls, "MODERN CONTROLS", "RACING: R2 ACCELERATES, L2 BRAKES, X BOOSTS", ModernControls,
+     SetModernControls, {"OFF", "ON"}, 2},
+    {Page::kControls, "TRIGGER EFFECTS", "DUALSENSE: THE TRIGGERS PUSH BACK (MODERN CONTROLS)", TriggerEffects,
+     SetTriggerEffects, {"OFF", "ON"}, 2},
 };
 constexpr u32 kOptionCount = sizeof kOptions / sizeof kOptions[0];
-constexpr u32 kSettingsRows = kOptionCount;
-static_assert(kSettingsRows <= kEntries, "the settings fit the menu's rows");
 
 struct MainMenuState {
     u32 menu = 0;                           // the main menu's object (0x00318340's a0)
@@ -292,8 +330,12 @@ struct MainMenuState {
     u32 game_entries[kEntries][2] = {};     // the main menu's rows, kept while PC SETTINGS shows
     u32 game_helps[kEntries] = {};
     GuestText pc_settings, pc_settings_help, quit, quit_help, quit_question, blank, lan;
+    GuestText page_names[kPageCount], page_helps[kPageCount], nothing_yet, nothing_yet_help;
     GuestText option_names[kOptionCount], option_helps[kOptionCount];
-    bool made = false, settings = false, quitting = false;
+    Page page = Page::kMainMenu;            // what the list shows
+    int rows[kEntries] = {};                // a settings page's rows: kOptions' index each (-1 none)
+    u32 row_count = 0;
+    bool made = false, quitting = false;
 };
 MainMenuState g_main;
 
@@ -316,12 +358,32 @@ void MakeTexts(lifted::Context& c) {
     g_main.blank.Set(" ");               // (an empty string the list does not draw as empty)
     g_main.lan.Make(4);
     g_main.lan.Set("LAN");
-    for (u32 i = 0; i < kOptionCount; ++i) {
-        g_main.option_names[i].Make(36);
-        g_main.option_helps[i].Make(64);
-        g_main.option_helps[i].Set(kOptions[i].help);
+    // Each text as long as its words (the donors' room is short): a
+    // setting's its name and its longest value.
+    for (u32 i = 0; i < kPageCount; ++i) {
+        g_main.page_names[i].Make(u32(std::strlen(kPages[i].name)));
+        g_main.page_names[i].Set(kPages[i].name);
+        g_main.page_helps[i].Make(u32(std::strlen(kPages[i].help)));
+        g_main.page_helps[i].Set(kPages[i].help);
     }
-    g_main.made = g_main.entries && g_main.helps;
+    g_main.nothing_yet.Make(u32(std::strlen(kNothingYet)));
+    g_main.nothing_yet.Set(kNothingYet);
+    g_main.nothing_yet_help.Make(u32(std::strlen(kNothingYetHelp)));
+    g_main.nothing_yet_help.Set(kNothingYetHelp);
+    for (u32 i = 0; i < kOptionCount; ++i) {
+        const Option& o = kOptions[i];
+        std::size_t longest = 0;
+        for (int v = 0; v < o.count; ++v) longest = std::max(longest, std::strlen(o.values[v]));
+        g_main.option_names[i].Make(u32(std::strlen(o.name) + 2 + longest));
+        g_main.option_helps[i].Make(u32(std::strlen(o.help)));
+        g_main.option_helps[i].Set(o.help);
+    }
+    // Every text found room, or the list would be handed a null string.
+    bool room = g_main.nothing_yet.at && g_main.nothing_yet_help.at && g_main.blank.at;
+    for (u32 i = 0; i < kPageCount; ++i) room = room && g_main.page_names[i].at && g_main.page_helps[i].at;
+    for (u32 i = 0; i < kOptionCount; ++i) room = room && g_main.option_names[i].at && g_main.option_helps[i].at;
+    if (!room) std::fprintf(stderr, "[pc settings] the donors' room ran out: PC SETTINGS left out\n");
+    g_main.made = g_main.entries && g_main.helps && room;
 }
 
 void ShowOption(u32 i) {
@@ -356,6 +418,7 @@ void GetString(lifted::Context& c) {
         }
     }
     F_00271A00(c);
+    RaceHint(u32(c.r[2]));
 }
 
 /* Calls a guest function from a host one, its arguments in a0-t1, and gives
@@ -387,7 +450,8 @@ void MenuList(lifted::Context& c) {
             generated::Write32(g_main.entries + 8 * kQuitEntry + 4, 0);
             generated::Write16(u32(c.r[5]) + 2, kEntries);      // the count
             c.r[6] = g_main.entries;
-            g_main.settings = g_main.quitting = false;
+            g_main.page = Page::kMainMenu;
+            g_main.quitting = false;
         }
     }
     F_00321470(c);
@@ -413,31 +477,49 @@ void RefreshList(lifted::Context& c) {
     for (u32 row = 0; row < kEntries; ++row) GuestCall(c, 0x0031FE40u, {0x01E89544u, row, 1});
 }
 
-/* PC SETTINGS: the list's rows become the settings, the main menu's kept to
-   come back to. */
-void ShowSettings(lifted::Context& c, bool on) {
+/* A page of PC SETTINGS in the list's rows (the main menu's kept to come
+   back to), `highlighted` the row picked; or the main menu again. */
+void ShowPage(lifted::Context& c, Page page, u32 highlighted = 0) {
     const u32 menu = g_main.menu;
+    const bool was_main = g_main.page == Page::kMainMenu, on = page != Page::kMainMenu;
     if (on) {
-        for (u32 i = 0; i < kEntries; ++i) {
-            g_main.game_entries[i][0] = generated::ReadU32(g_main.entries + 8 * i);
-            g_main.game_entries[i][1] = generated::ReadU32(g_main.entries + 8 * i + 4);
-            g_main.game_helps[i] = generated::ReadU32(g_main.helps + 4 * i);
+        if (was_main) {
+            for (u32 i = 0; i < kEntries; ++i) {
+                g_main.game_entries[i][0] = generated::ReadU32(g_main.entries + 8 * i);
+                g_main.game_entries[i][1] = generated::ReadU32(g_main.entries + 8 * i + 4);
+                g_main.game_helps[i] = generated::ReadU32(g_main.helps + 4 * i);
+            }
         }
-        for (u32 i = 0; i < kOptionCount; ++i) {
-            ShowOption(i);
-            generated::Write32(g_main.entries + 8 * i, g_main.option_names[i].at);
-            generated::Write32(g_main.entries + 8 * i + 4, 0);
-            generated::Write32(g_main.helps + 4 * i, g_main.option_helps[i].at);
+        // The page's rows: the pages, its settings, or that there are none.
+        u32 n = 0;
+        auto row = [&](int option, const GuestText& name, const GuestText& help) {
+            g_main.rows[n] = option;
+            generated::Write32(g_main.entries + 8 * n, name.at);
+            generated::Write32(g_main.entries + 8 * n + 4, 0);
+            generated::Write32(g_main.helps + 4 * n, help.at);
+            ++n;
+        };
+        if (page == Page::kPcSettings) {
+            for (u32 i = 0; i < kPageCount; ++i) row(-1, g_main.page_names[i], g_main.page_helps[i]);
+        } else {
+            for (u32 i = 0; i < kOptionCount && n < kEntries; ++i) {
+                if (kOptions[i].page != page) continue;
+                ShowOption(i);
+                row(int(i), g_main.option_names[i], g_main.option_helps[i]);
+            }
+            if (!n) row(-1, g_main.nothing_yet, g_main.nothing_yet_help);
         }
+        g_main.row_count = n;
         // The list keeps its six rows (it is set up with them): any past the
-        // settings are blank, and the count Up and Down keep to is theirs.
-        for (u32 i = kSettingsRows; i < kEntries; ++i) {
+        // page's are blank, and the count Up and Down keep to is its.
+        for (u32 i = n; i < kEntries; ++i) {
+            g_main.rows[i] = -1;
             generated::Write32(g_main.entries + 8 * i, g_main.blank.at);
             generated::Write32(g_main.entries + 8 * i + 4, 0);
             generated::Write32(g_main.helps + 4 * i, g_main.blank.at);
         }
-        generated::Write16(menu + 0x16, kSettingsRows);
-        generated::Write16(menu + 0x14, 0);
+        generated::Write16(menu + 0x16, n);
+        generated::Write16(menu + 0x14, std::min(highlighted, n - 1));
     } else {
         for (u32 i = 0; i < kEntries; ++i) {
             generated::Write32(g_main.entries + 8 * i, g_main.game_entries[i][0]);
@@ -447,8 +529,14 @@ void ShowSettings(lifted::Context& c, bool on) {
         generated::Write16(menu + 0x16, kEntries);
         generated::Write16(menu + 0x14, kPcSettingsEntry);
     }
-    g_main.settings = on;
+    g_main.page = page;
     RefreshList(c);
+    // The same row highlighted, its words new: its brackets placed again
+    // (see MainMenuInput). Another row: the list moves them itself, the old
+    // row drawn plain again - which taking it as unselected would skip.
+    if (generated::ReadU32(0x01E89544u + 0xA4u) == generated::ReadU16(menu + 0x14))
+        generated::Write32(0x01E89544u + 0xA4u, ~0u);
+    if (on == !was_main) return;            // from one page to another: the legend stays
     // The button legend along the bottom (0x0031ECD0 on 0x01E89800, its
     // buttons as flags): the main menu's 0x104 (Change, Select); a
     // screen within a menu adds 0x1, (Triangle) Back. A button's sprite
@@ -487,39 +575,48 @@ bool TrianglePressed() {
 
 /* 0x003181E0(menu), the main menu's input each frame: Cross (0x0022CFE0) on
    an entry opens it (0x0030D560), Up and Down move. Cross on PC SETTINGS
-   lists the settings; on one of them, it switches it (and saves it,
-   ps2host/settings.h); Triangle goes back. Cross on QUIT GAME asks
+   lists its pages, on a page its settings; on one of them, it switches it
+   (and saves it, ps2host/settings.h); Triangle goes back a page. Cross on QUIT GAME asks
    first. */
 void MainMenuInput(lifted::Context& c) {
     const u32 menu = u32(c.r[4]);
     const bool ours = g_main.made && menu == g_main.menu;
     const bool back = TrianglePressed();
-    if (ours && g_main.settings && back) {
-        ShowSettings(c, false);
+    const bool settings = g_main.page != Page::kMainMenu;
+    if (ours && settings && back) {
+        // A page's back to the pages (its own highlighted), they to the main menu.
+        u32 from = 0;
+        for (u32 i = 0; i < kPageCount; ++i)
+            if (kPages[i].page == g_main.page) from = i;
+        ShowPage(c, g_main.page == Page::kPcSettings ? Page::kMainMenu : Page::kPcSettings, from);
         c.r[2] = 1;
         return;
     }
     if (ours && GuestCall(c, 0x0022CFE0u, {0x004F50C0u, 0})) {
         const u32 entry = generated::ReadU16(menu + 0x14);
-        if (g_main.settings) {
-            if (entry < kOptionCount) {
-                const Option& o = kOptions[entry];
+        if (g_main.page == Page::kPcSettings) {
+            if (entry < kPageCount) ShowPage(c, kPages[entry].page);
+            c.r[2] = 1;
+            return;
+        }
+        if (settings) {
+            const int option = entry < g_main.row_count ? g_main.rows[entry] : -1;
+            if (option >= 0) {
+                const Option& o = kOptions[option];
                 o.set((o.now() + 1) % o.count);
-                ShowOption(entry);
+                ShowOption(u32(option));
                 RefreshList(c);
                 // The highlight's brackets are placed when the selection moves
                 // (0x0031FF80, the list's +0xA4 against +0xA8): the row taken as
                 // unselected, it is selected again - the brackets around its new
                 // words, not the old ones' width.
                 generated::Write32(0x01E89544u + 0xA4u, ~0u);
-            } else {
-                ShowSettings(c, false);
             }
             c.r[2] = 1;
             return;
         }
         if (entry == kPcSettingsEntry) {
-            ShowSettings(c, true);
+            ShowPage(c, Page::kPcSettings);
             c.r[2] = 1;
             return;
         }
@@ -627,12 +724,14 @@ void MultiplayerScreen(lifted::Context& c) {
 void RegisterGameIopServers();     // iop_servers.cpp
 void RegisterWidescreen();         // widescreen.cpp
 void RegisterMouse();              // mouse.cpp
+void RegisterControls();           // controls.cpp
 void RegisterLan();                // lan.cpp
 
 void RegisterGameOverrides() {
     RegisterGameIopServers();
     RegisterWidescreen();
     RegisterMouse();
+    RegisterControls();
     RegisterLan();
     using namespace ps2host::mc2;
     ps2host::Override(0x00244218, CardOr<GetInfo, F_00244218>, "libmc2 GetInfo (host card)");

@@ -121,6 +121,7 @@ const std::pair<const char*, Anchor> kDefaultAnchors[] = {
     // bar and their panels on the left, the speed on the right.
     {"hud.1A0790.1A6290.BC", Anchor::kLeft},
     {"hud.1A0790.1A6290.BL", Anchor::kLeft},
+    {"hud.1A0790.1D5FB0.TL", Anchor::kLeft},
     {"hud.1A0790.381030.BR", Anchor::kRight},
     {"hud.1A0790.381AB0.TL", Anchor::kLeft},
     {"hud.1A0790.3CD920.BR", Anchor::kRight},
@@ -129,13 +130,8 @@ const std::pair<const char*, Anchor> kDefaultAnchors[] = {
     {"hud.1D75C0.1A7B00.BL", Anchor::kLeft},
     {"hud.1D75C0.1A8180.BL", Anchor::kLeft},
     // The frontend.
-    {"hud.30D6E0.1D66A0.BL", Anchor::kLeft},
-    {"hud.30D6E0.1D66A0.BR", Anchor::kRight},
     {"hud.30D6E0.31B130.TC", Anchor::kStretch},
     {"hud.30D6E0.31B130.TL", Anchor::kLeft},
-    {"hud.30D6E0.380250.BL", Anchor::kLeft},
-    {"hud.30D6E0.382950.BL", Anchor::kLeft},
-    {"hud.30D6E0.382950.BR", Anchor::kRight},
     {"hud.30D6E0.3B2EE0.MC", Anchor::kStretch},
     {"hud.30D6E0.3B2EE0.MR", Anchor::kStretch},
     {"hud.30D6E0.3D7B40.BC", Anchor::kStretch},

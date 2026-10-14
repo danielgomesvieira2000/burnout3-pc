@@ -51,6 +51,14 @@ Controls
 A game controller (Xbox, PlayStation, most others SDL knows) works as a
 DualShock 2. Rumble is supported.
 
+Modern controls (PC SETTINGS, CONTROLS) - while racing only; the menus and
+the pause screen keep Cross and Triangle:
+  R2   accelerate (how far you pull)    Cross     boost, Impact Time
+  L2   brake, reverse (how far)         Square    look back
+  R1   boost                            Triangle  change camera
+  L1   next EA Trax song                Circle    as before
+With TRIGGER EFFECTS on, a DualSense's triggers push back while you race.
+
 Keyboard:
   Arrow keys        D-pad            Enter       Start
   X                 Cross            Backspace   Select
@@ -60,7 +68,12 @@ Keyboard:
 
 Mouse, in the menus: point at an item to highlight it, click to choose it,
 right-click to go back, wheel to move up and down. The buttons along the
-bottom of the screen can be clicked too.
+bottom of the screen can be clicked too, and so can the keys of the name
+keyboard. On the car select, click the chosen car (on the left) to go on
+with it, or the one above or below it to turn to that one.
+
+The button icons follow what you play with: the controller's buttons, the
+keys while you use the keyboard, the mouse's buttons once you use the mouse.
 
 Other keys:
   Alt+Enter   fullscreen or a window
@@ -74,9 +87,20 @@ PC settings
 -----------
 
 In the main menu, PC SETTINGS (where ONLINE used to be - EA's servers are
-long gone) sets: fullscreen, vertical sync, frame pacing, the internal
-resolution (original, twice as sharp, or as sharp as your screen - up to
-4x), the speed blur, and the aspect ratio (4:3, 16:9 or your window's).
+long gone) has three pages (Triangle goes back):
+
+  VIDEO      fullscreen, vertical sync, frame pacing, the internal
+             resolution (original, twice as sharp, or as sharp as your
+             screen - up to 4x), the aspect ratio (4:3, 16:9 or your
+             window's), and anti-aliasing: off, FXAA (edges smoothed,
+             almost free), or SSAA 2X / 4X (drawn 2 or 4 times as sharp and
+             averaged down - the cleanest, and the heaviest on the GPU;
+             with the resolution at DISPLAY, SSAA 4X can be too much)
+  GRAPHICS   the speed blur
+  CONTROLS   modern controls (triggers to accelerate and brake, face
+             buttons for the rest - see "Controls") and, with them, a
+             DualSense's trigger effects
+
 QUIT GAME is in the main menu too.
 
 
@@ -107,8 +131,10 @@ Known issues
 * Only the NTSC-U release (SLUS-21050) runs.
 * Online play is not available.
 * A heavy moment in a race can still show a picture a frame late.
-* Some menus (the name keyboard, the map, the car selection) take the
-  mouse's wheel, right button and bottom-bar buttons, but not pointing yet.
+* The World Tour map takes the mouse's wheel, right button and
+  bottom-bar buttons, but not pointing yet.
+* The DualSense's trigger effects are new and lightly tested; tell us
+  how they feel (USB and Bluetooth).
 
 
 Licences

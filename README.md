@@ -35,9 +35,15 @@ wrong, press **F12** at that moment and attach the folder it writes to
 - **Widescreen**: 4:3, 16:9 or the window's own shape, with the HUD kept in
   place - and a HUD editor (**F10**) to anchor each HUD element left, right,
   centred or stretched.
-- **PC settings** in the game's own main menu (where ONLINE used to be):
-  fullscreen, vertical sync, frame pacing, resolution, the speed blur, the
-  aspect ratio. Saved in `pc_settings.ini`; QUIT GAME in the main menu.
+- **Button icons for the keyboard and mouse**: the game's button prompts turn
+  into keys (or mouse buttons) as soon as those are used, and back to the
+  controller's when it is.
+- **PC settings** in the game's own main menu (where ONLINE used to be), in
+  pages: VIDEO (fullscreen, vertical sync, frame pacing, resolution, the
+  aspect ratio, anti-aliasing: FXAA or SSAA 2x/4x), GRAPHICS (the speed blur),
+  CONTROLS (modern controls: R2/L2 accelerate and brake, analogue, face
+  buttons for boost and the rest, while racing only; DualSense trigger
+  effects). Saved in `pc_settings.ini`; QUIT GAME in the main menu.
 - **Smooth frames**: frame pacing, and 120 Hz in fullscreen on a 144 Hz
   screen so that 60 frames a second show evenly.
 - **Controls**: any controller SDL knows (Xbox, PlayStation, ...) as a
@@ -81,8 +87,8 @@ workflow it follows is in the engine's skills (`engine/.claude/skills`).
 
 - More playtesting: whole careers, every event type, every track.
 - Higher frame-rate settings (beyond the game's 60 frames a second).
-- Modern controls: button remapping, PS5 (DualSense) adaptive triggers and
-  haptics, steering wheels with force feedback.
+- More controls: button remapping, DualSense haptics, steering wheels with
+  force feedback.
 - Graphical mods and options (beyond texture packs).
 - Better performance on slower machines.
 - Linux, macOS and Android ports.

@@ -1,7 +1,7 @@
 {
   "name": "Burnout 3: Takedown (NTSC-U)",
   "title": "Burnout 3: Takedown",
-  "version": "0.2.0-alpha",
+  "version": "0.3.0-alpha",
   "iso": "../../Burnout 3 - Takedown.iso",
   "executable": "SLUS_210.50",
   "database": "build/slus_210_50.json",
