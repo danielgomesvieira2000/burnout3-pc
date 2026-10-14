@@ -46,8 +46,14 @@ void F_001322B0(lifted::Context& c);
 void F_00271A00(lifted::Context& c);
 void F_00318100(lifted::Context& c);
 void F_003181E0(lifted::Context& c);
+void F_00445530(lifted::Context& c);
+void F_003C9BF0(lifted::Context& c);
 void F_00321470(lifted::Context& c);
 void F_0031C350(lifted::Context& c);
+
+bool LanEnabled();                 // iop_servers.cpp: B3_LAN=1, the LAN work's switch
+void LanPrepareLobby();            // lan_lobby.cpp: finds the LAN's lobby, or serves it
+void LanPresetLogin();             // lan.cpp: SELECT EA ACCOUNT logs in by itself
 
 namespace {
 
@@ -285,7 +291,7 @@ struct MainMenuState {
     u32 entries = 0, helps = 0;             // our arrays: kEntries entries (8 bytes), help pointers
     u32 game_entries[kEntries][2] = {};     // the main menu's rows, kept while PC SETTINGS shows
     u32 game_helps[kEntries] = {};
-    GuestText pc_settings, pc_settings_help, quit, quit_help, quit_question, blank;
+    GuestText pc_settings, pc_settings_help, quit, quit_help, quit_question, blank, lan;
     GuestText option_names[kOptionCount], option_helps[kOptionCount];
     bool made = false, settings = false, quitting = false;
 };
@@ -308,6 +314,8 @@ void MakeTexts(lifted::Context& c) {
     g_main.quit_question.Set("Quit Burnout 3?");
     g_main.blank.Make(2);
     g_main.blank.Set(" ");               // (an empty string the list does not draw as empty)
+    g_main.lan.Make(4);
+    g_main.lan.Set("LAN");
     for (u32 i = 0; i < kOptionCount; ++i) {
         g_main.option_names[i].Make(36);
         g_main.option_helps[i].Make(64);
@@ -322,15 +330,25 @@ void ShowOption(u32 i) {
 }
 
 constexpr u32 kQuitQuestion = 0x7F02;       // our string id (past the table's 4,006): the question
+constexpr u32 kLanString = 0x7F03;          // ours: MULTIPLAYER's LAN (B3_LAN=1)
 
 void GetString(lifted::Context& c) {
     const u32 id = u32(c.r[5]), caller = u32(c.r[31]);
+    // B3_STRINGS=1 (the LAN work): each (id, caller) asked, once.
+    static const bool tell = std::getenv("B3_STRINGS") != nullptr;
+    if (tell) {
+        static std::set<u64> seen;
+        if (seen.insert((u64(id) << 32) | caller).second)
+            std::fprintf(stderr, "[strings] 0x%X from %08X\n", id, caller - 8);
+    }
     // The main menu's ONLINE as PC SETTINGS: asked from 0x003183D0 (it
     // alone; other screens keep their ONLINE), and its description.
-    if ((id == kMainMenuOnline && caller == 0x003183D0u) || id == kOnlineHelp || id == kQuitQuestion) {
+    if ((id == kMainMenuOnline && caller == 0x003183D0u) || id == kOnlineHelp || id == kQuitQuestion ||
+        id == kLanString) {
         MakeTexts(c);
         const GuestText& t = id == kMainMenuOnline ? g_main.pc_settings
                            : id == kOnlineHelp     ? g_main.pc_settings_help
+                           : id == kLanString      ? g_main.lan
                                                    : g_main.quit_question;
         if (t.at) {
             c.r[2] = t.at;
@@ -533,16 +551,89 @@ void MainMenu(lifted::Context& c) {
     }
 }
 
+// ------------------------------------------------------------ MULTIPLAYER: LAN
+//
+// The LAN work (B3_LAN=1): the main menu keeps PC SETTINGS; the game's
+// online flow opens from a sixth row of MULTIPLAYER, LAN. That screen's
+// list (0x01E97D08, made by 0x004456B0, room for ten rows) is set up by
+// 0x003C9A60, which then draws it (0x00445530): its count at +4, the row taken at +8, the rows' string ids
+// from +0x10, two "greyed" flags each at +0x38 and +0x42. The screen's
+// handler (0x003C9BF0) takes a row on message 5, event 0, with its +0x10 at 1.
+
+constexpr u32 kModeList = 0x01E97D08u;
+constexpr u32 kModeLanRow = 5;              // after RACE ... PARTY CRASH
+
+/* 0x00445530(list): the rows drawn. MULTIPLAYER's gets LAN first. */
+void MultiplayerRows(lifted::Context& c) {
+    if (u32(c.r[4]) != kModeList) {
+        F_00445530(c);
+        return;
+    }
+    generated::Write32(kModeList + 0x4, kModeLanRow + 1);
+    generated::Write32(kModeList + 0x10 + 4 * kModeLanRow, kLanString);
+    generated::Write8(kModeList + 0x38 + kModeLanRow, 0);
+    generated::Write8(kModeList + 0x42 + kModeLanRow, 0);
+    F_00445530(c);
+}
+
+/* LAN taken: what the main menu does for ONLINE (0x0030E340, its row 3):
+   the profile's name copied out, 0x01E6549A set, the main mode (0x01E900B4)
+   3, and the online flow's first screen (0x94414018F847A2EA) brought up by
+   the screen manager (0x01EA2970: find, then +0x18 and +0x1C). */
+void MultiplayerScreen(lifted::Context& c) {
+    const u32 screen = u32(c.r[4]), message = u32(c.r[5]), event = u32(c.r[7]);
+    if (message != 5 || event != 0 || s8(generated::ReadU8(screen + 0x10)) != 1 ||
+        generated::ReadU32(kModeList + 0x8) != kModeLanRow) {
+        F_003C9BF0(c);
+        return;
+    }
+    GuestCall(c, 0x0022D180u, {0x004F50C0u, 0, u32(s32(s8(c.r[8])))});
+    if (const u32 profile = generated::ReadU32(0x0051BF9Cu)) {
+        const u32 name = GuestCall(c, 0x0013B730u, {profile});
+        GuestCall(c, 0x002139A0u, {0x00516DF4u, 9, name});
+    }
+    // After the profile's name is out (the lobby's room is named after it),
+    // before the online flow looks the lobby's name up.
+    LanPrepareLobby();
+    LanPresetLogin();
+    generated::Write8(0x01E6549Au, 1);
+    generated::Write32(0x01E900B4u, 3);
+    constexpr u32 kManager = 0x01EA2970u;
+    // The screen's id is 64 bits, in a1 whole: called by hand, not GuestCall.
+    u64 saved[32];
+    std::memcpy(saved, c.r, sizeof saved);
+    c.r[4] = kManager;
+    c.r[5] = 0x94414018F847A2EAull;
+    c.rh[5] = 0;
+    lifted::Call(c, 0x00217690u, u32(saved[31]));
+    const u32 next = u32(c.r[2]);
+    std::memcpy(c.r, saved, sizeof saved);
+    if (next && next != generated::ReadU32(kManager + 4)) {
+        const u32 vtable = generated::ReadU32(kManager);
+        GuestCall(c, generated::ReadU32(vtable + 0x18), {kManager, next, 0});
+        generated::Write32(kManager + 4, next);
+        if (const u32 from = generated::ReadU32(kManager + 0x10)) {
+            const u32 when = generated::ReadU32(from + 0x20);
+            generated::Write32(kManager + 0x14, when);
+            generated::Write32(next + 0x8, when);
+        }
+        GuestCall(c, generated::ReadU32(generated::ReadU32(kManager) + 0x1C), {kManager, next, 0});
+    }
+    std::fprintf(stderr, "[lan] MULTIPLAYER: LAN -> the online flow\n");
+}
+
 }  // namespace
 
 void RegisterGameIopServers();     // iop_servers.cpp
 void RegisterWidescreen();         // widescreen.cpp
 void RegisterMouse();              // mouse.cpp
+void RegisterLan();                // lan.cpp
 
 void RegisterGameOverrides() {
     RegisterGameIopServers();
     RegisterWidescreen();
     RegisterMouse();
+    RegisterLan();
     using namespace ps2host::mc2;
     ps2host::Override(0x00244218, CardOr<GetInfo, F_00244218>, "libmc2 GetInfo (host card)");
     ps2host::Override(0x002445D0, CardOr<Format, F_002445D0>, "libmc2 Format (host card)");
@@ -566,6 +657,10 @@ void RegisterGameOverrides() {
     ps2host::Override(0x001322B0u, FastLoading<F_001322B0>, "the game's loading: fast-forwarded while it waits");
     ps2host::Override(0x00271A00u, GetString, "the string lookup: PC SETTINGS' words");
     ps2host::Override(0x003181E0u, MainMenuInput, "the main menu's input: PC SETTINGS, QUIT GAME");
+    if (LanEnabled()) {
+        ps2host::Override(0x00445530u, MultiplayerRows, "LAN: MULTIPLAYER's rows, LAN added");
+        ps2host::Override(0x003C9BF0u, MultiplayerScreen, "LAN: MULTIPLAYER's LAN opens the online flow");
+    }
     ps2host::Override(0x00318100u, MainMenu, "the main menu: QUIT GAME's message box");
     ps2host::Override(0x00321470u, MenuList, "a list: the main menu's with QUIT GAME");
     ps2host::Override(0x0031C350u, MenuHelps, "a ticker: the main menu's descriptions with QUIT GAME's");

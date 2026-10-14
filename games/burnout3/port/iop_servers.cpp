@@ -8,6 +8,7 @@
  */
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -48,7 +49,37 @@ std::vector<u8> LgDev(u32 procedure, const std::vector<u8>& data) {
     return answer;
 }
 
+/* LGAUD.IRX, Logitech's USB audio (server 0x50494C42, "PILB"): the headset
+   the online mode's voice chat uses. Its EE library, lgAudInit at 0x002E0838
+   (called when the online mode starts), calls procedure 0x10 with 0x20 bytes
+   and reads the module's version from the answer's word at +8: 0x010A0100
+   exactly, or it warns for any other 0x010Axxxx and halts for anything else
+   ("wrong version of lgaud.irx"). No headset is attached here.
+     procedure 1   lgAudEnumerate (0x002E1960): the answer's first word is the
+                   result, an error when bit 31 is set (as lgDev's).
+   Other procedures are noted and answered with zeros. */
+std::vector<u8> LgAud(u32 procedure, const std::vector<u8>& data) {
+    constexpr u32 kVersion = 0x010A0100u;
+    constexpr u32 kNoDevice = 0x80000001u;
+    std::vector<u8> answer(data.size() < 0x30 ? 0x30 : data.size(), 0);
+    if (procedure == 0x10) {
+        std::memcpy(&answer[8], &kVersion, 4);
+        return answer;
+    }
+    if (procedure == 1) {
+        std::memcpy(&answer[0], &kNoDevice, 4);
+        return answer;
+    }
+    char text[96];
+    std::snprintf(text, sizeof text, "IOP: lgAud procedure %u is not implemented (zeros)",
+                  unsigned(procedure));
+    ps2host::Note("lgaud " + std::to_string(procedure), text);
+    return answer;
+}
+
 }  // namespace
+
+bool LanEnabled();
 
 void RegisterGameIopServers() {
     // RenderWare Audio, the game's sound driver: its protocol is its own (EE
@@ -60,4 +91,19 @@ void RegisterGameIopServers() {
     // B3ROUTE: an RPC server of the game's own (0x00150276).
     ps2host::iop::RunModule("B3ROUTE.IRX");
     ps2host::RegisterRpcServer(0x046D046Du, LgDev);
+    ps2host::RegisterRpcServer(0x50494C42u, LgAud);
+    // EA's DirtySock module: the game's network (its sockets, SSL, NAT) and
+    // EA's own RPC over SIF command 1. It runs, on the host's inet
+    // (engine iop_inet.cpp). With the LAN on (LanEnabled).
+    if (LanEnabled()) ps2host::iop::RunModule("DRTYSCKF.IRX");
+}
+
+/* The LAN play (MULTIPLAYER's LAN row and all it needs): on, unless B3_LAN=0
+   - the upstream's recorded runs were made without it. */
+bool LanEnabled() {
+    static const bool on = [] {
+        const char* value = std::getenv("B3_LAN");
+        return !(value && *value == '0');
+    }();
+    return on;
 }
