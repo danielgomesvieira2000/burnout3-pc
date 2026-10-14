@@ -285,7 +285,7 @@ void OnlineProbe(lifted::Context& c) {
     const u32 o = u32(c.r[4]) + 0x30000u;
     static u32 last[4] = {~0u, ~0u, ~0u, ~0u};
     F_0026D2A0(c);
-    const u32 now[4] = {generated::ReadU32(o + 0x29E8), generated::ReadU32(o + 0x29EC),
+    const u32 now[4] = {u32(generated::ReadU32(o + 0x29E8)), u32(generated::ReadU32(o + 0x29EC)),
                         u32(generated::ReadU8(o + 0x29E2)), u32(generated::ReadU8(o + 0x29E3))};
     if (std::memcmp(now, last, sizeof now) != 0) {
         char text[160];
@@ -333,8 +333,8 @@ void MovieProbe(lifted::Context& c) {
 void ScreenProbe(lifted::Context& c) {
     const u32 screen = u32(c.r[4]);
     F_003530F0(c);
-    const u32 now[4] = {generated::ReadU32(0x01E90424u), u32(generated::ReadU8(screen + 8)),
-                        generated::ReadU32(screen + 4), generated::ReadU32(0x01E654C8u)};
+    const u32 now[4] = {u32(generated::ReadU32(0x01E90424u)), u32(generated::ReadU8(screen + 8)),
+                        u32(generated::ReadU32(screen + 4)), u32(generated::ReadU32(0x01E654C8u))};
     static u32 last[4] = {~0u, ~0u, ~0u, ~0u};
     static u32 calls = 0;
     ++calls;
