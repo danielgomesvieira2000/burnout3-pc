@@ -17,6 +17,24 @@
  * zero in plain replies), big-endian length including the header - then
  * KEY=value pairs, one per line, and a NUL. Ports: redirector TCP 21800,
  * lobby TCP 10901, discovery UDP 21801.
+ *
+ * TODO (VPNs: ZeroTier, Radmin, Hamachi, and real LAN mixed with them):
+ * - Discover() broadcasts to 255.255.255.255, which Windows sends out of one
+ *   adapter only (the physical one): players on a VPN never hear the
+ *   question, so each side starts its own lobby. Ask on every adapter, each
+ *   at its own subnet broadcast (GetAdaptersAddresses).
+ * - The answer names LanLocalAddressText(), the address of the adapter that
+ *   reaches the Internet, not the one the question came in on: a VPN player
+ *   gets a LAN address it cannot reach. Answer with the receiving adapter's.
+ * - Mixed groups (one player only on the real LAN, another only on a VPN,
+ *   the host on both): the race is peer to peer (lan_libnet.cpp, UDP 3658)
+ *   and those two have no path between them. Hand each player stand-in
+ *   addresses for the others and let lan_libnet.cpp send directly where a
+ *   real address answers, else through the host as a relay.
+ * - "Join by address" in the game's unused menu option, in place of
+ *   PS2HOST_INET_HOST, for VPNs that carry no broadcast at all.
+ * Until then: everyone on the same network, or B3_LAN_IP and
+ * PS2HOST_INET_HOST set by hand.
  */
 #include <chrono>
 #include <cstdio>
