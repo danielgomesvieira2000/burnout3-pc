@@ -118,14 +118,23 @@ struct ElementId {
 /* The port's own anchors (the HUD editor's settings take precedence). */
 const std::pair<const char*, Anchor> kDefaultAnchors[] = {
     // The race (chosen in play with the HUD editor): position, the boost
-    // bar and their panels on the left, the speed on the right.
+    // bar and their panels on the left, the speed on the right; what the top
+    // corners hold (the lap, the times) to their sides.
+    {"hud.1A0790.1A5740.BL", Anchor::kLeft},
     {"hud.1A0790.1A6290.BC", Anchor::kLeft},
     {"hud.1A0790.1A6290.BL", Anchor::kLeft},
     {"hud.1A0790.1D5FB0.TL", Anchor::kLeft},
+    {"hud.1A0790.1D5FB0.TR", Anchor::kRight},
+    {"hud.1A0790.352AB0.TR", Anchor::kStretch},
     {"hud.1A0790.381030.BR", Anchor::kRight},
     {"hud.1A0790.381AB0.TL", Anchor::kLeft},
+    {"hud.1A0790.381AB0.TR", Anchor::kRight},
     {"hud.1A0790.3CD920.BR", Anchor::kRight},
     {"hud.1A0790.3CD920.TL", Anchor::kLeft},
+    {"hud.1A0790.3CD920.TR", Anchor::kRight},
+    {"hud.1A0790.3D6C30.TR", Anchor::kRight},
+    {"hud.1A0790.3D7B40.BC", Anchor::kStretch},
+    {"hud.1A0790.3D7B40.BR", Anchor::kRight},
     {"hud.1D75C0.1A7B00.BC", Anchor::kLeft},
     {"hud.1D75C0.1A7B00.BL", Anchor::kLeft},
     {"hud.1D75C0.1A8180.BL", Anchor::kLeft},
@@ -365,17 +374,27 @@ struct Piece {
     ElementId id;                       // its cell found at the flush
 };
 std::vector<Piece> g_pieces;            // appended since the last flush
+std::vector<Piece> g_building;          // builders running: where each began, who called
 
-/* A builder: its call is a piece. A flush inside it leaves it none. */
+/* A builder: its call is a piece. Each builder flushes first when the batch
+   has no room for it (some again on the way): what it appended before a
+   flush is a piece of that flush (Flush2D), and it goes on from the emptied
+   batch's start. Taken from where it began before the flush, a builder's
+   piece came out empty and its vertices belonged to no element - drawn
+   centred, whichever builder found the batch full that frame (the race's
+   BEST label flipping between its anchor and the middle, apart from its
+   shadow). */
 template <void (*Build)(lifted::Context&)>
 void Builder(lifted::Context& c) {
     const u32 gp = u32(c.r[28]);
-    const u32 begin = generated::ReadU32(gp - 0x5D98u);
-    ElementId id;
-    Caller(&id);
+    Piece piece{generated::ReadU32(gp - 0x5D98u), 0, {}};
+    Caller(&piece.id);
+    g_building.push_back(piece);
     Build(c);
+    piece = g_building.back();
+    g_building.pop_back();
     const u32 end = generated::ReadU32(gp - 0x5D98u);
-    if (end > begin) g_pieces.push_back({begin, end, id});
+    if (end > piece.begin) g_pieces.push_back({piece.begin, end, piece.id});
 }
 
 bool IsXyz(u32 reg) { return reg == 0x4 || reg == 0x5 || reg == 0xC || reg == 0xD; }
@@ -542,6 +561,15 @@ void Flush2D(lifted::Context& c) {
     u32 at = generated::ReadU32(gp - 0x6D20u);
     const u32 end = generated::ReadU32(gp - 0x5D98u);
     const float k = Squeeze();
+    // A builder flushing on its way: what it appended so far is its piece.
+    // PS2HOST_HUD_LOG=1: how often that happens.
+    static const bool log = std::getenv("PS2HOST_HUD_LOG") != nullptr;
+    static u32 flushes = 0, inside = 0;
+    for (const Piece& b : g_building)
+        if (end > b.begin) g_pieces.push_back({b.begin, end, b.id}), ++inside;
+    if (log && ++flushes % 1000 == 0)
+        std::fprintf(stderr, "[hud] %u batches flushed, %u of them inside a builder\n", flushes, inside);
+    std::sort(g_pieces.begin(), g_pieces.end(), [](const Piece& x, const Piece& y) { return x.begin < y.begin; });
     std::vector<Vertex2D> all;
     while (at + 16 <= end && end - at < 0x10000) at = TagVertices(at, end, &all, k);
     if (k < 1.0f) {
@@ -552,6 +580,8 @@ void Flush2D(lifted::Context& c) {
     }
     g_pieces.clear();
     F_0021A4F0(c);
+    // The builders still running go on from the emptied batch.
+    for (Piece& b : g_building) b.begin = generated::ReadU32(gp - 0x5D98u);
 }
 
 // ------------------------------------------------------------ the frontend's sprites

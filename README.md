@@ -53,7 +53,8 @@ wrong, press **F12** at that moment and attach the folder it writes to
   (below); **Tab** turns one off and on.
 - **Saves** on a memory card folder beside the executable; the disc image
   chosen once and remembered; Alt+Enter for fullscreen.
-- **Bug reports**: a log of every run, and F12 captures of a frame.
+- **Bug reports**: a log of every run, and F12 captures of a frame; an FPS
+  counter on **F1**.
 
 ## Texture packs
 

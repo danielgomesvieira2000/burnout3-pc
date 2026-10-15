@@ -76,6 +76,8 @@ The button icons follow what you play with: the controller's buttons, the
 keys while you use the keyboard, the mouse's buttons once you use the mouse.
 
 Other keys:
+  F1          an FPS counter on and off (pictures shown a second)
+  F9          the engine's PC settings panel over the game (also L3 + R3)
   Alt+Enter   fullscreen or a window
   Tab         a texture pack off and on (see "Texture packs")
   F10         the HUD editor in widescreen: PgUp/PgDn choose an element,
@@ -135,6 +137,8 @@ Known issues
   bottom-bar buttons, but not pointing yet.
 * The DualSense's trigger effects are new and lightly tested; tell us
   how they feel (USB and Bluetooth).
+* Your own car's engine sound is new: races are louder than before, and
+  the loudest moments can crackle; tell us if you hear it.
 
 
 Licences
