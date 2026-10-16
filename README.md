@@ -71,7 +71,7 @@ no server to run - the first player in serves the others, inside the game.
   broadcast, port 21801); the lobby answers with its address on that
   network. None answering, this game serves. A lobby served on a chosen
   network answers only that network's players (on AUTO, every network's);
-  it closes when its player goes back to MULTIPLAYER.
+  it closes when its player leaves it for the menus (not for a race).
 - **Accessing network**: the game's UPnP search (four tries, ~2 s each, for
   a router to open a port on) is skipped - a LAN has none - so the lobby
   comes at once.

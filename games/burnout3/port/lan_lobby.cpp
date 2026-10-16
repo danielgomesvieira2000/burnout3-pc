@@ -549,6 +549,8 @@ void Redirector(SOCKET s) {
     closesocket(s);
 }
 
+void StopLobby();
+
 void Lobby(SOCKET s, sockaddr_in peer) {
     auto self = std::make_shared<User>();
     {
@@ -573,8 +575,13 @@ void Lobby(SOCKET s, sockaddr_in peer) {
         std::lock_guard<std::recursive_mutex> hold(g_lock);
         Command(self, command, pairs);
     });
+    bool host_left = false;
     {
         std::lock_guard<std::recursive_mutex> hold(g_lock);
+        // The serving game's own player (it came from this PC's address)
+        // leaving, not for a race (players leave the lobby as one starts):
+        // back to the menus - the lobby goes with it (StopLobby, below).
+        host_left = self->address == self->here && !(self->game && self->game->started);
         LeaveGame(*self);
         for (auto it = g_users.begin(); it != g_users.end(); ++it)
             if (*it == self) {
@@ -589,6 +596,7 @@ void Lobby(SOCKET s, sockaddr_in peer) {
         self->s = INVALID_SOCKET;
     }
     Log(self->pers + " disconnected");
+    if (host_left) StopLobby();
 }
 
 template <class Handle>
