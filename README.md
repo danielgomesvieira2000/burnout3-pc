@@ -69,7 +69,9 @@ no server to run - the first player in serves the others, inside the game.
   taken.
 - **Finding the lobby**: the game asks on the chosen network (a UDP
   broadcast, port 21801); the lobby answers with its address on that
-  network. None answering, this game serves.
+  network. None answering, this game serves. A lobby served on a chosen
+  network answers only that network's players (on AUTO, every network's);
+  it closes when its player goes back to MULTIPLAYER.
 - **The firewall**: TCP 21800 (redirector) and 10901 (lobby), UDP 21801
   (discovery) and 3658 (the race, player to player). Windows often counts a
   VPN's adapter as a public network.

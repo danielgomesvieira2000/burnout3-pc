@@ -851,6 +851,12 @@ void CableState(lifted::Context& c) {
    the lobby it serves). */
 std::string LanLocalAddressText() { return Dotted(LocalAddress()); }
 
+/* B3_LAN_IP set before the game started (not by the game's list): the
+   address the lobby names to everyone (lan_lobby.cpp, Discovery). */
+bool LanAddressByHand() {
+    return g_address_by_hand;
+}
+
 /* The game's own automatic login, primed: SELECT EA ACCOUNT's handler
    (0x0034A4E0), coming in (message 3), logs in at once with a remembered
    account when 0x01EA3150 is set - name 0x01EA3084, password 0x01EA30A4,

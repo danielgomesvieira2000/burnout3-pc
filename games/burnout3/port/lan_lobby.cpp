@@ -66,6 +66,7 @@
 #endif
 
 bool LanDebug();                   // lan.cpp: B3_LAN_DEBUG=1
+bool LanAddressByHand();           // lan.cpp: B3_LAN_IP set before the game started
 
 namespace {
 
@@ -604,19 +605,28 @@ void Accept(SOCKET listener, Handle handle) {
 /* Answers the LAN's question "a lobby here?" with the lobby's address as the
    asker reaches it: this PC's on the network the question came from (the
    real LAN's for a player beside it, the VPN's for one on ZeroTier or
-   Radmin). An address set by hand (B3_LAN_IP; 127.0.0.1 for tests on one
-   PC) is the answer whoever asks. */
+   Radmin). An address set by hand (B3_LAN_IP before the game started;
+   127.0.0.1 for tests on one PC) is the answer whoever asks. A network
+   chosen in the game's list: only its players are answered - the race
+   goes out of that network alone, the others make their own lobby. */
 void Discovery(SOCKET s, std::string address) {
-    const bool fixed = std::getenv("B3_LAN_IP") != nullptr || address.rfind("127.", 0) == 0;
+    const bool fixed = LanAddressByHand() || address.rfind("127.", 0) == 0;
+    in_addr chosen{};
+    const char* text = std::getenv("B3_LAN_IP");
+    const bool one = !fixed && text && *text && inet_pton(AF_INET, text, &chosen) == 1;
+    // The answer for ASKER, or "" for none.
     const auto AnswerFor = [&](const in_addr& asker) {
-        std::string named = address;
-        if (!fixed)
-            for (const Network& n : Networks())
-                if (n.Holds(asker)) {
-                    named = Dotted(n.address);
-                    break;
-                }
-        return std::string(kAnswer) + " " + named;
+        if (fixed) return std::string(kAnswer) + " " + address;
+        for (const Network& n : Networks())
+            if (n.Holds(asker)) {
+                if (one && n.address.s_addr != chosen.s_addr) break;
+                return std::string(kAnswer) + " " + Dotted(n.address);
+            }
+        if (one) {
+            if (LanDebug()) Log("a question from " + Dotted(asker) + ", not on the chosen network: not answered");
+            return std::string();
+        }
+        return std::string(kAnswer) + " " + address;
     };
     for (;;) {
         char data[64];
@@ -629,7 +639,8 @@ void Discovery(SOCKET s, std::string address) {
         }
         if (got == int(sizeof kQuestion - 1) && std::memcmp(data, kQuestion, sizeof kQuestion - 1) == 0) {
             const std::string answer = AnswerFor(from.sin_addr);
-            sendto(s, answer.data(), int(answer.size()), 0, reinterpret_cast<sockaddr*>(&from), size);
+            if (!answer.empty())
+                sendto(s, answer.data(), int(answer.size()), 0, reinterpret_cast<sockaddr*>(&from), size);
         }
     }
 }
