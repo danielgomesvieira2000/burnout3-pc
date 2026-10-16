@@ -583,8 +583,10 @@ void Lobby(SOCKET s, sockaddr_in peer) {
         const auto room = InRoom();
         for (const auto& u : room)
             u->Send("+pop", {"Z=" + std::to_string(kRoomId) + "/" + std::to_string(room.size())});
+        // Closed here unless the lobby closed (StopLobby) and closed it.
+        if (self->s != INVALID_SOCKET) closesocket(self->s);
+        self->s = INVALID_SOCKET;
     }
-    closesocket(s);
     Log(self->pers + " disconnected");
 }
 
@@ -633,6 +635,32 @@ void Discovery(SOCKET s, std::string address) {
 }
 
 bool g_serving = false;
+SOCKET g_listeners[3] = {INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET};
+
+/* Closes the lobby: its ports (the Accept and Discovery threads end) and its
+   players' connections, cut short (no TIME_WAIT left on 10901 to stop the
+   next lobby taking the port). */
+void StopLobby() {
+    std::lock_guard<std::recursive_mutex> hold(g_lock);
+    if (!g_serving) return;
+    for (SOCKET& s : g_listeners) {
+        if (s != INVALID_SOCKET) closesocket(s);
+        s = INVALID_SOCKET;
+    }
+    for (const auto& u : g_users) {
+        std::lock_guard<std::mutex> sending(u->send_lock);
+        if (u->s == INVALID_SOCKET) continue;
+        const linger cut{1, 0};
+        setsockopt(u->s, SOL_SOCKET, SO_LINGER, reinterpret_cast<const char*>(&cut), sizeof cut);
+        closesocket(u->s);
+        u->s = INVALID_SOCKET;
+    }
+    for (const auto& u : g_users) u->game = nullptr;
+    g_users.clear();
+    g_games.clear();
+    g_serving = false;
+    Log("the lobby closed");
+}
 
 bool StartLobby(const std::string& address) {
     WSADATA data;
@@ -646,6 +674,9 @@ bool StartLobby(const std::string& address) {
             if (s != INVALID_SOCKET) closesocket(s);
         return false;
     }
+    g_listeners[0] = redirector;
+    g_listeners[1] = lobby;
+    g_listeners[2] = discovery;
     std::thread([=] { Accept(redirector, [](SOCKET s, sockaddr_in) { Redirector(s); }); }).detach();
     std::thread([=] { Accept(lobby, Lobby); }).detach();
     std::thread([=] { Discovery(discovery, address); }).detach();
@@ -730,6 +761,14 @@ std::vector<std::pair<std::string, std::string>> LanNetworkList() {
     return out;
 }
 
+/* LAN left (back in MULTIPLAYER or the main menu, overrides.cpp): the
+   lobby this game served, if any, closed. */
+void LanStopLobby() {
+#ifdef _WIN32
+    StopLobby();
+#endif
+}
+
 std::string LanLocalAddressText();      // lan.cpp: this PC's address on the LAN
 std::string LanPlayerName();            // lan.cpp: this PC's player, as the lobby knows it
 
@@ -740,7 +779,9 @@ void LanPrepareLobby() {
 #ifdef _WIN32
     static bool fixed = std::getenv("PS2HOST_INET_HOST") != nullptr && !g_serving;
     if (fixed) return;          // set by hand: the lobby is there
-    if (g_serving) return;      // this game is the LAN's lobby already
+    // A lobby this game served before (LAN taken again, maybe on another
+    // network): closed, and the LAN asked again.
+    StopLobby();
     if (const u_long ip = Discover(1200)) {
         in_addr a{};
         a.s_addr = ip;

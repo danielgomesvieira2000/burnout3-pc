@@ -56,6 +56,7 @@ void F_0031C350(lifted::Context& c);
 
 bool LanEnabled();                 // iop_servers.cpp: the LAN work, on unless B3_LAN=0
 void LanPresetLogin();             // lan.cpp: SELECT EA ACCOUNT logs in by itself
+void LanStopLobby();               // lan_lobby.cpp: the lobby this game served, closed
 
 namespace {
 
@@ -665,6 +666,7 @@ void MultiplayerRows(lifted::Context& c) {
         F_00445530(c);
         return;
     }
+    LanStopLobby();                 // back from LAN: its lobby closed
     generated::Write32(kModeList + 0x4, kModeLanRow + 1);
     generated::Write32(kModeList + 0x10 + 4 * kModeLanRow, kLanString);
     generated::Write8(kModeList + 0x38 + kModeLanRow, 0);
