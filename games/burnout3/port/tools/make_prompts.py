@@ -220,15 +220,12 @@ def atlas(mouse):
     return c
 
 
-def face(c, cell, letter, colour=WHITE):
-    """A controller's face button: its letter in a ring."""
+def face(c, cell, letter, colour=WHITE, lower=0.0):
+    """A controller's face button: its letter, the size of the game's shape
+    (the game draws the button's disc around it). `lower`: texels down - the
+    triangle's box sits high, and its letter with it."""
     x0, y0, x1, y1 = cell
-    side = min(x1 - x0, y1 - y0) - 0.6
-    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-    w = 1.1
-    c.draw.ellipse((c.p(cx - side / 2 + w / 2, cy - side / 2 + w / 2), c.p(cx + side / 2 - w / 2, cy + side / 2 - w / 2)),
-                   outline=colour, width=round(w * c.k))
-    c.text(letter, cell, colour, 0.5, width=1.15)
+    c.text(letter, (x0, y0 + lower, x1, y1 + lower), colour, 0.8, width=1.5)
 
 
 def menu_button(c, cell, colour, width):
@@ -259,7 +256,7 @@ def pad_atlas(nintendo):
     face(c, CROSS, bottom)
     face(c, CIRCLE, right)
     face(c, SQUARE, left)
-    face(c, TRIANGLE, top)
+    face(c, TRIANGLE, top, lower=1.0)
     thin = 2.0 if nintendo else 1.2          # the Xbox's small icons blur together drawn thicker
     for cells, colour, width in ((START, WHITE, 1.5), (START_DARK, DARK, thin)):
         for cell in cells:
