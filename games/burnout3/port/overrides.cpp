@@ -54,7 +54,7 @@ void F_003C9BF0(lifted::Context& c);
 void F_00321470(lifted::Context& c);
 void F_0031C350(lifted::Context& c);
 
-bool LanEnabled();                 // iop_servers.cpp: B3_LAN=1, the LAN work's switch
+bool LanEnabled();                 // iop_servers.cpp: the LAN work, on unless B3_LAN=0
 void LanPresetLogin();             // lan.cpp: SELECT EA ACCOUNT logs in by itself
 
 namespace {
@@ -391,7 +391,7 @@ void ShowOption(u32 i) {
 }
 
 constexpr u32 kQuitQuestion = 0x7F02;       // our string id (past the table's 4,006): the question
-constexpr u32 kLanString = 0x7F03;          // ours: MULTIPLAYER's LAN (B3_LAN=1)
+constexpr u32 kLanString = 0x7F03;          // ours: MULTIPLAYER's LAN
 
 void GetString(lifted::Context& c) {
     const u32 id = u32(c.r[5]), caller = u32(c.r[31]);
@@ -649,7 +649,7 @@ void MainMenu(lifted::Context& c) {
 
 // ------------------------------------------------------------ MULTIPLAYER: LAN
 //
-// The LAN work (B3_LAN=1): the main menu keeps PC SETTINGS; the game's
+// The LAN work (on unless B3_LAN=0): the main menu keeps PC SETTINGS; the game's
 // online flow opens from a sixth row of MULTIPLAYER, LAN. That screen's
 // list (0x01E97D08, made by 0x004456B0, room for ten rows) is set up by
 // 0x003C9A60, which then draws it (0x00445530): its count at +4, the row taken at +8, the rows' string ids

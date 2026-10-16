@@ -53,6 +53,8 @@
 
 bool LanEnabled();                 // iop_servers.cpp
 
+bool LanDebug();                   // lan.cpp: B3_LAN_DEBUG=1
+
 namespace {
 
 constexpr s32 kDgram = 0, kActive = 1, kPassive = 2, kRaw = 3;
@@ -76,6 +78,7 @@ Stats& Counts() {
 }
 
 void Summary() {
+    if (!LanDebug()) return;
     static DWORD last = GetTickCount();
     const DWORD now = GetTickCount();
     if (now - last < 2000) return;
@@ -117,8 +120,9 @@ void Dump(const char* way, u32 ip, u32 port, const char* data, int size) {
     if (stacks.insert(std::string(way) + stack).second) std::fprintf(stderr, "[libnet] %s stack:%s\n", way, stack.c_str());
 }
 
-// The first calls of each kind are told; then every 500th.
+// With B3_LAN_DEBUG, the first calls of each kind are told; then every 500th.
 bool Tell(int proc) {
+    if (!LanDebug()) return false;
     static std::map<int, u32> seen;
     const u32 n = ++seen[proc];
     return n <= 12 || n % 500 == 0;
@@ -244,6 +248,7 @@ void Open(lifted::Context& c) {
         Log("open " + std::to_string(id) + ": tcp to " + Text(k->remote_ip, k->remote_port));
         return Return(c, 0);
     }
+    static_assert(kPassive == 2, "what is left: a passive socket, waiting for its peer");
     k->listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     int on = 1;
     setsockopt(k->listener, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&on), sizeof on);

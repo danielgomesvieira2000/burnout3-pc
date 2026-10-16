@@ -1,6 +1,6 @@
 /*
- * LAN play (B3_LAN=1, the LAN work's switch): the game's own ONLINE mode,
- * with the PC's network in place of the PS2's.
+ * LAN play (on unless B3_LAN=0; B3_LAN_DEBUG=1 tells it step by step): the
+ * game's own ONLINE mode, with the PC's network in place of the PS2's.
  *
  * The network itself is EA's DirtySock module (DRTYSCKF.IRX), run in the IOP
  * interpreter on the host's sockets (iop_servers.cpp, engine iop_inet.cpp).
@@ -42,6 +42,17 @@
 #include "ps2host/run.h"
 
 bool LanEnabled();                 // iop_servers.cpp
+
+/* B3_LAN_DEBUG=1: what the LAN does, step by step, in the log - the game's
+   online flow, the lobby's messages, libnet's traffic. Off, only what a
+   player needs to read is told. */
+bool LanDebug() {
+    static const bool on = [] {
+        const char* value = std::getenv("B3_LAN_DEBUG");
+        return value && *value && *value != '0';
+    }();
+    return on;
+}
 std::vector<std::pair<std::string, std::string>> LanNetworkList();     // lan_lobby.cpp: (address, adapter)
 void LanPrepareLobby();            // lan_lobby.cpp: finds the LAN's lobby, or serves it
 
@@ -54,7 +65,7 @@ void F_0030A130(lifted::Context& c);
 // The list of network configurations, each frame (its screen: the cursor in
 // the low half of +0x78, the line taken at +4, -1 until one is).
 void F_003464B0(lifted::Context& c);
-// PROBE: the online flow's object, each frame.
+// DEBUG: the online flow's object, each frame.
 void F_0026D2A0(lifted::Context& c);
 void F_002714C0(lifted::Context& c);
 void F_00130D50(lifted::Context& c);
@@ -156,6 +167,7 @@ constexpr size_t kNetworkLines = 8;
 std::vector<std::pair<std::string, std::string>> g_networks;   // the list's lines: (address, adapter)
 bool g_address_by_hand = false;     // B3_LAN_IP set before the game started
 bool g_lobby_ready = false;         // the lobby found or served since LAN was taken
+bool g_list_stale = true;           // the list of networks to be made again (each time LAN is taken)
 
 void WriteText(u32 at, const char* text, u32 room) {
     u32 i = 0;
@@ -180,7 +192,8 @@ void NetworkConfiguration(lifted::Context& c) {
         Log("network configuration: the interface taken as already up");
     }
     F_0022E110(c);
-    if (generated::ReadU32(kCombinations) == 0) {
+    if (generated::ReadU32(kCombinations) == 0 || g_list_stale) {
+        g_list_stale = false;
         std::vector<std::pair<std::string, std::string>>& lines = g_networks;
         lines = {{"AUTO", "ALL NETWORKS"}};
         for (const auto& [address, adapter] : LanNetworkList())
@@ -211,8 +224,17 @@ void UseNetwork(u32 line) {
         _putenv_s("B3_LAN_IP", "");
         Log("network chosen: AUTO, all networks");
     } else {
-        _putenv_s("B3_LAN_IP", g_networks[line].first.c_str());
-        Log("network chosen: " + g_networks[line].first + " (" + g_networks[line].second + ")");
+        const std::string& address = g_networks[line].first;
+        bool up = false;
+        for (const auto& [now, adapter] : LanNetworkList()) up = up || now == address;
+        if (up) {
+            _putenv_s("B3_LAN_IP", address.c_str());
+            Log("network chosen: " + address + " (" + g_networks[line].second + ")");
+        } else {
+            _putenv_s("B3_LAN_IP", "");
+            Log("network chosen: " + address + " (" + g_networks[line].second +
+                "), but it is not up any more (a VPN disconnected?): all networks are used instead");
+        }
     }
 #endif
 }
@@ -338,7 +360,7 @@ void DnasResult(lifted::Context& c) {
 /* 0x0041BF90: unloads the ELF - none was loaded. */
 void DnasUnload(lifted::Context& c) { Return(c, 0); }
 
-/* PROBE (temporary): the online flow's object each frame (0x0026D2A0): its
+/* DEBUG (B3_LAN_DEBUG=1): the online flow's object each frame (0x0026D2A0): its
    states at +0x329E8, +0x329EC and flags +0x329E2/3, logged as they change. */
 void OnlineProbe(lifted::Context& c) {
     const u32 o = u32(c.r[4]) + 0x30000u;
@@ -355,7 +377,7 @@ void OnlineProbe(lifted::Context& c) {
     }
 }
 
-/* PROBE (temporary): the online flow's outer step (0x002714C0), its state
+/* DEBUG (B3_LAN_DEBUG=1): the online flow's outer step (0x002714C0), its state
    at +0x32664, logged as it changes. */
 void OuterProbe(lifted::Context& c) {
     const u32 o = u32(c.r[4]) + 0x30000u;
@@ -371,7 +393,7 @@ void OuterProbe(lifted::Context& c) {
     }
 }
 
-/* PROBE (temporary): 0x00130D50(movie), its state +0x2F8 and result. */
+/* DEBUG (B3_LAN_DEBUG=1): 0x00130D50(movie), its state +0x2F8 and result. */
 void MovieProbe(lifted::Context& c) {
     const u32 movie = u32(c.r[4]), caller = u32(c.r[31]);
     const u32 before = generated::ReadU32(movie + 0x2F8);
@@ -387,7 +409,7 @@ void MovieProbe(lifted::Context& c) {
     }
 }
 
-/* PROBE (temporary): the authentication screen's update (0x003530F0): the
+/* DEBUG (B3_LAN_DEBUG=1): the authentication screen's update (0x003530F0): the
    frontend's mode 0x01E90424, its +8 and +4, 0x01E654C8. */
 void ScreenProbe(lifted::Context& c) {
     const u32 screen = u32(c.r[4]);
@@ -406,7 +428,7 @@ void ScreenProbe(lifted::Context& c) {
     }
 }
 
-/* PROBE (temporary): DirtySock's network calls on the EE: NetConnStartup
+/* DEBUG (B3_LAN_DEBUG=1): DirtySock's network calls on the EE: NetConnStartup
    (0x004020F8), 'netw'/'star' (0x00402260), 'netw'/'stat' (0x004022E8). */
 template <void (*Original)(lifted::Context&), int Which>
 void NetProbe(lifted::Context& c) {
@@ -434,7 +456,7 @@ std::string GuestString(u32 at, u32 limit = 64) {
     return text;
 }
 
-/* PROBE (temporary): 0x0040F280(text, key, ...) - a key's value in a
+/* DEBUG (B3_LAN_DEBUG=1): 0x0040F280(text, key, ...) - a key's value in a
    message's body, or 0. */
 void KeyProbe(lifted::Context& c) {
     const u32 text = u32(c.r[4]), key = u32(c.r[5]), caller = u32(c.r[31]);
@@ -443,18 +465,20 @@ void KeyProbe(lifted::Context& c) {
         "] -> " + (u32(c.r[2]) ? "[" + GuestString(u32(c.r[2]), 24) + "]" : std::string("none")));
 }
 
-/* PROBE (temporary): 0x00402C88(ref, name, address, port). */
-void ConnectProbe(lifted::Context& c) {
+/* DEBUG (B3_LAN_DEBUG=1): 0x00402C88(ref, name, address, port). */
+void LobbyLookup(lifted::Context& c) {
     // The lobby's name about to be looked up: if no network was taken in
     // the list (it did not show), the lobby is found or served now.
     if (!g_lobby_ready && u32(c.r[5]) && generated::ReadU8(u32(c.r[5]))) {
         LanPrepareLobby();
         g_lobby_ready = true;
     }
-    char text[160];
-    std::snprintf(text, sizeof text, "probe ProtoAriesConnect(name [%s], address %08X, port %u)",
-                  GuestString(u32(c.r[5]), 40).c_str(), u32(c.r[6]), u32(c.r[7]));
-    Log(text);
+    if (LanDebug()) {
+        char text[160];
+        std::snprintf(text, sizeof text, "probe ProtoAriesConnect(name [%s], address %08X, port %u)",
+                      GuestString(u32(c.r[5]), 40).c_str(), u32(c.r[6]), u32(c.r[7]));
+        Log(text);
+    }
     F_00402C88(c);
 }
 
@@ -467,7 +491,7 @@ std::string FourCc(u32 v) {
     return t;
 }
 
-/* PROBE (temporary): the lobby's update (0x00406E20, its object's state, a
+/* DEBUG (B3_LAN_DEBUG=1): the lobby's update (0x00406E20, its object's state, a
    four-letter code, at +8; its timer at +0xC), as they change. */
 void LobbyProbe(lifted::Context& c) {
     const u32 lobby = u32(c.r[4]);
@@ -491,7 +515,7 @@ void LobbyProbe(lifted::Context& c) {
     }
 }
 
-/* PROBE (temporary): 0x004032F8(ref, &cmd, &code, &body): a message waiting. */
+/* DEBUG (B3_LAN_DEBUG=1): 0x004032F8(ref, &cmd, &code, &body): a message waiting. */
 void PeekProbe(lifted::Context& c) {
     const u32 cmd = u32(c.r[5]);
     F_004032F8(c);
@@ -499,7 +523,7 @@ void PeekProbe(lifted::Context& c) {
         Log("probe peek: '" + FourCc(generated::ReadU32(cmd)) + "', " + std::to_string(s32(c.r[2])) + " bytes");
 }
 
-/* PROBE (temporary): EA's RPC to DRTYSCKF. Its state lives at 0x01EB6200:
+/* DEBUG (B3_LAN_DEBUG=1): EA's RPC to DRTYSCKF. Its state lives at 0x01EB6200:
    +0x4D94 the requests' ring, +0x4DA0 the replies' ring (32 bytes an entry,
    the sequence at +0x1C), +0x4DD4 the next free entry, +0x4DD8 the oldest
    waiting one, +0x4DF0/+0x4DF4 the polling alarms (0x00400808). */
@@ -546,7 +570,7 @@ void CallProbe(lifted::Context& c) {
     if (RpcLog()) Log("probe rpc call -> " + std::to_string(s32(c.r[2])) + ": " + RpcState());
 }
 
-/* PROBE (temporary): DirtySock's debug printf (0x00400530(format, ...)), mute
+/* DEBUG (B3_LAN_DEBUG=1): DirtySock's debug printf (0x00400530(format, ...)), mute
    in the release build: printed, with its first arguments. */
 void DebugPrintf(lifted::Context& c) {
     const std::string format = GuestString(u32(c.r[4]), 160);
@@ -576,7 +600,7 @@ void DebugPrintf(lifted::Context& c) {
     c.r[2] = 0;
 }
 
-/* PROBE (temporary): who opens the online flow's error dialog. */
+/* DEBUG (B3_LAN_DEBUG=1): who opens the online flow's error dialog. */
 template <void (*Original)(lifted::Context&), u32 Address>
 void CallerProbe(lifted::Context& c) {
     char text[160];
@@ -586,7 +610,7 @@ void CallerProbe(lifted::Context& c) {
     Original(c);
 }
 
-/* PROBE (temporary): the online flow's message handler (0x0030F620(obj,
+/* DEBUG (B3_LAN_DEBUG=1): the online flow's message handler (0x0030F620(obj,
    type, ?, code, reason)): the "game no longer exists" is code 0x28. */
 void MessageProbe(lifted::Context& c) {
     if (u32(c.r[7]) == 0x28) {
@@ -609,7 +633,7 @@ void PostProbe(lifted::Context& c) {
     F_002176D0(c);
 }
 
-/* PROBE (temporary): a function's arguments and result, its first calls. */
+/* DEBUG (B3_LAN_DEBUG=1): a function's arguments and result, its first calls. */
 template <void (*Original)(lifted::Context&), u32 Address>
 void ReturnProbe(lifted::Context& c) {
     static u32 told = 0;
@@ -623,7 +647,7 @@ void ReturnProbe(lifted::Context& c) {
     }
 }
 
-/* PROBE (temporary): a chat/game message reaching the ONLINE object
+/* DEBUG (B3_LAN_DEBUG=1): a chat/game message reaching the ONLINE object
    (0x0033C390(obj, event, ...)): its flags (+0xC), the queue's count after. */
 void IncomingProbe(lifted::Context& c) {
     static u32 told = 0;
@@ -651,7 +675,7 @@ void PopProbe(lifted::Context& c) {
     if (u32(c.r[2]) && told++ < 30) Log("probe pop: a message");
 }
 
-/* PROBE (temporary): the waiting room's menu (0x00315560(screen)): its items
+/* DEBUG (B3_LAN_DEBUG=1): the waiting room's menu (0x00315560(screen)): its items
    (+0x1288 + 8i: text, +4, +5; kind +0x12C0 + 4i), count +0x12DC, cursor +0x1284. */
 void MenuProbe(lifted::Context& c) {
     const u32 m = u32(c.r[4]);
@@ -677,7 +701,7 @@ void MenuProbe(lifted::Context& c) {
     F_00315560(c);
 }
 
-/* PROBE (temporary): 0x0031FE40(list, item, enabled): who greys a menu item. */
+/* DEBUG (B3_LAN_DEBUG=1): 0x0031FE40(list, item, enabled): who greys a menu item. */
 void EnableProbe(lifted::Context& c) {
     static std::string last;
     char text[120];
@@ -689,7 +713,7 @@ void EnableProbe(lifted::Context& c) {
     F_0031FE40(c);
 }
 
-/* PROBE (temporary): the waiting room's state (+0x13AC) as it changes, and
+/* DEBUG (B3_LAN_DEBUG=1): the waiting room's state (+0x13AC) as it changes, and
    the messages it shows (0x0032D080(box, ?, text id, ...)). */
 void RoomStateProbe(lifted::Context& c) {
     const u32 screen = u32(c.r[4]);
@@ -711,7 +735,7 @@ void ShowProbe(lifted::Context& c) {
     F_0032D080(c);
 }
 
-/* PROBE (temporary): 0x00402FF8(ref, selector, ...): ProtoAries' controls. */
+/* DEBUG (B3_LAN_DEBUG=1): 0x00402FF8(ref, selector, ...): ProtoAries' controls. */
 void ControlProbe(lifted::Context& c) {
     const u32 selector = u32(c.r[5]);
     Log("probe control '" + FourCc(selector) + "' ...");
@@ -834,6 +858,7 @@ std::string LanLocalAddressText() { return Dotted(LocalAddress()); }
    the screen goes by, with the PC's player's name. */
 void LanPresetLogin() {
     g_lobby_ready = false;
+    g_list_stale = true;            // a VPN may have come or gone since
     const std::string name = PlayerName();
     WriteText(0x01EA3084u, name.c_str(), 0x20);
     WriteText(0x01EA30A4u, "LANPLAY", 0x20);
@@ -864,43 +889,45 @@ void RegisterLan() {
     ps2host::Override(0x0041BE38u, DnasResult, "LAN: DNAS result (a pass)");
     ps2host::Override(0x0041BE40u, DnasStart, "LAN: DNAS entry 4");
     ps2host::Override(0x0041BF90u, DnasUnload, "LAN: DNAS unload (nothing loaded)");
-    ps2host::Override(0x0026D2A0u, OnlineProbe, "LAN: PROBE the online flow's states");
-    ps2host::Override(0x002714C0u, OuterProbe, "LAN: PROBE the online flow's outer state");
-    ps2host::Override(0x00130D50u, MovieProbe, "LAN: PROBE a movie's stop");
-    ps2host::Override(0x003530F0u, ScreenProbe, "LAN: PROBE the authentication screen");
-    ps2host::Override(0x004020F8u, NetProbe<F_004020F8, 0>, "LAN: PROBE NetConnStartup");
-    ps2host::Override(0x00402260u, NetProbe<F_00402260, 1>, "LAN: PROBE netw/star");
     ps2host::Override(0x004022E8u, CableState, "LAN: the network cable is always in");
-    ps2host::Override(0x0040F280u, KeyProbe, "LAN: PROBE the lobby's key lookup");
-    ps2host::Override(0x00402C88u, ConnectProbe, "LAN: PROBE ProtoAriesConnect");
-    ps2host::Override(0x00406E20u, LobbyProbe, "LAN: PROBE the lobby's update");
-    ps2host::Override(0x004032F8u, PeekProbe, "LAN: PROBE ProtoAries' peek");
-    ps2host::Override(0x00402FF8u, ControlProbe, "LAN: PROBE ProtoAriesControl");
-    ps2host::Override(0x002176D0u, PostProbe, "LAN: PROBE message posts");
-    ps2host::Override(0x00403C30u, ReturnProbe<F_00403C30, 0x00403C30u>, "LAN: PROBE mngl/crea");
-    ps2host::Override(0x00403DA0u, ReturnProbe<F_00403DA0, 0x00403DA0u>, "LAN: PROBE mngl/conn");
-    ps2host::Override(0x00403E28u, ReturnProbe<F_00403E28, 0x00403E28u>, "LAN: PROBE mngl/cmpl");
-    ps2host::Override(0x00403F00u, ReturnProbe<F_00403F00, 0x00403F00u>, "LAN: PROBE mngl/rept");
-    ps2host::Override(0x00403D38u, ReturnProbe<F_00403D38, 0x00403D38u>, "LAN: PROBE mngl/dest");
-    ps2host::Override(0x0031FE40u, EnableProbe, "LAN: PROBE menu items' enabling");
-    ps2host::Override(0x00316E80u, RoomStateProbe, "LAN: PROBE the waiting room's state");
-    ps2host::Override(0x0032D080u, ShowProbe, "LAN: PROBE messages shown");
-    ps2host::Override(0x00315560u, MenuProbe, "LAN: PROBE the waiting room's menu");
-    ps2host::Override(0x0033C390u, IncomingProbe, "LAN: PROBE incoming messages");
-    ps2host::Override(0x0026EEC0u, GameMessagesProbe, "LAN: PROBE the game's messages");
-    ps2host::Override(0x00338C20u, PopProbe, "LAN: PROBE message pop");
-    ps2host::Override(0x002366E0u, ReturnProbe<F_002366E0, 0x002366E0u>, "LAN: PROBE peer by id");
-    ps2host::Override(0x0022D3B0u, ReturnProbe<F_0022D3B0, 0x0022D3B0u>, "LAN: PROBE 0x0022D3B0");
-    ps2host::Override(0x0022FBB0u, ReturnProbe<F_0022FBB0, 0x0022FBB0u>, "LAN: PROBE 0x0022FBB0");
-    ps2host::Override(0x00235D90u, ReturnProbe<F_00235D90, 0x00235D90u>, "LAN: PROBE 0x00235D90");
-    ps2host::Override(0x0030F620u, MessageProbe, "LAN: PROBE the online flow's messages");
-    ps2host::Override(0x00330360u, CallerProbe<F_00330360, 0x00330360u>, "LAN: PROBE 0x00330360's callers");
-    ps2host::Override(0x00352210u, CallerProbe<F_00352210, 0x00352210u>, "LAN: PROBE 0x00352210's callers");
-    ps2host::Override(0x00400530u, DebugPrintf, "LAN: PROBE DirtySock's debug output");
-    ps2host::Override(0x00400808u, AlarmProbe, "LAN: PROBE the RPC's polling alarm");
-    ps2host::Override(0x00400F68u, DispatchProbe, "LAN: PROBE the RPC's replies");
-    ps2host::Override(0x004008E8u, CallProbe, "LAN: PROBE an RPC call");
+    ps2host::Override(0x00402C88u, LobbyLookup, "LAN: the lobby found, if not yet, before its name is looked up");
     ps2host::Override(0x0034B9D0u, AccountSelect, "LAN: SELECT EA ACCOUNT logs in as the PC's player");
     ps2host::Override(0x00346DF0u, PlainRedirector<F_00346DF0>, "LAN: the lobby's redirector in the clear");
     ps2host::Override(0x003471E0u, PlainRedirector<F_003471E0>, "LAN: the lobby's redirector in the clear");
+    if (!LanDebug()) return;
+    Log("B3_LAN_DEBUG: the online flow, step by step");
+    ps2host::Override(0x0026D2A0u, OnlineProbe, "LAN: DEBUG the online flow's states");
+    ps2host::Override(0x002714C0u, OuterProbe, "LAN: DEBUG the online flow's outer state");
+    ps2host::Override(0x00130D50u, MovieProbe, "LAN: DEBUG a movie's stop");
+    ps2host::Override(0x003530F0u, ScreenProbe, "LAN: DEBUG the authentication screen");
+    ps2host::Override(0x004020F8u, NetProbe<F_004020F8, 0>, "LAN: DEBUG NetConnStartup");
+    ps2host::Override(0x00402260u, NetProbe<F_00402260, 1>, "LAN: DEBUG netw/star");
+    ps2host::Override(0x0040F280u, KeyProbe, "LAN: DEBUG the lobby's key lookup");
+    ps2host::Override(0x00406E20u, LobbyProbe, "LAN: DEBUG the lobby's update");
+    ps2host::Override(0x004032F8u, PeekProbe, "LAN: DEBUG ProtoAries' peek");
+    ps2host::Override(0x00402FF8u, ControlProbe, "LAN: DEBUG ProtoAriesControl");
+    ps2host::Override(0x002176D0u, PostProbe, "LAN: DEBUG message posts");
+    ps2host::Override(0x00403C30u, ReturnProbe<F_00403C30, 0x00403C30u>, "LAN: DEBUG mngl/crea");
+    ps2host::Override(0x00403DA0u, ReturnProbe<F_00403DA0, 0x00403DA0u>, "LAN: DEBUG mngl/conn");
+    ps2host::Override(0x00403E28u, ReturnProbe<F_00403E28, 0x00403E28u>, "LAN: DEBUG mngl/cmpl");
+    ps2host::Override(0x00403F00u, ReturnProbe<F_00403F00, 0x00403F00u>, "LAN: DEBUG mngl/rept");
+    ps2host::Override(0x00403D38u, ReturnProbe<F_00403D38, 0x00403D38u>, "LAN: DEBUG mngl/dest");
+    ps2host::Override(0x0031FE40u, EnableProbe, "LAN: DEBUG menu items' enabling");
+    ps2host::Override(0x00316E80u, RoomStateProbe, "LAN: DEBUG the waiting room's state");
+    ps2host::Override(0x0032D080u, ShowProbe, "LAN: DEBUG messages shown");
+    ps2host::Override(0x00315560u, MenuProbe, "LAN: DEBUG the waiting room's menu");
+    ps2host::Override(0x0033C390u, IncomingProbe, "LAN: DEBUG incoming messages");
+    ps2host::Override(0x0026EEC0u, GameMessagesProbe, "LAN: DEBUG the game's messages");
+    ps2host::Override(0x00338C20u, PopProbe, "LAN: DEBUG message pop");
+    ps2host::Override(0x002366E0u, ReturnProbe<F_002366E0, 0x002366E0u>, "LAN: DEBUG peer by id");
+    ps2host::Override(0x0022D3B0u, ReturnProbe<F_0022D3B0, 0x0022D3B0u>, "LAN: DEBUG 0x0022D3B0");
+    ps2host::Override(0x0022FBB0u, ReturnProbe<F_0022FBB0, 0x0022FBB0u>, "LAN: DEBUG 0x0022FBB0");
+    ps2host::Override(0x00235D90u, ReturnProbe<F_00235D90, 0x00235D90u>, "LAN: DEBUG 0x00235D90");
+    ps2host::Override(0x0030F620u, MessageProbe, "LAN: DEBUG the online flow's messages");
+    ps2host::Override(0x00330360u, CallerProbe<F_00330360, 0x00330360u>, "LAN: DEBUG 0x00330360's callers");
+    ps2host::Override(0x00352210u, CallerProbe<F_00352210, 0x00352210u>, "LAN: DEBUG 0x00352210's callers");
+    ps2host::Override(0x00400530u, DebugPrintf, "LAN: DEBUG DirtySock's debug output");
+    ps2host::Override(0x00400808u, AlarmProbe, "LAN: DEBUG the RPC's polling alarm");
+    ps2host::Override(0x00400F68u, DispatchProbe, "LAN: DEBUG the RPC's replies");
+    ps2host::Override(0x004008E8u, CallProbe, "LAN: DEBUG an RPC call");
 }

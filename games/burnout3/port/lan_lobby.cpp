@@ -1,9 +1,9 @@
 /*
  * LAN play: the lobby, inside the game - EA's redirector and lobby ("slave")
- * as the online flow needs them, so that no server runs apart. The rules are
- * tools/lan_lobby.py's (the dedicated one, kept for tests), here in C++.
+ * as the online flow needs them, so that no server runs apart.
  *
- * Who serves: when LAN is taken in MULTIPLAYER, the game asks the LAN (a UDP
+ * Who serves: once a network is taken in the game's list of network
+ * configurations (lan.cpp, ChooseNetwork), the game asks the LAN (a UDP
  * broadcast, port 21801) whether a lobby is up. One that answers is used;
  * else this game starts its own and is the LAN's lobby from then on.
  * PS2HOST_INET_HOST=<address> set by hand skips all of it (two instances on
@@ -64,6 +64,8 @@
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
 #endif
+
+bool LanDebug();                   // lan.cpp: B3_LAN_DEBUG=1
 
 namespace {
 
@@ -219,7 +221,7 @@ struct User {
     void Send(const std::string& command, const List& pairs = {}, const char code[4] = "\0\0\0") {
         std::lock_guard<std::mutex> hold(send_lock);
         SendAll(s, Pack(command, pairs, code));
-        if (command[0] != '+') Log(pers + " -> " + command + " " + Show(pairs));
+        if (command[0] != '+' && LanDebug()) Log(pers + " -> " + command + " " + Show(pairs));
     }
     List Record() const;
     void Who() {
@@ -566,7 +568,7 @@ void Lobby(SOCKET s, sockaddr_in peer) {
         List shown;
         for (const auto& [k, v] : pairs)
             if (k != "PASS") shown.push_back(k + "=" + v);
-        Log(self->pers + " <- " + command + " " + Show(shown));
+        if (LanDebug()) Log(self->pers + " <- " + command + " " + Show(shown));
         std::lock_guard<std::recursive_mutex> hold(g_lock);
         Command(self, command, pairs);
     });
@@ -674,7 +676,10 @@ u_long Discover(int wait_ms) {
         std::vector<Network> mine;
         for (const Network& n : networks)
             if (n.address.s_addr == chosen.s_addr) mine.push_back(n);
-        if (!mine.empty()) networks = mine;
+        if (!mine.empty())
+            networks = mine;
+        else
+            Log("B3_LAN_IP " + std::string(text) + " is none of this PC's addresses: asking on every network");
     }
     std::vector<u_long> targets;
     if (!one) targets.push_back(htonl(INADDR_BROADCAST));
