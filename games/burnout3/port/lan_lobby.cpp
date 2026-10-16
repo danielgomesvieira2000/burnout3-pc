@@ -18,24 +18,25 @@
  * KEY=value pairs, one per line, and a NUL. Ports: redirector TCP 21800,
  * lobby TCP 10901, discovery UDP 21801.
  *
- * TODO (VPNs: ZeroTier, Radmin, Hamachi, and real LAN mixed with them):
- * - Discover() broadcasts to 255.255.255.255, which Windows sends out of one
- *   adapter only (the physical one): players on a VPN never hear the
- *   question, so each side starts its own lobby. Ask on every adapter, each
- *   at its own subnet broadcast (GetAdaptersAddresses).
- * - The answer names LanLocalAddressText(), the address of the adapter that
- *   reaches the Internet, not the one the question came in on: a VPN player
- *   gets a LAN address it cannot reach. Answer with the receiving adapter's.
+ * Networks: the question goes out on every adapter (Discover), the answer
+ * names this PC's address on the asker's network (Discovery), and the
+ * serving player is handed to each other player at its address on that
+ * player's network (Game::AddressFor). A group that shares one network -
+ * the real LAN, ZeroTier, Radmin - finds itself with nothing set by hand.
+ *
+ * TODO:
+ * - A player on two networks (the real LAN and a VPN) takes the first answer,
+ *   which may come over the network the others are not on: a way to put one
+ *   network first (an option in the game's menus, or B3_LAN_IP).
  * - Mixed groups (one player only on the real LAN, another only on a VPN,
  *   the host on both): the race is peer to peer (lan_libnet.cpp, UDP 3658)
  *   and those two have no path between them. Hand each player stand-in
  *   addresses for the others and let lan_libnet.cpp send directly where a
  *   real address answers, else through the host as a relay.
- * - "Join by address" in the game's unused menu option, in place of
- *   PS2HOST_INET_HOST, for VPNs that carry no broadcast at all.
- * Until then: everyone on the same network, or B3_LAN_IP and
- * PS2HOST_INET_HOST set by hand.
+ * - "Join by address" in the game's menus, in place of PS2HOST_INET_HOST,
+ *   for VPNs that carry no broadcast at all.
  */
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -82,6 +83,31 @@ std::string Dotted(const in_addr& a) {
     char text[INET_ADDRSTRLEN] = "";
     inet_ntop(AF_INET, &a, text, sizeof text);
     return text;
+}
+
+/* This PC's IPv4 networks: each adapter that is up (the real LAN, ZeroTier,
+   Radmin...), its address and mask; the loopback left out. */
+struct Network {
+    in_addr address, mask;
+    bool Holds(const in_addr& a) const { return (a.s_addr & mask.s_addr) == (address.s_addr & mask.s_addr); }
+};
+
+std::vector<Network> Networks() {
+    std::vector<Network> out;
+    const SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (s == INVALID_SOCKET) return out;
+    INTERFACE_INFO list[64];
+    DWORD size = 0;
+    if (WSAIoctl(s, SIO_GET_INTERFACE_LIST, nullptr, 0, list, sizeof list, &size, nullptr, nullptr) == 0) {
+        for (DWORD i = 0; i < size / sizeof list[0]; ++i) {
+            const INTERFACE_INFO& f = list[i];
+            if (!(f.iiFlags & IFF_UP) || (f.iiFlags & IFF_LOOPBACK) || f.iiAddress.Address.sa_family != AF_INET)
+                continue;
+            out.push_back({f.iiAddress.AddressIn.sin_addr, f.iiNetmask.AddressIn.sin_addr});
+        }
+    }
+    closesocket(s);
+    return out;
 }
 
 std::string Get(const Pairs& p, const std::string& key, const std::string& otherwise = "") {
@@ -165,6 +191,7 @@ struct Game;
 struct User {
     SOCKET s = INVALID_SOCKET;
     std::string address;            // as the lobby sees it: what the others reach
+    std::string here;               // this PC's address on that player's network
     int id = 0;
     std::string name, pers;
     bool in_room = false;
@@ -197,6 +224,13 @@ struct Game {
         return Get(settings, key, otherwise);
     }
     /* The game as the client parses it (0x004090E8); SELF is the viewer. */
+    /* Where VIEWER reaches P for the race: the address P came from, but the
+       serving PC's own player (which came from this PC's address) is reached
+       at this PC's address on the viewer's network - its LAN address for one
+       beside it, its VPN address for one on ZeroTier or Radmin. */
+    static std::string AddressFor(const User& p, const User& viewer) {
+        return p.address == p.here && !viewer.here.empty() ? viewer.here : p.address;
+    }
     List Record(const User& viewer) const {
         List out = {"IDENT=" + std::to_string(ident), "NAME=" + Setting("NAME", host->pers), "SELF=" + viewer.pers,
                     "HOST=" + host->pers, "PARAMS=" + Setting("PARAMS", ""), "ROOM=" + std::to_string(kRoomId),
@@ -208,7 +242,8 @@ struct Game {
             const std::string n = std::to_string(i);
             const User& p = *players[i];
             out.insert(out.end(), {"OPID" + n + "=" + std::to_string(p.id), "OPPO" + n + "=" + p.pers,
-                                   "ADDR" + n + "=" + p.address, "LADDR" + n + "=" + p.address, "MADDR" + n + "=",
+                                   "ADDR" + n + "=" + AddressFor(p, viewer), "LADDR" + n + "=" + AddressFor(p, viewer),
+                                   "MADDR" + n + "=",
                                    "OPPART" + n + "=0", "OPPARAM" + n + "=" + p.params, "OPFLAG" + n + "=0"});
         }
         out.insert(out.end(), {"PARTSIZE0=" + Setting("MAXSIZE", "6"), "PARTPARAMS0="});
@@ -500,6 +535,9 @@ void Lobby(SOCKET s, sockaddr_in peer) {
         std::lock_guard<std::recursive_mutex> hold(g_lock);
         self->s = s;
         self->address = Dotted(peer.sin_addr);
+        sockaddr_in here{};
+        int size = sizeof here;
+        if (getsockname(s, reinterpret_cast<sockaddr*>(&here), &size) == 0) self->here = Dotted(here.sin_addr);
         self->id = g_next_user++;
         self->name = self->pers = "PLAYER" + std::to_string(self->id);
         g_users.push_back(self);
@@ -542,10 +580,23 @@ void Accept(SOCKET listener, Handle handle) {
     }
 }
 
-/* Answers the LAN's question "a lobby here?" with the lobby's address as its
-   players reach it (this PC's on the LAN; 127.0.0.1 for tests on one PC). */
+/* Answers the LAN's question "a lobby here?" with the lobby's address as the
+   asker reaches it: this PC's on the network the question came from (the
+   real LAN's for a player beside it, the VPN's for one on ZeroTier or
+   Radmin). An address set by hand (B3_LAN_IP; 127.0.0.1 for tests on one
+   PC) is the answer whoever asks. */
 void Discovery(SOCKET s, std::string address) {
-    const std::string answer = std::string(kAnswer) + " " + address;
+    const bool fixed = std::getenv("B3_LAN_IP") != nullptr || address.rfind("127.", 0) == 0;
+    const auto AnswerFor = [&](const in_addr& asker) {
+        std::string named = address;
+        if (!fixed)
+            for (const Network& n : Networks())
+                if (n.Holds(asker)) {
+                    named = Dotted(n.address);
+                    break;
+                }
+        return std::string(kAnswer) + " " + named;
+    };
     for (;;) {
         char data[64];
         sockaddr_in from{};
@@ -555,8 +606,10 @@ void Discovery(SOCKET s, std::string address) {
             if (WSAGetLastError() == WSAECONNRESET) continue;
             return;
         }
-        if (got == int(sizeof kQuestion - 1) && std::memcmp(data, kQuestion, sizeof kQuestion - 1) == 0)
+        if (got == int(sizeof kQuestion - 1) && std::memcmp(data, kQuestion, sizeof kQuestion - 1) == 0) {
+            const std::string answer = AnswerFor(from.sin_addr);
             sendto(s, answer.data(), int(answer.size()), 0, reinterpret_cast<sockaddr*>(&from), size);
+        }
     }
 }
 
@@ -581,7 +634,10 @@ bool StartLobby(const std::string& address) {
     return true;
 }
 
-/* Asks the LAN for a lobby: the first answer's address, or 0. */
+/* Asks the LAN for a lobby: the first answer's address, or 0. The question
+   goes to 255.255.255.255, which Windows sends out of one adapter only, and
+   to each network's own broadcast address, so that it reaches the lobby on
+   a VPN (ZeroTier, Radmin...) as well as on the real LAN. */
 u_long Discover(int wait_ms) {
     WSADATA data;
     WSAStartup(MAKEWORD(2, 2), &data);
@@ -591,14 +647,24 @@ u_long Discover(int wait_ms) {
     setsockopt(s, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&on), sizeof on);
     DWORD timeout = 250;
     setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof timeout);
-    sockaddr_in to{};
-    to.sin_family = AF_INET;
-    to.sin_port = htons(kDiscoveryPort);
-    to.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+    std::vector<u_long> targets = {htonl(INADDR_BROADCAST)};
+    for (const Network& n : Networks()) {
+        const u_long broadcast = n.address.s_addr | ~n.mask.s_addr;
+        if (n.mask.s_addr != INADDR_BROADCAST && std::find(targets.begin(), targets.end(), broadcast) == targets.end()) {
+            targets.push_back(broadcast);
+            Log("asking for a lobby on " + Dotted(n.address) + "'s network");
+        }
+    }
     u_long found = 0;
     const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(wait_ms);
     while (!found && std::chrono::steady_clock::now() < until) {
-        sendto(s, kQuestion, int(sizeof kQuestion - 1), 0, reinterpret_cast<sockaddr*>(&to), sizeof to);
+        for (const u_long target : targets) {
+            sockaddr_in to{};
+            to.sin_family = AF_INET;
+            to.sin_port = htons(kDiscoveryPort);
+            to.sin_addr.s_addr = target;
+            sendto(s, kQuestion, int(sizeof kQuestion - 1), 0, reinterpret_cast<sockaddr*>(&to), sizeof to);
+        }
         char data_in[64] = {};
         sockaddr_in from{};
         int size = sizeof from;
