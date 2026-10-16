@@ -967,10 +967,12 @@ bool LanAddressByHand() {
 /* The network the online flow set up the last time, forgotten. The flow's
    first screen, SELECT EA ACCOUNT (0x0034A4E0, coming in), goes straight to
    the lobby when the flow's outer state (0x01E32AE0, 0x002714C0's +0x32664)
-   is 23, done; else, with the online state (0x01E654C8) not 9 and 0x01E3C660
-   clear, to NETWORK CONFIGURATION (0x00347440) - the list of networks, to
-   choose one again (a player may have changed networks since). The three
-   are put back as they were the first time LAN was taken.
+   is 23, done; else to NETWORK CONFIGURATION (0x00347440) - the list of
+   networks, to choose one again (a player may have changed networks since).
+   The outer state is put back as it was the first time LAN was taken. The
+   online state (0x01E654C8, 9: DNAS and the ISP done) is kept: put back too,
+   the flow went round AUTHENTICATING DNAS DATA and CONNECTING TO ISP for
+   ever; kept, the outer flow's online step (0x0026D2A0) is done at once.
    B3_LAN_KEEP_NETWORK=1 keeps the network. */
 void ForgetNetwork() {
     static const bool keep = [] {
@@ -994,9 +996,9 @@ void ForgetNetwork() {
         return;
     }
     if (keep || generated::ReadU32(kOuterState) != 23) return;
+    (void)online;
+    (void)flag;
     generated::Write32(kOuterState, outer);
-    generated::Write32(kOnlineState, online);
-    generated::Write8(kOnlineFlag, u8(flag));
     Log("the online flow's network forgotten: NETWORK CONFIGURATION again");
 }
 
