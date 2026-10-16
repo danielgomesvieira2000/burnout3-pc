@@ -996,9 +996,15 @@ void ForgetNetwork() {
         return;
     }
     if (keep || generated::ReadU32(kOuterState) != 23) return;
-    (void)online;
-    (void)flag;
     generated::Write32(kOuterState, outer);
+    // TEST (B3_LAN_FORGET_ONLINE=1): the online state put back too - the list
+    // of networks comes back, then the loop round DNAS and the ISP.
+    const char* all = std::getenv("B3_LAN_FORGET_ONLINE");
+    if (all && *all && *all != '0') {
+        generated::Write32(kOnlineState, online);
+        generated::Write8(kOnlineFlag, u8(flag));
+        Log("the online flow's online state put back too (B3_LAN_FORGET_ONLINE)");
+    }
     Log("the online flow's network forgotten: NETWORK CONFIGURATION again");
 }
 
