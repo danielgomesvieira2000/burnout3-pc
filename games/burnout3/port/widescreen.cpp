@@ -387,7 +387,7 @@ std::vector<Piece> g_building;          // builders running: where each began, w
 template <void (*Build)(lifted::Context&)>
 void Builder(lifted::Context& c) {
     const u32 gp = u32(c.r[28]);
-    Piece piece{generated::ReadU32(gp - 0x5D98u), 0, {}};
+    Piece piece{u32(generated::ReadU32(gp - 0x5D98u)), 0, {}};
     Caller(&piece.id);
     g_building.push_back(piece);
     Build(c);

@@ -537,14 +537,19 @@ void Button(Canvas& c, const Box& cell, int button, Style style, Tint tint, floa
     const bool own = tint == Tint::kOwn || tint == Tint::kKey;
     const Colour plain = TintColour(tint);
     if (style == Style::kXbox) {
-        auto letter = [&](const char* text, Colour colour) {
-            Text(c, text, cell.x0, cell.y0, cell.x1, cell.y1, own ? colour : plain, 0.74f, stroke * 1.1f);
+        // As large as the game's marks: the game draws the button's disc
+        // round the cell. The top cell (Triangle's) sits high in its box -
+        // the triangle's point is at its top - and a letter centred in it
+        // looks high: it goes a texel lower.
+        auto letter = [&](const char* text, Colour colour, float lower = 0.0f) {
+            Text(c, text, cell.x0, cell.y0 + lower, cell.x1, cell.y1 + lower, own ? colour : plain, 0.9f,
+                 stroke * 1.2f);
         };
         switch (button) {
             case kCross: letter("A", kXboxA); return;
             case kCircle: letter("B", kXboxB); return;
             case kSquare: letter("X", kXboxX); return;
-            case kTriangle: letter("Y", kXboxY); return;
+            case kTriangle: letter("Y", kXboxY, 1.0f); return;
             case kStart: MenuMark(c, cell, plain, stroke); return;
             case kSelect: ViewMark(c, cell, plain, stroke); return;
             default: break;

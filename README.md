@@ -59,6 +59,48 @@ wrong, press **F12** at that moment and attach the folder it writes to
 - **Bug reports**: a log of every run, and F12 captures of a frame; an FPS
   counter on **F1**.
 
+## LAN play
+
+MULTIPLAYER gets a **LAN** row: the game's own online mode, over the local
+network or a VPN that acts like one (ZeroTier, Radmin VPN, Hamachi). There is
+no server to run - the first player in serves the others, inside the game.
+
+- **Choosing the network**: the game's list of network configurations shows
+  AUTO (every network) and each of the PC's networks by its address, its
+  adapter's name below. A player on two networks (the real LAN and a VPN)
+  takes the one the others are on. The list is made again each time LAN is
+  taken.
+- **Finding the lobby**: the game asks on the chosen network (a UDP
+  broadcast, port 21801); the lobby answers with its address on that
+  network. None answering, this game serves. A lobby served on a chosen
+  network answers only that network's players (on AUTO, every network's);
+  it closes when its player leaves it for the menus (not for a race).
+- **Accessing network**: the game's UPnP search (four tries, ~2 s each, for
+  a router to open a port on) is skipped - a LAN has none - so the lobby
+  comes at once.
+- **The firewall**: TCP 21800 (redirector) and 10901 (lobby), UDP 21801
+  (discovery) and 3658 (the race, player to player). Windows often counts a
+  VPN's adapter as a public network.
+- **Not yet**: players with no network in common (one only on the real LAN,
+  one only on a VPN) - the race goes from player to player, so it would need
+  a relay; and VPNs without broadcast (Tailscale, WireGuard), which need
+  `PS2HOST_INET_HOST` set by hand.
+
+| Variable | What it does |
+| --- | --- |
+| `B3_LAN=0` | no LAN row |
+| `B3_LAN_IP=<address>` | this PC's address for the LAN (the list's choice is left alone) - also two instances on one PC |
+| `PS2HOST_INET_HOST=<address>` | the lobby is at that address: no looking for it |
+| `B3_LAN_ACCOUNTS=1` | SELECT EA ACCOUNT shown (by default it goes by, logged in as the PC's player) |
+| `B3_LAN_KEEP_NETWORK=1` | LAN taken again goes straight to the lobby on the network chosen before (by default the list of networks comes back) |
+| `B3_LAN_DEBUG=1` | the online flow, the lobby's messages and libnet's traffic, step by step, in the log |
+| `B3_LAN_DUMP=1` | each race datagram, with its first bytes |
+
+The code: [lan.cpp](games/burnout3/port/lan.cpp) (the game's side: the
+network list, DNAS, the account), [lan_lobby.cpp](games/burnout3/port/lan_lobby.cpp)
+(the lobby and its discovery), [lan_libnet.cpp](games/burnout3/port/lan_libnet.cpp)
+(the race's sockets).
+
 ## Texture packs
 
 A texture pack made for PCSX2 (for Burnout 3: Takedown, SLUS-21050) works
