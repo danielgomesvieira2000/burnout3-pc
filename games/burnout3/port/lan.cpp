@@ -17,13 +17,11 @@
  * - The lobby's redirector in the clear (PlainRedirector).
  */
 
-#include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <iterator>
 #include <set>
 #include <string>
 #include <utility>
@@ -65,7 +63,8 @@ void F_0022E110(lifted::Context& c);
 // card is fine, 0xD it is not (missing, unformatted, no network file).
 void F_0030A130(lifted::Context& c);
 // The list of network configurations, each frame (its screen: the cursor in
-// the low half of +0x78, the line taken at +4, -1 until one is).
+// the low half of +0x78, from 0; +4 -1 until a line is taken, then the
+// cursor plus one).
 void F_003464B0(lifted::Context& c);
 // DEBUG: the online flow's object, each frame.
 void F_0026D2A0(lifted::Context& c);
@@ -247,37 +246,15 @@ void UseNetwork(u32 line) {
 void ChooseNetwork(lifted::Context& c) {
     const u32 screen = u32(c.r[4]);
     F_003464B0(c);
-    // PROBE (for now always on): the words that change on the screen and in
-    // the list's header - the cursor, a scrolled list's first line? - to
-    // check the line taken against the one shown.
-    struct Watched {
-        u32 base = 0, seen[0x40] = {}, changes[0x40] = {};
-    };
-    const auto Watch = [](Watched& w, const char* name, u32 base, u32 words) {
-        std::string changed;
-        for (u32 i = 0; i < words; ++i) {
-            const u32 word = generated::ReadU32(base + 4 * i);
-            if (base == w.base && word == w.seen[i]) continue;
-            w.seen[i] = word;
-            if (base == w.base && ++w.changes[i] > 40) continue;     // a timer: left out
-            char text[24];
-            std::snprintf(text, sizeof text, " +%02X=%08X", 4 * i, word);
-            changed += text;
-        }
-        if (base != w.base) {
-            std::fill(std::begin(w.changes), std::end(w.changes), 0u);
-            changed = " (new)" + changed;
-            w.base = base;
-        }
-        if (!changed.empty()) Log(std::string("probe ") + name + ":" + changed.substr(0, 1500));
-    };
-    static Watched on_screen, in_header;
-    Watch(on_screen, "network list screen", screen, 0x40);
-    Watch(in_header, "network list header", kCombinations, 0x0C);
     static s32 last = -1;
     const s32 line = s32(generated::ReadU32(screen + 4));
     if (line != last && line >= 0) {
-        UseNetwork(u32(line));
+        // The line taken is the cursor's (the low half of +0x78, from 0 for
+        // the list's first line); +4 holds one more (5 for the fifth line,
+        // shown "5-").
+        const u32 cursor = generated::ReadU32(screen + 0x78) & 0xFFFF;
+        if (LanDebug()) Log("network list: +4 " + std::to_string(line) + ", cursor " + std::to_string(cursor));
+        UseNetwork(cursor);
         LanPrepareLobby();
         g_lobby_ready = true;
     }
