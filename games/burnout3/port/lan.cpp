@@ -871,26 +871,6 @@ void AccountSelect(lifted::Context& c) {
         LogIn();
         return;
     }
-    // Coming in (event 3): nothing to choose on the LAN - the screen set up,
-    // then at once the select above, as if CREATE NEW were pressed.
-    // B3_LAN_ACCOUNTS=1 leaves the screen to the player.
-    static const bool shown = [] {
-        const char* value = std::getenv("B3_LAN_ACCOUNTS");
-        return value && *value && *value != '0';
-    }();
-    if (event == 3 && !shown) {
-        u64 saved[32];
-        std::memcpy(saved, c.r, sizeof saved);
-        F_0034B9D0(c);
-        if (generated::ReadU8(kAccountName) == 0) {
-            std::memcpy(c.r, saved, sizeof saved);
-            c.r[5] = 1;
-            c.r[6] = 1;
-            c.r[7] = 1;
-            LogIn();
-        }
-        return;
-    }
     F_0034B9D0(c);
 }
 
