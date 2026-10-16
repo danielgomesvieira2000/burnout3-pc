@@ -964,6 +964,42 @@ bool LanAddressByHand() {
     return g_address_by_hand;
 }
 
+/* The network the online flow set up the last time, forgotten. The flow's
+   first screen, SELECT EA ACCOUNT (0x0034A4E0, coming in), goes straight to
+   the lobby when the flow's outer state (0x01E32AE0, 0x002714C0's +0x32664)
+   is 23, done; else, with the online state (0x01E654C8) not 9 and 0x01E3C660
+   clear, to NETWORK CONFIGURATION (0x00347440) - the list of networks, to
+   choose one again (a player may have changed networks since). The three
+   are put back as they were the first time LAN was taken.
+   B3_LAN_KEEP_NETWORK=1 keeps the network. */
+void ForgetNetwork() {
+    static const bool keep = [] {
+        const char* value = std::getenv("B3_LAN_KEEP_NETWORK");
+        return value && *value && *value != '0';
+    }();
+    constexpr u32 kOuterState = 0x01E32AE0u, kOnlineState = 0x01E654C8u, kOnlineFlag = 0x01E3C660u;
+    char text[160];
+    std::snprintf(text, sizeof text, "the online flow as LAN is taken: outer %d, online %d, flag %u%s",
+                  int(s32(generated::ReadU32(kOuterState))), int(s32(generated::ReadU32(kOnlineState))),
+                  unsigned(generated::ReadU8(kOnlineFlag)), keep ? " (kept)" : "");
+    Log(text);
+    // As they were the first time LAN was taken (before any network).
+    static bool seen = false;
+    static u32 outer = 0, online = 0, flag = 0;
+    if (!seen) {
+        seen = true;
+        outer = generated::ReadU32(kOuterState);
+        online = generated::ReadU32(kOnlineState);
+        flag = generated::ReadU8(kOnlineFlag);
+        return;
+    }
+    if (keep || generated::ReadU32(kOuterState) != 23) return;
+    generated::Write32(kOuterState, outer);
+    generated::Write32(kOnlineState, online);
+    generated::Write8(kOnlineFlag, u8(flag));
+    Log("the online flow's network forgotten: NETWORK CONFIGURATION again");
+}
+
 /* The game's own automatic login, primed: SELECT EA ACCOUNT's handler
    (0x0034A4E0), coming in (message 3), logs in at once with a remembered
    account when 0x01EA3150 is set - name 0x01EA3084, password 0x01EA30A4,
@@ -979,6 +1015,7 @@ void LanPresetLogin() {
     generated::Write8(0x01EA3150u, 1);
     generated::Write8(kAccountName, 0);     // no account kept from the last time: SELECT EA ACCOUNT logs in anew
     Log("SELECT EA ACCOUNT will log in as " + name);
+    ForgetNetwork();
 }
 
 /* The PC's player's name as the lobby knows it (lan_lobby.cpp: the room's). */
