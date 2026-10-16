@@ -32,6 +32,7 @@
 #include <deque>
 #include <vector>
 
+#include "controls.h"
 #include "cursor_art.h"
 #include "ps2host/host.h"
 #include "ps2host/run.h"
@@ -51,7 +52,7 @@ void F_003F0870(lifted::Context& c);
 float FrontendPlace(u32 object, float x, float cx, float cy);
 // prompts.cpp: the button prompts for the device used last.
 void UpdatePrompts(bool mouse_used);
-// controls.cpp: the modern controls, while racing.
+// controls.cpp: the player's controls, each pad read.
 void ControlsTick();
 
 namespace {
@@ -350,6 +351,17 @@ u16 MouseTick() {
     }
     UpdatePrompts(mouse_used);
     ControlsTick();
+    // A binding waiting for its key or button (controls.h): a right click
+    // leaves it as it was, and the game sees nothing of the mouse.
+    if (controls::Capturing()) {
+        if (mouse && (m.pressed & 4)) controls::CancelCapture();
+        p.presses.clear();
+        p.row = -1;
+        p.key_row = -1;
+        p.hold_for = 0;
+        p.holding = 0;
+        return 0;
+    }
     // The controller or the keyboard: the pointer goes, and what it was doing.
     if ((ps2host::PadButtonsHeld() & ~p.holding) != 0) {
         p.used = 0;
@@ -494,24 +506,9 @@ u16 MouseTick() {
    shows (controls.cpp: menus keep the game's own controls). */
 bool MenuShowing() { return FrontendUp() || BoxUp() || KeyboardUp(); }
 
-/* PS2HOST_MOUSE_PROBE=1: every move of a frontend selector (0x00319360 Up,
-   0x00319330 Down, which every screen's input calls) - the selector and the
-   code moving it, to find a menu the mouse does not know yet. */
-void F_00319360(lifted::Context& c);
-void F_00319330(lifted::Context& c);
-template <void (*Original)(lifted::Context&)>
-void SelectorProbe(lifted::Context& c) {
-    std::fprintf(stderr, "[probe] selector 0x%08X (%u of %u) moved from 0x%08X\n", unsigned(c.r[4]),
-                 unsigned(generated::ReadU16(u32(c.r[4]))), unsigned(generated::ReadU16(u32(c.r[4]) + 2)),
-                 unsigned(c.r[31]));
-    Original(c);
-}
-
+/* (PS2HOST_MOUSE_PROBE=1, every move of a frontend selector and the code
+   making it: overrides.cpp's SelectorMove, which hooks Up and Down.) */
 void RegisterMouse() {
-    if (std::getenv("PS2HOST_MOUSE_PROBE")) {
-        ps2host::Override(0x00319360u, SelectorProbe<F_00319360>, "probe");
-        ps2host::Override(0x00319330u, SelectorProbe<F_00319330>, "probe");
-    }
     ps2host::SetHostCursor(cursor_art::kPixels, cursor_art::kWidth, cursor_art::kHeight, cursor_art::kHotX,
                            cursor_art::kHotY);
     ps2host::SetPadHook(MouseTick);

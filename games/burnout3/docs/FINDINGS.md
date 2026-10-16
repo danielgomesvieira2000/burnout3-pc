@@ -2026,7 +2026,17 @@ and up is full throttle. The race's HUD (0x001A0790) is drawn only while
 racing - not paused, not in the menus' and intro's backdrops, which run the
 race's world (0x0019A550) too. Its hints naming R1 ("PRESS R1 BUTTON TO
 BOOST", "...HOLD THE R1 BUTTON FOR AFTERTOUCH") are language-file strings.
-The port's modern controls (port/controls.cpp) rest on this.
+The port's bindings (port/controls.cpp: racing and the menus apart, for
+the keyboard and the controller) rest on this.
+
+The button prompts are textures (named as PCSX2 packs name them, which the
+port overrides with art it draws, port/prompts.cpp): the frontend's face
+buttons with Start and Select (a 128 x 64 atlas: the marks, the ring they
+sit in, the START word), the D-pad's arms (32 x 16), L1/L2 and R1/R2 (64 x
+32 each), and the race's own R1 key, shown as a crash's IMPACT TIME (64 x
+32, adbaa8e56489a4b-99f532662aa4f3aa-00001593). The main menu's title
+(SELECT OPTION, 0x00319C80 with string 0xDE on 0x01E89518) is not a string
+the port can swap: its objects keep no string pointer.
 
 ## The mouse in the menus
 

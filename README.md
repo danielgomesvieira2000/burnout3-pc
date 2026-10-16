@@ -35,20 +35,18 @@ wrong, press **F12** at that moment and attach the folder it writes to
 - **Widescreen**: 4:3, 16:9 or the window's own shape, with the HUD kept in
   place - and a HUD editor (**F10**) to anchor each HUD element left, right,
   centred or stretched.
-- **Button icons for the keyboard, the mouse and other controllers**: the
-  game's button prompts turn into keys (or mouse buttons) as soon as those
-  are used, and back to the controller's when it is - an Xbox controller's
-  (A, B, X, Y, LB, LT...) for one labelled so, as most are, a Nintendo one's
-  (B at the bottom, A on the right) for one of those, the DualShock's for a
-  PlayStation controller. `PS2HOST_PAD_PROMPTS=playstation`, `xbox` or
-  `nintendo` picks them (a DualShock passed on as an Xbox controller by
-  DS4Windows, say).
+- **Rebindable controls**: every key and controller button, with racing and
+  menu controls set apart (Cross can choose in the menus without
+  accelerating); a CLASSIC or MODERN (triggers) racing layout.
+- **Button icons that follow you**: the game's button prompts show the keys,
+  mouse buttons or controller buttons you use - as you bound them, in the
+  menus and in the race - with PlayStation or Xbox marks (automatic by
+  controller), all drawn by the port.
 - **PC settings** in the game's own main menu (where ONLINE used to be), in
   pages: VIDEO (fullscreen, vertical sync, frame pacing, resolution, the
   aspect ratio, anti-aliasing: FXAA or SSAA 2x/4x), GRAPHICS (the speed blur),
-  CONTROLS (modern controls: R2/L2 accelerate and brake, analogue, face
-  buttons for boost and the rest, while racing only; DualSense trigger
-  effects). Saved in `pc_settings.ini`; QUIT GAME in the main menu.
+  CONTROLS (the keyboard's and the controller's bindings, racing and menus;
+  button prompts; DualSense trigger effects). Saved in `pc_settings.ini`; QUIT GAME in the main menu.
 - **Smooth frames**: frame pacing, and 120 Hz in fullscreen on a 144 Hz
   screen so that 60 frames a second show evenly.
 - **Controls**: any controller SDL knows (Xbox, PlayStation, ...) as a

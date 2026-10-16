@@ -51,15 +51,24 @@ Controls
 A game controller (Xbox, PlayStation, most others SDL knows) works as a
 DualShock 2. Rumble is supported.
 
-Modern controls (PC SETTINGS, CONTROLS) - while racing only; the menus and
-the pause screen keep Cross and Triangle:
+Every key and button can be changed (PC SETTINGS, CONTROLS), the keyboard's
+and the controller's each, and each in two sets: RACING and MENUS (the
+menus, the pause screen, message boxes). So Cross can choose in the menus
+and still not accelerate, or W can accelerate while the arrows move through
+menus. Choose an action and press the new key or button; Escape, a right
+click or five seconds leave it as it was. A key already used for something
+else in the same set swaps over to it. RESET TO DEFAULTS on each page puts
+it back. The choices are kept in pc_settings.ini.
+
+The controller's racing LAYOUT: CLASSIC (the game's own) or MODERN - while
+racing only:
   R2   accelerate (how far you pull)    Cross     boost, Impact Time
   L2   brake, reverse (how far)         Square    look back
-  R1   boost                            Triangle  change camera
-  L1   next EA Trax song                Circle    as before
-With TRIGGER EFFECTS on, a DualSense's triggers push back while you race.
+  L1   next EA Trax song                Triangle  change camera
+Accelerate or brake on a trigger is analogue, whatever the layout. With
+TRIGGER EFFECTS on, a DualSense's triggers push back while you race.
 
-Keyboard:
+The keyboard's default keys (racing and menus alike):
   Arrow keys        D-pad            Enter       Start
   X                 Cross            Backspace   Select
   C                 Circle           Q / E       L1 / R1
@@ -73,7 +82,11 @@ keyboard. On the car select, click the chosen car (on the left) to go on
 with it, or the one above or below it to turn to that one.
 
 The button icons follow what you play with: the controller's buttons, the
-keys while you use the keyboard, the mouse's buttons once you use the mouse.
+keys while you use the keyboard, the mouse's buttons once you use the mouse -
+and always show the keys and buttons you chose, in the menus and in the race
+("PRESS E KEY TO BOOST"). BUTTON PROMPTS chooses the controller's: AUTO (an
+Xbox controller's letters for an Xbox controller, PlayStation marks for the
+rest), PLAYSTATION or XBOX.
 
 Other keys:
   F1          an FPS counter on and off (pictures shown a second)
@@ -99,9 +112,10 @@ long gone) has three pages (Triangle goes back):
              averaged down - the cleanest, and the heaviest on the GPU;
              with the resolution at DISPLAY, SSAA 4X can be too much)
   GRAPHICS   the speed blur
-  CONTROLS   modern controls (triggers to accelerate and brake, face
-             buttons for the rest - see "Controls") and, with them, a
-             DualSense's trigger effects
+  CONTROLS   KEYBOARD (RACING), KEYBOARD (MENUS), CONTROLLER (RACING),
+             CONTROLLER (MENUS): every key and button (see "Controls");
+             BUTTON PROMPTS (auto, PlayStation or Xbox) and a DualSense's
+             TRIGGER EFFECTS
 
 QUIT GAME is in the main menu too.
 

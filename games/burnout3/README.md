@@ -65,7 +65,9 @@ tests: 30). A game controller (any SDL3 knows: DualSense, DualShock 4,
 Xbox, ...) is the DualShock 2, by button position - the bottom face button
 is Cross, the triggers L2 and R2 (analog), both sticks analog. The keyboard
 works too: arrows for the D-pad, Enter Start, Backspace Select, X Cross,
-C Circle, Z Square, V Triangle, Q and E L1 and R1, 1 and 3 L2 and R2.
+C Circle, Z Square, V Triangle, Q and E L1 and R1, 1 and 3 L2 and R2. Both
+can be rebound in PC SETTINGS > CONTROLS, racing and menus apart
+(port/controls.cpp; `bind.*` in pc_settings.ini).
 
 For speed, the VU microprograms the game runs are compiled ahead of time
 from a recording (engine/docs/PORTING.md): record once, then build again.
