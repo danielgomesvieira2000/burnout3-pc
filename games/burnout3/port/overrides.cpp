@@ -55,7 +55,6 @@ void F_00321470(lifted::Context& c);
 void F_0031C350(lifted::Context& c);
 
 bool LanEnabled();                 // iop_servers.cpp: B3_LAN=1, the LAN work's switch
-void LanPrepareLobby();            // lan_lobby.cpp: finds the LAN's lobby, or serves it
 void LanPresetLogin();             // lan.cpp: SELECT EA ACCOUNT logs in by itself
 
 namespace {
@@ -689,9 +688,8 @@ void MultiplayerScreen(lifted::Context& c) {
         const u32 name = GuestCall(c, 0x0013B730u, {profile});
         GuestCall(c, 0x002139A0u, {0x00516DF4u, 9, name});
     }
-    // After the profile's name is out (the lobby's room is named after it),
-    // before the online flow looks the lobby's name up.
-    LanPrepareLobby();
+    // The lobby is found or served later, once the network is chosen in the
+    // list of network configurations (lan.cpp, ChooseNetwork).
     LanPresetLogin();
     generated::Write8(0x01E6549Au, 1);
     generated::Write32(0x01E900B4u, 3);

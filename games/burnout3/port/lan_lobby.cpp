@@ -24,10 +24,13 @@
  * player's network (Game::AddressFor). A group that shares one network -
  * the real LAN, ZeroTier, Radmin - finds itself with nothing set by hand.
  *
+ * The network can also be chosen, in the game's list of network
+ * configurations (lan.cpp: AUTO, then each of this PC's networks): the
+ * question, the answer and the race then go through that one only - for a
+ * player on two networks (the real LAN and a VPN), whose first answer could
+ * otherwise come over the network the others are not on.
+ *
  * TODO:
- * - A player on two networks (the real LAN and a VPN) takes the first answer,
- *   which may come over the network the others are not on: a way to put one
- *   network first (an option in the game's menus, or B3_LAN_IP).
  * - Mixed groups (one player only on the real LAN, another only on a VPN,
  *   the host on both): the race is peer to peer (lan_libnet.cpp, UDP 3658)
  *   and those two have no path between them. Hand each player stand-in
@@ -661,14 +664,28 @@ u_long Discover(int wait_ms) {
     setsockopt(s, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&on), sizeof on);
     DWORD timeout = 250;
     setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof timeout);
-    std::vector<u_long> targets = {htonl(INADDR_BROADCAST)};
-    for (const Network& n : Networks()) {
+    // A network chosen (B3_LAN_IP: by hand, or in the game's list): its own
+    // broadcast address only, if it is one of this PC's.
+    in_addr chosen{};
+    const char* text = std::getenv("B3_LAN_IP");
+    const bool one = text && inet_pton(AF_INET, text, &chosen) == 1 && (ntohl(chosen.s_addr) >> 24) != 127;
+    std::vector<Network> networks = Networks();
+    if (one) {
+        std::vector<Network> mine;
+        for (const Network& n : networks)
+            if (n.address.s_addr == chosen.s_addr) mine.push_back(n);
+        if (!mine.empty()) networks = mine;
+    }
+    std::vector<u_long> targets;
+    if (!one) targets.push_back(htonl(INADDR_BROADCAST));
+    for (const Network& n : networks) {
         const u_long broadcast = n.address.s_addr | ~n.mask.s_addr;
         if (n.mask.s_addr != INADDR_BROADCAST && std::find(targets.begin(), targets.end(), broadcast) == targets.end()) {
             targets.push_back(broadcast);
             Log("asking for a lobby on " + Dotted(n.address) + "'s network");
         }
     }
+    if (targets.empty()) targets.push_back(htonl(INADDR_BROADCAST));
     u_long found = 0;
     const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(wait_ms);
     while (!found && std::chrono::steady_clock::now() < until) {
@@ -711,8 +728,9 @@ std::vector<std::pair<std::string, std::string>> LanNetworkList() {
 std::string LanLocalAddressText();      // lan.cpp: this PC's address on the LAN
 std::string LanPlayerName();            // lan.cpp: this PC's player, as the lobby knows it
 
-/* LAN taken in MULTIPLAYER: makes sure there is a lobby and points the game
-   at it (PS2HOST_INET_HOST), before the online flow looks its name up. */
+/* A network taken in the game's list of network configurations (lan.cpp,
+   ChooseNetwork; else when the lobby's name is about to be looked up):
+   makes sure there is a lobby and points the game at it (PS2HOST_INET_HOST). */
 void LanPrepareLobby() {
 #ifdef _WIN32
     static bool fixed = std::getenv("PS2HOST_INET_HOST") != nullptr && !g_serving;

@@ -43,6 +43,7 @@
 
 bool LanEnabled();                 // iop_servers.cpp
 std::vector<std::pair<std::string, std::string>> LanNetworkList();     // lan_lobby.cpp: (address, adapter)
+void LanPrepareLobby();            // lan_lobby.cpp: finds the LAN's lobby, or serves it
 
 // The network configuration's step, each frame (0x0022E110: by its state at
 // +0x48, the loading 0x0022DEF0, the bring-up 0x0022DB20).
@@ -50,11 +51,9 @@ void F_0022E110(lifted::Context& c);
 // The memory card's check (0x0030A130 on the card object 0x005185A0): 0 the
 // card is fine, 0xD it is not (missing, unformatted, no network file).
 void F_0030A130(lifted::Context& c);
-// The list of network configurations (state +0x88) and the NETWORK
-// CONFIGURATION screen (state +4): PROBE, the line chosen in the list.
+// The list of network configurations, each frame (its screen: the cursor in
+// the low half of +0x78, the line taken at +4, -1 until one is).
 void F_003464B0(lifted::Context& c);
-void F_00349E00(lifted::Context& c);
-void F_0022E6B0(lifted::Context& c);
 // PROBE: the online flow's object, each frame.
 void F_0026D2A0(lifted::Context& c);
 void F_002714C0(lifted::Context& c);
@@ -107,38 +106,35 @@ void Log(const std::string& text) {
     std::fprintf(stderr, "[lan] %06lld %s\n", ms, text.c_str());
 }
 
-// This PC's IPv4 on the LAN, network order: B3_LAN_IP if set (two instances
-// on one PC), else the address a UDP socket "connected" outward would send
-// from (nothing is sent).
+// This PC's IPv4 on the LAN, network order: B3_LAN_IP if set (by hand, or
+// the network chosen in the game's list), else the address a UDP socket
+// "connected" toward the lobby (or outward) would send from (nothing is sent).
 u32 LocalAddress() {
-    static const u32 ip = [] {
-        u32 found = 0;
+    u32 found = 0;
 #ifdef _WIN32
-        if (const char* text = std::getenv("B3_LAN_IP")) {
-            in_addr a{};
-            if (inet_pton(AF_INET, text, &a) == 1) return u32(a.s_addr);
-        }
-        WSADATA data;
-        if (WSAStartup(MAKEWORD(2, 2), &data) != 0) return u32(0x0100007Fu);
-        const SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-        if (s != INVALID_SOCKET) {
-            sockaddr_in out{};
-            out.sin_family = AF_INET;
-            out.sin_port = htons(9);
-            const char* host = std::getenv("PS2HOST_INET_HOST");
-            if (!host || inet_pton(AF_INET, host, &out.sin_addr) != 1 || out.sin_addr.s_addr == htonl(0x7F000001u))
-                inet_pton(AF_INET, "10.0.0.1", &out.sin_addr);
-            sockaddr_in a{};
-            int size = sizeof a;
-            if (connect(s, reinterpret_cast<sockaddr*>(&out), sizeof out) == 0 &&
-                getsockname(s, reinterpret_cast<sockaddr*>(&a), &size) == 0)
-                found = a.sin_addr.s_addr;
-            closesocket(s);
-        }
+    if (const char* text = std::getenv("B3_LAN_IP")) {
+        in_addr a{};
+        if (inet_pton(AF_INET, text, &a) == 1) return u32(a.s_addr);
+    }
+    WSADATA data;
+    if (WSAStartup(MAKEWORD(2, 2), &data) != 0) return u32(0x0100007Fu);
+    const SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (s != INVALID_SOCKET) {
+        sockaddr_in out{};
+        out.sin_family = AF_INET;
+        out.sin_port = htons(9);
+        const char* host = std::getenv("PS2HOST_INET_HOST");
+        if (!host || inet_pton(AF_INET, host, &out.sin_addr) != 1 || out.sin_addr.s_addr == htonl(0x7F000001u))
+            inet_pton(AF_INET, "10.0.0.1", &out.sin_addr);
+        sockaddr_in a{};
+        int size = sizeof a;
+        if (connect(s, reinterpret_cast<sockaddr*>(&out), sizeof out) == 0 &&
+            getsockname(s, reinterpret_cast<sockaddr*>(&a), &size) == 0)
+            found = a.sin_addr.s_addr;
+        closesocket(s);
+    }
 #endif
-        return found ? found : u32(0x0100007Fu);
-    }();
-    return ip;
+    return found ? found : u32(0x0100007Fu);
 }
 
 std::string Dotted(u32 ip) {
@@ -157,6 +153,9 @@ constexpr u32 kCombinations = 0x01D7AF00u, kCombination = 0xC8u;
 // Lines in that list: AUTO and the PC's networks (the space after it, as
 // far as is known, is the list's own - 10 on a PS2's memory card).
 constexpr size_t kNetworkLines = 8;
+std::vector<std::pair<std::string, std::string>> g_networks;   // the list's lines: (address, adapter)
+bool g_address_by_hand = false;     // B3_LAN_IP set before the game started
+bool g_lobby_ready = false;         // the lobby found or served since LAN was taken
 
 void WriteText(u32 at, const char* text, u32 room) {
     u32 i = 0;
@@ -168,44 +167,6 @@ std::string Upper(std::string text) {
     for (char& ch : text) ch = char(std::toupper(u8(ch)));
     return text;
 }
-
-/* PROBE (temporary): what changes in a memory block from one call to the
-   next, each word's first few changes - to find where a screen keeps the
-   line chosen in its list. */
-struct Watch {
-    const char* what;
-    u32 size;
-    u32 base = 0;
-    std::vector<u32> last;
-    std::vector<u8> told;
-
-    void Step(u32 at) {
-        static u32 lines = 0;
-        if (at == 0 || at + size > 0x02000000u) return;
-        if (at != base) {
-            base = at;
-            last.assign(size / 4, 0);
-            told.assign(size / 4, 0);
-            for (u32 i = 0; i < size / 4; ++i) last[i] = u32(generated::ReadU32(at + 4 * i));
-            char text[96];
-            std::snprintf(text, sizeof text, "probe %s at %08X", what, at);
-            Log(text);
-            return;
-        }
-        for (u32 i = 0; i < size / 4; ++i) {
-            const u32 now = u32(generated::ReadU32(at + 4 * i));
-            if (now == last[i]) continue;
-            if (told[i] < 6 && lines < 600) {
-                ++told[i];
-                ++lines;
-                char text[120];
-                std::snprintf(text, sizeof text, "probe %s +%03X: %08X -> %08X", what, 4 * i, last[i], now);
-                Log(text);
-            }
-            last[i] = now;
-        }
-    }
-};
 
 /* 0x0022E110(object): the network configuration's step. The object's +0x4D
    set: the interface is taken as already up, nothing is loaded - and the
@@ -220,7 +181,8 @@ void NetworkConfiguration(lifted::Context& c) {
     }
     F_0022E110(c);
     if (generated::ReadU32(kCombinations) == 0) {
-        std::vector<std::pair<std::string, std::string>> lines = {{"AUTO", "ALL NETWORKS"}};
+        std::vector<std::pair<std::string, std::string>>& lines = g_networks;
+        lines = {{"AUTO", "ALL NETWORKS"}};
         for (const auto& [address, adapter] : LanNetworkList())
             if (lines.size() < kNetworkLines) lines.emplace_back(address, Upper(adapter));
         for (u32 n = 0; n < lines.size(); ++n) {
@@ -234,25 +196,41 @@ void NetworkConfiguration(lifted::Context& c) {
         generated::Write32(kCombinations + 4, 1);
         generated::Write32(kCombinations, u32(lines.size()));
     }
-    static Watch combinations{"the list's header", 0x30};
-    combinations.Step(kCombinations);
-    static Watch configuration{"the network configuration", 0x80};
-    configuration.Step(object);
 }
 
-/* PROBE (temporary): the list of network configurations and its screen. */
-void ListProbe(lifted::Context& c) {
+/* The network the LAN goes through: the list's line, as B3_LAN_IP (which
+   the lobby, the libnet sockets and this PC's address all follow) - none
+   for AUTO, all of them. A B3_LAN_IP set by hand stands. */
+void UseNetwork(u32 line) {
+    if (g_address_by_hand) {
+        Log("network chosen: line " + std::to_string(line + 1) + ", but B3_LAN_IP is set by hand: it stands");
+        return;
+    }
+#ifdef _WIN32
+    if (line == 0 || line >= g_networks.size()) {
+        _putenv_s("B3_LAN_IP", "");
+        Log("network chosen: AUTO, all networks");
+    } else {
+        _putenv_s("B3_LAN_IP", g_networks[line].first.c_str());
+        Log("network chosen: " + g_networks[line].first + " (" + g_networks[line].second + ")");
+    }
+#endif
+}
+
+/* 0x003464B0(screen): the list of network configurations. When a line is
+   taken, the LAN goes through its network, and only then is the lobby found
+   or served (before, it would be on a network not yet chosen). */
+void ChooseNetwork(lifted::Context& c) {
     const u32 screen = u32(c.r[4]);
     F_003464B0(c);
-    static Watch list{"the list screen", 0x200};
-    list.Step(screen);
-}
-
-void ConfigurationScreenProbe(lifted::Context& c) {
-    const u32 screen = u32(c.r[4]);
-    F_00349E00(c);
-    static Watch watch{"the NETWORK CONFIGURATION screen", 0x100};
-    watch.Step(screen);
+    static s32 last = -1;
+    const s32 line = s32(generated::ReadU32(screen + 4));
+    if (line != last && line >= 0) {
+        UseNetwork(u32(line));
+        LanPrepareLobby();
+        g_lobby_ready = true;
+    }
+    last = line;
 }
 
 /* 0x0030A130(card, 0, 0): the memory card's check. The NETWORK
@@ -467,6 +445,12 @@ void KeyProbe(lifted::Context& c) {
 
 /* PROBE (temporary): 0x00402C88(ref, name, address, port). */
 void ConnectProbe(lifted::Context& c) {
+    // The lobby's name about to be looked up: if no network was taken in
+    // the list (it did not show), the lobby is found or served now.
+    if (!g_lobby_ready && u32(c.r[5]) && generated::ReadU8(u32(c.r[5]))) {
+        LanPrepareLobby();
+        g_lobby_ready = true;
+    }
     char text[160];
     std::snprintf(text, sizeof text, "probe ProtoAriesConnect(name [%s], address %08X, port %u)",
                   GuestString(u32(c.r[5]), 40).c_str(), u32(c.r[6]), u32(c.r[7]));
@@ -849,6 +833,7 @@ std::string LanLocalAddressText() { return Dotted(LocalAddress()); }
    through 0x0034CD50 - as after a race. Set as LAN is taken (overrides.cpp):
    the screen goes by, with the PC's player's name. */
 void LanPresetLogin() {
+    g_lobby_ready = false;
     const std::string name = PlayerName();
     WriteText(0x01EA3084u, name.c_str(), 0x20);
     WriteText(0x01EA30A4u, "LANPLAY", 0x20);
@@ -863,12 +848,11 @@ void RegisterLanLibnet();         // lan_libnet.cpp
 
 void RegisterLan() {
     if (!LanEnabled()) return;
+    g_address_by_hand = std::getenv("B3_LAN_IP") != nullptr;
     RegisterLanLibnet();
     ps2host::Override(0x0022E110u, NetworkConfiguration, "LAN: the network configuration, the interface already up");
     ps2host::Override(0x0030A130u, CardCheck, "LAN: the NETWORK CONFIGURATION screens need no card");
-    ps2host::Override(0x003464B0u, ListProbe, "LAN: PROBE the list of network configurations");
-    ps2host::Override(0x00349E00u, ConfigurationScreenProbe, "LAN: PROBE the NETWORK CONFIGURATION screen");
-    ps2host::Override(0x0022E6B0u, ReturnProbe<F_0022E6B0, 0x0022E6B0u>, "LAN: PROBE 0x0022E6B0 (the list handed out)");
+    ps2host::Override(0x003464B0u, ChooseNetwork, "LAN: the network chosen in the list of network configurations");
     ps2host::Override(0x0023A740u, MInitRpc, "LAN: sceSifMInitRpc (no MSIFRPC)");
     ps2host::Override(0x003D4070u, LibnetInit, "LAN: libnet's initialisation");
     ps2host::Override(0x003D41B8u, LibnetRegister, "LAN: libnet procedure 0x1E");

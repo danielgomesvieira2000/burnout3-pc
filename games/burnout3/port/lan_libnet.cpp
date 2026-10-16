@@ -149,12 +149,9 @@ bool Started() {
 
 // This instance's address (network order): B3_LAN_IP, or any.
 u32 BindAddress() {
-    static const u32 ip = [] {
-        in_addr a{};
-        const char* text = std::getenv("B3_LAN_IP");
-        return text && inet_pton(AF_INET, text, &a) == 1 ? u32(a.s_addr) : u32(INADDR_ANY);
-    }();
-    return ip;
+    in_addr a{};
+    const char* text = std::getenv("B3_LAN_IP");
+    return text && inet_pton(AF_INET, text, &a) == 1 ? u32(a.s_addr) : u32(INADDR_ANY);
 }
 
 void NonBlocking(SOCKET s) {
