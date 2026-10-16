@@ -856,7 +856,7 @@ void AccountSelect(lifted::Context& c) {
     }
     // "No EA Account found" is greyed out: CREATE NEW EA ACCOUNT (event 1,
     // the u16 1) is the entry that, on the LAN, logs in as the PC's player.
-    if (event == 1 && generated::ReadU8(kAccountName) == 0) {
+    const auto LogIn = [&c] {
         const std::string name = PlayerName();
         WriteText(kAccountName, name.c_str(), 0x32);
         WriteText(kAccountPassword, "LANPLAY", 0x32);
@@ -866,6 +866,29 @@ void AccountSelect(lifted::Context& c) {
         Log("SELECT EA ACCOUNT: logging in as " + name);
         F_0034B9D0(c);
         generated::Write16(kAccountKind, u16(kind));
+    };
+    if (event == 1 && generated::ReadU8(kAccountName) == 0) {
+        LogIn();
+        return;
+    }
+    // Coming in (event 3): nothing to choose on the LAN - the screen set up,
+    // then at once the select above, as if CREATE NEW were pressed.
+    // B3_LAN_ACCOUNTS=1 leaves the screen to the player.
+    static const bool shown = [] {
+        const char* value = std::getenv("B3_LAN_ACCOUNTS");
+        return value && *value && *value != '0';
+    }();
+    if (event == 3 && !shown) {
+        u64 saved[32];
+        std::memcpy(saved, c.r, sizeof saved);
+        F_0034B9D0(c);
+        if (generated::ReadU8(kAccountName) == 0) {
+            std::memcpy(c.r, saved, sizeof saved);
+            c.r[5] = 1;
+            c.r[6] = 1;
+            c.r[7] = 1;
+            LogIn();
+        }
         return;
     }
     F_0034B9D0(c);
@@ -929,6 +952,7 @@ void LanPresetLogin() {
     WriteText(0x01EA3084u, name.c_str(), 0x20);
     WriteText(0x01EA30A4u, "LANPLAY", 0x20);
     generated::Write8(0x01EA3150u, 1);
+    generated::Write8(kAccountName, 0);     // no account kept from the last time: SELECT EA ACCOUNT logs in anew
     Log("SELECT EA ACCOUNT will log in as " + name);
 }
 
