@@ -23,6 +23,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <initializer_list>
 #include <set>
 #include <string>
 #include <utility>
@@ -88,6 +89,8 @@ void F_004032F8(lifted::Context& c);
 void F_00402FF8(lifted::Context& c);
 // SELECT EA ACCOUNT's event handler (see AccountSelect).
 void F_0034B9D0(lifted::Context& c);
+// SELECT EA ACCOUNT's list of accounts, loaded from the card (0x00349840(list)).
+void F_00349840(lifted::Context& c);
 void F_00330360(lifted::Context& c);
 void F_002366E0(lifted::Context& c);
 void F_0033C390(lifted::Context& c);
@@ -874,6 +877,48 @@ void AccountSelect(lifted::Context& c) {
     F_0034B9D0(c);
 }
 
+/* A call into the game: arguments in a0.., the result (v0); the registers as they were. */
+u32 Guest(lifted::Context& c, u32 target, std::initializer_list<u32> arguments) {
+    u64 saved[32];
+    std::memcpy(saved, c.r, sizeof saved);
+    int r = 4;
+    for (u32 a : arguments) c.r[r++] = s64(s32(a));
+    lifted::Call(c, target, u32(saved[31]));
+    const u32 result = u32(c.r[2]);
+    std::memcpy(c.r, saved, sizeof saved);
+    return result;
+}
+
+/* SELECT EA ACCOUNT coming in (0x0034A4E0, message 3, from the screen
+   before it): its state (screen+0xB4) 1, the list of accounts loaded from
+   the card (0x00349840(0x01E9B4CC)) to pick one from. On the LAN there is
+   none to pick: instead, what selecting one does (0x0034BBC8) - state 2 and
+   the login (0x0034CD50(0x01E9B740, name, password, flag)) as the PC's
+   player; the screen goes by. The screen is in s0 (its handler's).
+   B3_LAN_ACCOUNTS=1 shows it. */
+constexpr u32 kAccountList = 0x01E9B4CCu, kAuth = 0x01E9B740u;
+
+void AccountList(lifted::Context& c) {
+    static const bool shown = [] {
+        const char* value = std::getenv("B3_LAN_ACCOUNTS");
+        return value && *value && *value != '0';
+    }();
+    const u32 screen = u32(c.r[16]);
+    if (shown || u32(c.r[4]) != kAccountList || generated::ReadU32(screen + 0xB4) != 1) {
+        F_00349840(c);
+        return;
+    }
+    const std::string name = PlayerName();
+    WriteText(kAccountName, name.c_str(), 0x32);
+    WriteText(kAccountPassword, "LANPLAY", 0x32);
+    generated::Write8(kAccountFlag, 0);
+    generated::Write32(screen + 0xB4, 2);
+    Guest(c, 0x0034CD50u, {kAuth, kAccountName, kAccountPassword, 0});
+    Guest(c, 0x001272D0u, {screen + 0x10, kAccountName});     // as the select keeps them
+    Guest(c, 0x001272D0u, {screen + 0x42, kAccountPassword});
+    Log("SELECT EA ACCOUNT: logged in at once as " + name);
+}
+
 /* The lobby's redirector, "*ps2burnout05.ea.com" port 21800 (0x004C6E60),
    is handed to the lobby by 0x00346DF0 and 0x003471E0. The star asks for an
    encrypted connection (0x00406E6C skips it and turns 'cryp' on); without it
@@ -964,6 +1009,7 @@ void RegisterLan() {
     ps2host::Override(0x0022EB30u, AccessStart, "LAN: accessing the network, timed");
     ps2host::Override(0x0022EB20u, AccessDone, "LAN: accessing the network, over");
     ps2host::Override(0x00402C88u, LobbyLookup, "LAN: the lobby found, if not yet, before its name is looked up");
+    ps2host::Override(0x00349840u, AccountList, "LAN: SELECT EA ACCOUNT logs in at once, no list");
     ps2host::Override(0x0034B9D0u, AccountSelect, "LAN: SELECT EA ACCOUNT logs in as the PC's player");
     ps2host::Override(0x00346DF0u, PlainRedirector<F_00346DF0>, "LAN: the lobby's redirector in the clear");
     ps2host::Override(0x003471E0u, PlainRedirector<F_003471E0>, "LAN: the lobby's redirector in the clear");
