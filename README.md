@@ -85,6 +85,7 @@ no server to run - the first player in serves the others, inside the game.
 | `B3_LAN=0` | no LAN row |
 | `B3_LAN_IP=<address>` | this PC's address for the LAN (the list's choice is left alone) - also two instances on one PC |
 | `PS2HOST_INET_HOST=<address>` | the lobby is at that address: no looking for it |
+| `B3_LAN_FAST=<n>` | "Accessing network" (EA's NAT test, UPnP's search: ~17 s of waiting) goes by n times faster; 8 by default, 1 as the console |
 | `B3_LAN_DEBUG=1` | the online flow, the lobby's messages and libnet's traffic, step by step, in the log |
 | `B3_LAN_DUMP=1` | each race datagram, with its first bytes |
 
