@@ -81,6 +81,8 @@ void F_00402C88(lifted::Context& c);
 // NAT test and UPnP's search; 0x0022EB20 once they gave up).
 void F_0022EB30(lifted::Context& c);
 void F_0022EB20(lifted::Context& c);
+// The network test's UPnP search (0x00233C50(test), its step at +0x598).
+void F_00233C50(lifted::Context& c);
 void F_00406E20(lifted::Context& c);
 void F_004032F8(lifted::Context& c);
 void F_00402FF8(lifted::Context& c);
@@ -175,12 +177,15 @@ bool g_address_by_hand = false;     // B3_LAN_IP set before the game started
 bool g_lobby_ready = false;         // the lobby found or served since LAN was taken
 bool g_list_stale = true;           // the list of networks to be made again (each time LAN is taken)
 
-/* "Accessing network": before the lobby, the game waits ~17 s for EA's NAT
-   test (81.6.198.229:2034, long gone) and a UPnP router (the M-SEARCHes to
-   239.255.255.250:1900), neither of any use on a LAN. Its timers follow the
-   clock, not the frames (fast-forwarding the frames changed nothing). TODO:
-   keep the tests from starting. For now the wait is timed, from 0x0022EB30
-   to 0x0022EB20 (or the lobby's lookup, or 30 s). */
+/* "Accessing network": before the lobby, the game tests the network
+   (0x00230600(test), each frame, its state at +0x584: 1 sends EA's NAT probe
+   to 81.6.198.229:2034, 2 searches a UPnP router, 3 on map a port on it; 7
+   is given up after 60 s, 8 no router, 9 a port mapped). The search
+   (0x00233C50, its step at +0x598) sends an M-SEARCH to 239.255.255.250:1900,
+   waits 121 frames (~2 s) for an answer, and tries 4 times before its 9, no
+   router - 8 s or more for nothing on a LAN. UpnpSearch answers 9 at once.
+   The wait is timed in the log, from 0x0022EB30 to 0x0022EB20 (or the
+   lobby's lookup, or 30 s). */
 std::chrono::steady_clock::time_point g_accessing_since;
 bool g_accessing = false;
 
@@ -493,6 +498,17 @@ void KeyProbe(lifted::Context& c) {
     F_0040F280(c);
     Log("probe key " + GuestString(key, 16) + " from " + std::to_string(caller) + " in [" + GuestString(text, 48) +
         "] -> " + (u32(c.r[2]) ? "[" + GuestString(u32(c.r[2]), 24) + "]" : std::string("none")));
+}
+
+/* 0x00233C50(test): the UPnP search, a step a frame; 9: no router. On a LAN
+   there is none to find: no router, at once. */
+void UpnpSearch(lifted::Context& c) {
+    const u32 test = u32(c.r[4]);
+    generated::Write32(test + 0x598, 9);
+    c.r[2] = 9;
+    static bool told = false;
+    if (!told || LanDebug()) Log("accessing the network: no UPnP search (a LAN has no router to map ports on)");
+    told = true;
 }
 
 void AccessStart(lifted::Context& c) {
@@ -940,6 +956,7 @@ void RegisterLan() {
     ps2host::Override(0x0041BE40u, DnasStart, "LAN: DNAS entry 4");
     ps2host::Override(0x0041BF90u, DnasUnload, "LAN: DNAS unload (nothing loaded)");
     ps2host::Override(0x004022E8u, CableState, "LAN: the network cable is always in");
+    ps2host::Override(0x00233C50u, UpnpSearch, "LAN: the network test's UPnP search, none");
     ps2host::Override(0x0022EB30u, AccessStart, "LAN: accessing the network, timed");
     ps2host::Override(0x0022EB20u, AccessDone, "LAN: accessing the network, over");
     ps2host::Override(0x00402C88u, LobbyLookup, "LAN: the lobby found, if not yet, before its name is looked up");
