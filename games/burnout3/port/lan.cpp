@@ -177,17 +177,16 @@ bool g_list_stale = true;           // the list of networks to be made again (ea
 
 /* "Accessing network": before the lobby, the game waits ~17 s for EA's NAT
    test (81.6.198.229:2034, long gone) and a UPnP router (the M-SEARCHes to
-   239.255.255.250:1900), neither of any use on a LAN. While it waits the
-   frames go by faster (SetFastForward, as for the loadings), so its timers
-   run out sooner. Over at 0x0022EB20, at the lobby's lookup, or after 30 s
-   whatever happened. B3_LAN_FAST=1 runs it as the console. */
+   239.255.255.250:1900), neither of any use on a LAN. Its timers follow the
+   clock, not the frames (fast-forwarding the frames changed nothing). TODO:
+   keep the tests from starting. For now the wait is timed, from 0x0022EB30
+   to 0x0022EB20 (or the lobby's lookup, or 30 s). */
 std::chrono::steady_clock::time_point g_accessing_since;
 bool g_accessing = false;
 
 void StopAccessing(const char* why) {
     if (!g_accessing) return;
     g_accessing = false;
-    ps2host::SetFastForward(1);
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() -
                                                                           g_accessing_since).count();
     Log("accessing the network: " + std::to_string(ms) + " ms, " + why);
@@ -498,15 +497,9 @@ void KeyProbe(lifted::Context& c) {
 
 void AccessStart(lifted::Context& c) {
     F_0022EB30(c);
-    static const unsigned speed = [] {
-        const char* value = std::getenv("B3_LAN_FAST");
-        return value && *value ? unsigned(std::max(1, std::atoi(value))) : 8u;
-    }();
-    if (!g_lobby_ready || g_accessing || speed == 1) return;
+    if (!g_lobby_ready || g_accessing) return;
     g_accessing = true;
     g_accessing_since = std::chrono::steady_clock::now();
-    ps2host::SetFastForward(speed);
-    Log("accessing the network: fast-forwarded x" + std::to_string(speed));
 }
 
 void AccessDone(lifted::Context& c) {
@@ -947,7 +940,7 @@ void RegisterLan() {
     ps2host::Override(0x0041BE40u, DnasStart, "LAN: DNAS entry 4");
     ps2host::Override(0x0041BF90u, DnasUnload, "LAN: DNAS unload (nothing loaded)");
     ps2host::Override(0x004022E8u, CableState, "LAN: the network cable is always in");
-    ps2host::Override(0x0022EB30u, AccessStart, "LAN: accessing the network, fast-forwarded");
+    ps2host::Override(0x0022EB30u, AccessStart, "LAN: accessing the network, timed");
     ps2host::Override(0x0022EB20u, AccessDone, "LAN: accessing the network, over");
     ps2host::Override(0x00402C88u, LobbyLookup, "LAN: the lobby found, if not yet, before its name is looked up");
     ps2host::Override(0x0034B9D0u, AccountSelect, "LAN: SELECT EA ACCOUNT logs in as the PC's player");
