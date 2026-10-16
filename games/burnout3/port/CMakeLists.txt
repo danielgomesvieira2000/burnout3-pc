@@ -34,4 +34,5 @@ ps2_add_port(burnout3
             ${CMAKE_CURRENT_LIST_DIR}/lan_lobby.cpp)
 if(WIN32)
     target_link_libraries(burnout3 PRIVATE ws2_32)    # lan.cpp, lan_libnet.cpp, lan_lobby.cpp: the PC's sockets
+    target_link_libraries(burnout3 PRIVATE iphlpapi)  # lan_lobby.cpp: the PC's networks, by adapter
 endif()

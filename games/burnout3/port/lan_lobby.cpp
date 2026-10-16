@@ -47,6 +47,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #ifdef _WIN32
@@ -58,6 +59,7 @@
 #endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <iphlpapi.h>
 #endif
 
 namespace {
@@ -86,27 +88,39 @@ std::string Dotted(const in_addr& a) {
 }
 
 /* This PC's IPv4 networks: each adapter that is up (the real LAN, ZeroTier,
-   Radmin...), its address and mask; the loopback left out. */
+   Radmin...), its address, mask and name; the loopback and addresses with
+   no network behind them (169.254.x.x) left out. */
 struct Network {
     in_addr address, mask;
+    std::string name;               // Windows' name for the adapter ("ZeroTier One [8056c2e2...]")
     bool Holds(const in_addr& a) const { return (a.s_addr & mask.s_addr) == (address.s_addr & mask.s_addr); }
 };
 
 std::vector<Network> Networks() {
     std::vector<Network> out;
-    const SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (s == INVALID_SOCKET) return out;
-    INTERFACE_INFO list[64];
-    DWORD size = 0;
-    if (WSAIoctl(s, SIO_GET_INTERFACE_LIST, nullptr, 0, list, sizeof list, &size, nullptr, nullptr) == 0) {
-        for (DWORD i = 0; i < size / sizeof list[0]; ++i) {
-            const INTERFACE_INFO& f = list[i];
-            if (!(f.iiFlags & IFF_UP) || (f.iiFlags & IFF_LOOPBACK) || f.iiAddress.Address.sa_family != AF_INET)
-                continue;
-            out.push_back({f.iiAddress.AddressIn.sin_addr, f.iiNetmask.AddressIn.sin_addr});
+    ULONG size = 16384;
+    std::vector<unsigned char> buffer;
+    ULONG result = ERROR_BUFFER_OVERFLOW;
+    for (int tries = 0; tries < 3 && result == ERROR_BUFFER_OVERFLOW; ++tries) {
+        buffer.resize(size);
+        result = GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER,
+                                      nullptr, reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buffer.data()), &size);
+    }
+    if (result != NO_ERROR) return out;
+    for (const IP_ADAPTER_ADDRESSES* a = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buffer.data()); a; a = a->Next) {
+        if (a->OperStatus != IfOperStatusUp || a->IfType == IF_TYPE_SOFTWARE_LOOPBACK) continue;
+        std::string name;
+        for (const wchar_t* w = a->FriendlyName; w && *w; ++w) name += *w >= 32 && *w < 127 ? char(*w) : '?';
+        for (const IP_ADAPTER_UNICAST_ADDRESS* u = a->FirstUnicastAddress; u; u = u->Next) {
+            if (u->Address.lpSockaddr->sa_family != AF_INET) continue;
+            const in_addr ip = reinterpret_cast<const sockaddr_in*>(u->Address.lpSockaddr)->sin_addr;
+            if ((ntohl(ip.s_addr) >> 16) == 0xA9FEu) continue;
+            const unsigned bits = u->OnLinkPrefixLength;
+            in_addr mask{};
+            mask.s_addr = bits == 0 ? 0 : htonl(bits >= 32 ? 0xFFFFFFFFu : ~0u << (32 - bits));
+            out.push_back({ip, mask, name});
         }
     }
-    closesocket(s);
     return out;
 }
 
@@ -683,6 +697,16 @@ u_long Discover(int wait_ms) {
 #endif
 
 }  // namespace
+
+/* This PC's networks for the game's list of network configurations
+   (lan.cpp): each one's address and its adapter's name. */
+std::vector<std::pair<std::string, std::string>> LanNetworkList() {
+    std::vector<std::pair<std::string, std::string>> out;
+#ifdef _WIN32
+    for (const Network& n : Networks()) out.emplace_back(Dotted(n.address), n.name);
+#endif
+    return out;
+}
 
 std::string LanLocalAddressText();      // lan.cpp: this PC's address on the LAN
 std::string LanPlayerName();            // lan.cpp: this PC's player, as the lobby knows it

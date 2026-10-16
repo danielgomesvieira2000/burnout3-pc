@@ -24,6 +24,8 @@
 #include <cstring>
 #include <set>
 #include <string>
+#include <utility>
+#include <vector>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -40,6 +42,7 @@
 #include "ps2host/run.h"
 
 bool LanEnabled();                 // iop_servers.cpp
+std::vector<std::pair<std::string, std::string>> LanNetworkList();     // lan_lobby.cpp: (address, adapter)
 
 // The network configuration's step, each frame (0x0022E110: by its state at
 // +0x48, the loading 0x0022DEF0, the bring-up 0x0022DB20).
@@ -47,6 +50,11 @@ void F_0022E110(lifted::Context& c);
 // The memory card's check (0x0030A130 on the card object 0x005185A0): 0 the
 // card is fine, 0xD it is not (missing, unformatted, no network file).
 void F_0030A130(lifted::Context& c);
+// The list of network configurations (state +0x88) and the NETWORK
+// CONFIGURATION screen (state +4): PROBE, the line chosen in the list.
+void F_003464B0(lifted::Context& c);
+void F_00349E00(lifted::Context& c);
+void F_0022E6B0(lifted::Context& c);
 // PROBE: the online flow's object, each frame.
 void F_0026D2A0(lifted::Context& c);
 void F_002714C0(lifted::Context& c);
@@ -146,6 +154,9 @@ void Return(lifted::Context& c, s32 value) { c.r[2] = s64(value); }
    +4 (from 1), and from +0x30 entries of 0xC8 bytes - a status +0, a type +4
    (3: not listed), the name +0x48 (64 bytes), a second text +0x88. */
 constexpr u32 kCombinations = 0x01D7AF00u, kCombination = 0xC8u;
+// Lines in that list: AUTO and the PC's networks (the space after it, as
+// far as is known, is the list's own - 10 on a PS2's memory card).
+constexpr size_t kNetworkLines = 8;
 
 void WriteText(u32 at, const char* text, u32 room) {
     u32 i = 0;
@@ -153,9 +164,54 @@ void WriteText(u32 at, const char* text, u32 room) {
     for (; i < room; ++i) generated::Write8(at + i, 0);
 }
 
+std::string Upper(std::string text) {
+    for (char& ch : text) ch = char(std::toupper(u8(ch)));
+    return text;
+}
+
+/* PROBE (temporary): what changes in a memory block from one call to the
+   next, each word's first few changes - to find where a screen keeps the
+   line chosen in its list. */
+struct Watch {
+    const char* what;
+    u32 size;
+    u32 base = 0;
+    std::vector<u32> last;
+    std::vector<u8> told;
+
+    void Step(u32 at) {
+        static u32 lines = 0;
+        if (at == 0 || at + size > 0x02000000u) return;
+        if (at != base) {
+            base = at;
+            last.assign(size / 4, 0);
+            told.assign(size / 4, 0);
+            for (u32 i = 0; i < size / 4; ++i) last[i] = u32(generated::ReadU32(at + 4 * i));
+            char text[96];
+            std::snprintf(text, sizeof text, "probe %s at %08X", what, at);
+            Log(text);
+            return;
+        }
+        for (u32 i = 0; i < size / 4; ++i) {
+            const u32 now = u32(generated::ReadU32(at + 4 * i));
+            if (now == last[i]) continue;
+            if (told[i] < 6 && lines < 600) {
+                ++told[i];
+                ++lines;
+                char text[120];
+                std::snprintf(text, sizeof text, "probe %s +%03X: %08X -> %08X", what, 4 * i, last[i], now);
+                Log(text);
+            }
+            last[i] = now;
+        }
+    }
+};
+
 /* 0x0022E110(object): the network configuration's step. The object's +0x4D
    set: the interface is taken as already up, nothing is loaded - and the
-   list gets the one combination there is, the PC's network. */
+   list gets the PC's networks: AUTO (all of them), then each adapter's, by
+   its address (two ZeroTier networks share an adapter name) with the
+   adapter's name below it. */
 void NetworkConfiguration(lifted::Context& c) {
     const u32 object = u32(c.r[4]);
     if (!generated::ReadU8(object + 0x4D)) {
@@ -164,14 +220,39 @@ void NetworkConfiguration(lifted::Context& c) {
     }
     F_0022E110(c);
     if (generated::ReadU32(kCombinations) == 0) {
-        const u32 entry = kCombinations + 0x30;
-        for (u32 i = 0; i < kCombination; i += 4) generated::Write32(entry + i, 0);
-        generated::Write32(entry + 4, 1);
-        WriteText(entry + 0x48, "PC NETWORK", 0x40);
-        WriteText(entry + 0x88, "LAN", 0x40);
+        std::vector<std::pair<std::string, std::string>> lines = {{"AUTO", "ALL NETWORKS"}};
+        for (const auto& [address, adapter] : LanNetworkList())
+            if (lines.size() < kNetworkLines) lines.emplace_back(address, Upper(adapter));
+        for (u32 n = 0; n < lines.size(); ++n) {
+            const u32 entry = kCombinations + 0x30 + n * kCombination;
+            for (u32 i = 0; i < kCombination; i += 4) generated::Write32(entry + i, 0);
+            generated::Write32(entry + 4, 1);
+            WriteText(entry + 0x48, lines[n].first.c_str(), 0x40);
+            WriteText(entry + 0x88, lines[n].second.c_str(), 0x40);
+            Log("network list, line " + std::to_string(n + 1) + ": " + lines[n].first + " - " + lines[n].second);
+        }
         generated::Write32(kCombinations + 4, 1);
-        generated::Write32(kCombinations, 1);
+        generated::Write32(kCombinations, u32(lines.size()));
     }
+    static Watch combinations{"the list's header", 0x30};
+    combinations.Step(kCombinations);
+    static Watch configuration{"the network configuration", 0x80};
+    configuration.Step(object);
+}
+
+/* PROBE (temporary): the list of network configurations and its screen. */
+void ListProbe(lifted::Context& c) {
+    const u32 screen = u32(c.r[4]);
+    F_003464B0(c);
+    static Watch list{"the list screen", 0x200};
+    list.Step(screen);
+}
+
+void ConfigurationScreenProbe(lifted::Context& c) {
+    const u32 screen = u32(c.r[4]);
+    F_00349E00(c);
+    static Watch watch{"the NETWORK CONFIGURATION screen", 0x100};
+    watch.Step(screen);
 }
 
 /* 0x0030A130(card, 0, 0): the memory card's check. The NETWORK
@@ -785,6 +866,9 @@ void RegisterLan() {
     RegisterLanLibnet();
     ps2host::Override(0x0022E110u, NetworkConfiguration, "LAN: the network configuration, the interface already up");
     ps2host::Override(0x0030A130u, CardCheck, "LAN: the NETWORK CONFIGURATION screens need no card");
+    ps2host::Override(0x003464B0u, ListProbe, "LAN: PROBE the list of network configurations");
+    ps2host::Override(0x00349E00u, ConfigurationScreenProbe, "LAN: PROBE the NETWORK CONFIGURATION screen");
+    ps2host::Override(0x0022E6B0u, ReturnProbe<F_0022E6B0, 0x0022E6B0u>, "LAN: PROBE 0x0022E6B0 (the list handed out)");
     ps2host::Override(0x0023A740u, MInitRpc, "LAN: sceSifMInitRpc (no MSIFRPC)");
     ps2host::Override(0x003D4070u, LibnetInit, "LAN: libnet's initialisation");
     ps2host::Override(0x003D41B8u, LibnetRegister, "LAN: libnet procedure 0x1E");
