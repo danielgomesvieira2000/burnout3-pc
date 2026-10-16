@@ -48,6 +48,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 #include <thread>
 #include <utility>
@@ -516,7 +517,18 @@ void Command(const std::shared_ptr<User>& self, const std::string& command, cons
         }
         for (const auto& t : targets) t->Send("+msg", {"F=" + attr, "T=" + text, "N=" + user.pers});
     } else {
-        user.Send(command);         // an empty reply of the same name
+        // Not known: a reply of the same name with the request's own fields.
+        // A stats row asked for (a player's profile) is matched by the slot
+        // it names - an empty reply left "Retrieving profile data" for ever
+        // (_LobbyStatbookRowCb: expected slot 0 got -1). Each told once.
+        static std::set<std::string> told;
+        List shown, echoed;
+        for (const auto& [k, v] : pairs) {
+            if (k != "PASS") shown.push_back(k + "=" + v);
+            echoed.push_back(k + "=" + v);
+        }
+        if (told.insert(command).second) Log("not known: " + command + " " + Show(shown) + " - its fields sent back");
+        user.Send(command, echoed);
     }
 }
 
