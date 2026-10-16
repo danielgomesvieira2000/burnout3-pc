@@ -1,7 +1,7 @@
-"""The button prompts' keyboard and mouse art: the frontend's button icons
-(the legend along the bottom of its screens, and wherever else the game draws
-them) as keys and mouse buttons, for when the player uses the keyboard or the
-mouse. The port puts them in place of the game's own textures as a texture
+"""The button prompts' keyboard, mouse and controller art: the frontend's
+button icons (the legend along the bottom of its screens, and wherever else
+the game draws them) as keys, mouse buttons, or an Xbox or Nintendo
+controller's buttons, for when the player uses one of those. The port puts them in place of the game's own textures as a texture
 pack would (port/prompts.cpp).
 
 Original art (no part of the game): each icon is drawn inside the box the
@@ -74,9 +74,20 @@ GLYPHS = {
     "N": [[(0, 1), (0, 0), (1, 1), (1, 0)]],
     "T": [[(0, 0), (1, 0)], [(0.5, 0), (0.5, 1)]],
     "R": [[(0, 1), (0, 0), (0.6, 0)] + arc(0.6, 0.25, 0.38, 0.25, -90, 90) + [(0, 0.5)], [(0.5, 0.5), (1, 1)]],
+    "A": [[(0, 1), (0.5, 0), (1, 1)], [(0.22, 0.62), (0.78, 0.62)]],
+    "B": [[(0, 0), (0, 1)],
+          [(0, 0), (0.5, 0)] + arc(0.5, 0.25, 0.42, 0.25, -90, 90) + [(0, 0.5)],
+          [(0, 0.5), (0.55, 0.5)] + arc(0.55, 0.75, 0.45, 0.25, -90, 90) + [(0, 1)]],
+    "Y": [[(0, 0), (0.5, 0.5), (1, 0)], [(0.5, 0.5), (0.5, 1)]],
+    "L": [[(0, 0), (0, 1), (1, 1)]],
+    "M": [[(0, 1), (0, 0), (0.5, 0.6), (1, 0), (1, 1)]],
+    "U": [[(0, 0)] + arc(0.5, 0.55, 0.5, 0.45, 180, 0) + [(1, 0)]],
+    "+": [[(0.5, 0.05), (0.5, 0.95)], [(0.05, 0.5), (0.95, 0.5)]],
+    "-": [[(0.05, 0.5), (0.95, 0.5)]],
 }
 # How wide each is, against its height.
-WIDTH = {"1": 0.55, "C": 0.85, "Q": 0.95, "E": 0.75, "3": 0.8}
+WIDTH = {"1": 0.55, "C": 0.85, "Q": 0.95, "E": 0.75, "3": 0.8, "B": 0.8, "L": 0.7, "M": 1.05, "U": 0.85,
+         "+": 0.95, "-": 0.95}
 
 
 class Canvas:
@@ -209,6 +220,62 @@ def atlas(mouse):
     return c
 
 
+def face(c, cell, letter, colour=WHITE):
+    """A controller's face button: its letter in a ring."""
+    x0, y0, x1, y1 = cell
+    side = min(x1 - x0, y1 - y0) - 0.6
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    w = 1.1
+    c.draw.ellipse((c.p(cx - side / 2 + w / 2, cy - side / 2 + w / 2), c.p(cx + side / 2 - w / 2, cy + side / 2 - w / 2)),
+                   outline=colour, width=round(w * c.k))
+    c.text(letter, cell, colour, 0.5, width=1.15)
+
+
+def menu_button(c, cell, colour, width):
+    """An Xbox controller's Menu button: three lines."""
+    x0, y0, x1, y1 = cell
+    s = min(x1 - x0, y1 - y0) * 0.72
+    box = ((x0 + x1) / 2 - s / 2, (y0 + y1) / 2 - s / 2, s, s)
+    c.strokes([[(0.05, y), (0.95, y)] for y in (0.15, 0.5, 0.85)], box, colour, width)
+
+
+def view_button(c, cell, colour, width):
+    """An Xbox controller's View button: two windows, one over the other."""
+    x0, y0, x1, y1 = cell
+    s = min(x1 - x0, y1 - y0) * 0.78
+    box = ((x0 + x1) / 2 - s / 2, (y0 + y1) / 2 - s / 2, s, s)
+    c.strokes([[(0.0, 0.3), (0.0, 0.0), (0.62, 0.0), (0.62, 0.15)]], box, colour, width)
+    c.strokes([[(0.3, 0.38), (1.0, 0.38), (1.0, 1.0), (0.3, 1.0), (0.3, 0.38)]], box, colour, width)
+
+
+def pad_atlas(nintendo):
+    """The face buttons as an Xbox controller's (A at the bottom) or a
+    Nintendo one's (B at the bottom, A on the right) say, by their place -
+    the DualShock's cross is the bottom one, as the port reads them."""
+    c = Canvas(128, 64)
+    c.draw.ellipse((c.p(RING[0] + 0.9, RING[1] + 0.9), c.p(RING[2] - 0.9, RING[3] - 0.9)), outline=WHITE,
+                   width=round(1.8 * c.k))
+    bottom, right, left, top = ("B", "A", "Y", "X") if nintendo else ("A", "B", "X", "Y")
+    face(c, CROSS, bottom)
+    face(c, CIRCLE, right)
+    face(c, SQUARE, left)
+    face(c, TRIANGLE, top)
+    thin = 2.0 if nintendo else 1.2          # the Xbox's small icons blur together drawn thicker
+    for cells, colour, width in ((START, WHITE, 1.5), (START_DARK, DARK, thin)):
+        for cell in cells:
+            if nintendo:
+                c.text("+", cell, colour, 0.75, width=width)
+            else:
+                menu_button(c, cell, colour, width)
+    for cell, colour, width in ((SELECT, WHITE, 1.5), (SELECT_DARK, DARK, thin)):
+        if nintendo:
+            c.text("-", cell, colour, 0.75, width=width)
+        else:
+            view_button(c, cell, colour, width)
+    c.text("+" if nintendo else "MENU", START_WORD, GREY, 0.85, width=1.7)
+    return c
+
+
 def arms():
     """The D-pad's arms as arrow keys, a key each with its arrow pointing
     out from the middle. The game's arms point in - the first piece is the
@@ -245,10 +312,14 @@ def main():
     args = parser.parse_args()
     arts = [("kAtlasKeyboard", ATLAS, atlas(False)), ("kAtlasMouse", ATLAS, atlas(True)),
             ("kArrowKeys", ARMS, arms()), ("kKeysL", SHOULDER_L, shoulders("Q1")),
-            ("kKeysR", SHOULDER_R, shoulders("E3"))]
+            ("kKeysR", SHOULDER_R, shoulders("E3")),
+            ("kAtlasXbox", ATLAS, pad_atlas(False)), ("kAtlasNintendo", ATLAS, pad_atlas(True)),
+            ("kXboxL", SHOULDER_L, shoulders(["LB", "LT"])), ("kXboxR", SHOULDER_R, shoulders(["RB", "RT"])),
+            ("kNintendoL", SHOULDER_L, shoulders(["L", "ZL"])), ("kNintendoR", SHOULDER_R, shoulders(["R", "ZR"]))]
     here = os.path.dirname(os.path.abspath(__file__))
     out = os.path.join(here, "..", "prompt_art.h")
-    lines = ["/* The button prompts' keyboard and mouse art, from port/tools/make_prompts.py",
+    lines = ["/* The button prompts' keyboard, mouse and Xbox / Nintendo controller art, from",
+             "   port/tools/make_prompts.py",
              "   (original art): PNGs for the frontend's button textures, by their texture",
              "   pack names. Generated - edit the script. */",
              "#pragma once", "", "namespace prompt_art {", ""]

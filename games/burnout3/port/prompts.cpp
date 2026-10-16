@@ -1,7 +1,10 @@
 /*
  * The button prompts as the player plays: the game's own (the DualShock's
- * buttons) while a controller is used, keys while the keyboard is, and the
- * mouse's buttons for choosing and going back while the mouse is. Whatever
+ * buttons) while a PlayStation controller is used, an Xbox controller's
+ * buttons (A, B, X, Y, LB...) while one is - most controllers are labelled
+ * so - or a Nintendo one's (B at the bottom, A on the right: by place, as
+ * the port reads the buttons), keys while the keyboard is, and the mouse's
+ * buttons for choosing and going back while the mouse is. Whatever
  * was used last decides: a key or a click switches, as a controller's
  * button does back.
  *
@@ -24,7 +27,24 @@
 
 namespace {
 
-enum class Prompts { kController, kKeyboard, kMouse };
+enum class Prompts { kController, kKeyboard, kMouse, kXbox, kNintendo };
+
+/* The controller's prompts: by what its face buttons say (HostPadLabels),
+   or PS2HOST_PAD_PROMPTS=playstation, xbox or nintendo (a DualShock passed
+   on as an Xbox controller by a tool such as DS4Windows, say). */
+Prompts ControllerKind() {
+    if (const char* forced = std::getenv("PS2HOST_PAD_PROMPTS")) {
+        const std::string want = forced;
+        if (want == "playstation") return Prompts::kController;
+        if (want == "xbox") return Prompts::kXbox;
+        if (want == "nintendo") return Prompts::kNintendo;
+    }
+    switch (ps2host::HostPadLabels()) {
+        case 1: return Prompts::kXbox;
+        case 2: return Prompts::kNintendo;
+        default: return Prompts::kController;
+    }
+}
 
 Prompts g_prompts = Prompts::kController;
 u64 g_input_seen = 0;           // LastInputDevice's frame, last time
@@ -38,9 +58,14 @@ void Override(const char* name, const unsigned char (&png)[N]) {
 void Show(Prompts prompts) {
     using namespace prompt_art;
     namespace pack = ps2host::texture_pack;
-    if (prompts == Prompts::kController) {
-        pack::ClearOverrides();
-    } else {
+    pack::ClearOverrides();
+    if (prompts == Prompts::kXbox || prompts == Prompts::kNintendo) {
+        const bool xbox = prompts == Prompts::kXbox;
+        if (xbox) Override(kAtlasXboxName, kAtlasXbox);
+        else Override(kAtlasNintendoName, kAtlasNintendo);
+        if (xbox) Override(kXboxLName, kXboxL), Override(kXboxRName, kXboxR);
+        else Override(kNintendoLName, kNintendoL), Override(kNintendoRName, kNintendoR);
+    } else if (prompts != Prompts::kController) {
         if (prompts == Prompts::kMouse) Override(kAtlasMouseName, kAtlasMouse);
         else Override(kAtlasKeyboardName, kAtlasKeyboard);
         Override(kArrowKeysName, kArrowKeys);
@@ -48,14 +73,18 @@ void Show(Prompts prompts) {
         Override(kKeysRName, kKeysR);
     }
     std::fprintf(stderr, "[prompts] %s\n", prompts == Prompts::kController ? "the controller's"
+                                           : prompts == Prompts::kXbox     ? "an Xbox controller's"
+                                           : prompts == Prompts::kNintendo ? "a Nintendo controller's"
                                            : prompts == Prompts::kKeyboard ? "the keyboard's"
                                                                            : "the mouse's");
 }
 
 }  // namespace
 
-/* Whether the controller's prompts show (the controller used last). */
-bool ControllerPrompts() { return g_prompts == Prompts::kController; }
+/* Whether a controller's prompts show (the controller used last). */
+bool ControllerPrompts() {
+    return g_prompts == Prompts::kController || g_prompts == Prompts::kXbox || g_prompts == Prompts::kNintendo;
+}
 
 /* Once a pad read (mouse.cpp's MouseTick): `mouse_used`, the mouse moved,
    clicked or turned since the last. */
@@ -78,7 +107,9 @@ void UpdatePrompts(bool mouse_used) {
     Prompts now = g_prompts;
     if (mouse_used) now = Prompts::kMouse;
     else if (frame != g_input_seen)
-        now = device == ps2host::InputDevice::kKeyboard ? Prompts::kKeyboard : Prompts::kController;
+        now = device == ps2host::InputDevice::kKeyboard ? Prompts::kKeyboard : ControllerKind();
+    else if (ControllerPrompts())
+        now = ControllerKind();                 // another controller plugged in
     g_input_seen = frame;
     if (now != g_prompts) {
         g_prompts = now;

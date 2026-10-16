@@ -35,9 +35,14 @@ wrong, press **F12** at that moment and attach the folder it writes to
 - **Widescreen**: 4:3, 16:9 or the window's own shape, with the HUD kept in
   place - and a HUD editor (**F10**) to anchor each HUD element left, right,
   centred or stretched.
-- **Button icons for the keyboard and mouse**: the game's button prompts turn
-  into keys (or mouse buttons) as soon as those are used, and back to the
-  controller's when it is.
+- **Button icons for the keyboard, the mouse and other controllers**: the
+  game's button prompts turn into keys (or mouse buttons) as soon as those
+  are used, and back to the controller's when it is - an Xbox controller's
+  (A, B, X, Y, LB, LT...) for one labelled so, as most are, a Nintendo one's
+  (B at the bottom, A on the right) for one of those, the DualShock's for a
+  PlayStation controller. `PS2HOST_PAD_PROMPTS=playstation`, `xbox` or
+  `nintendo` picks them (a DualShock passed on as an Xbox controller by
+  DS4Windows, say).
 - **PC settings** in the game's own main menu (where ONLINE used to be), in
   pages: VIDEO (fullscreen, vertical sync, frame pacing, resolution, the
   aspect ratio, anti-aliasing: FXAA or SSAA 2x/4x), GRAPHICS (the speed blur),
