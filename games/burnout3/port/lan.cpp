@@ -71,7 +71,7 @@ void F_003464B0(lifted::Context& c);
 // DEBUG: the online flow's object, each frame.
 void F_0026D2A0(lifted::Context& c);
 void F_002714C0(lifted::Context& c);
-void F_00130D50(lifted::Context& c);
+void SixtyFpsMovieRate(lifted::Context& c);  // sixty_fps.cpp: 0x00130D50 at 60 FPS
 void F_003530F0(lifted::Context& c);
 void F_004020F8(lifted::Context& c);
 void F_00402260(lifted::Context& c);
@@ -435,7 +435,7 @@ void OuterProbe(lifted::Context& c) {
 void MovieProbe(lifted::Context& c) {
     const u32 movie = u32(c.r[4]), caller = u32(c.r[31]);
     const u32 before = generated::ReadU32(movie + 0x2F8);
-    F_00130D50(c);
+    SixtyFpsMovieRate(c);   // sixty_fps.cpp's override of the same function, kept
     static u32 last = ~0u;
     const u32 key = before << 8 | (u32(c.r[2]) & 0xFF);
     if (key != last) {

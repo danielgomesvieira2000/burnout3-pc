@@ -23,7 +23,10 @@ What you need
 -------------
 
 * Windows 10 or 11, 64-bit
-* A processor with AVX2 (Intel Haswell / AMD Ryzen or newer)
+* A 64-bit processor from 2008 or later. burnout3.exe is built for
+  processors with AVX2 (Intel Haswell / AMD Ryzen or newer); on one
+  without it (Intel Pentium and Celeron before 2021) it starts
+  burnout3-sse4.exe, beside it, by itself
 * A graphics card with a Vulkan 1.3 driver (NVIDIA GTX 900 series, AMD
   RX 400 series, Intel UHD 600 series or newer, with current drivers)
 * Your own disc image of Burnout 3: Takedown, the North American (NTSC-U)

@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "controls.h"
+#include "gpu_pipelines.h"
 #include "ps2host/host.h"
 #include "ps2host/mc2.h"
 #include "ps2host/run.h"
@@ -958,13 +959,23 @@ void RegisterWidescreen();         // widescreen.cpp
 void RegisterMouse();              // mouse.cpp
 void RegisterControls();           // controls.cpp
 void RegisterLan();                // lan.cpp
+void RegisterSixtyFps();           // sixty_fps.cpp
 
 void RegisterGameOverrides() {
+    // VU1's fast mode: every scripted run draws every picture as the exact
+    // VU does (regress.py --vu-fast), for ~15% less of VIF1's worker - the
+    // busiest thread on a slow machine.
+    ps2host::SetVuFastDefault(true);
+    // The GPU pipelines the game draws with, made in the background from the
+    // start: none made in the middle of a player's first race (up to 0.7 s
+    // each on an integrated GPU's cold driver).
+    ps2host::SetGpuPipelineHints(kGpuPipelineHints, sizeof kGpuPipelineHints / sizeof kGpuPipelineHints[0]);
     RegisterGameIopServers();
     RegisterWidescreen();
     RegisterMouse();
     RegisterControls();
     RegisterLan();
+    RegisterSixtyFps();
     using namespace ps2host::mc2;
     ps2host::Override(0x00244218, CardOr<GetInfo, F_00244218>, "libmc2 GetInfo (host card)");
     ps2host::Override(0x002445D0, CardOr<Format, F_002445D0>, "libmc2 Format (host card)");

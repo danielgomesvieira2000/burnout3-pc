@@ -14,8 +14,10 @@ game's own menu, a mouse in the menus, controllers with rumble.
 
 Download `Burnout3-PC-<version>-windows-x64.zip` from
 [Releases](../../releases), unzip it somewhere you can write to, run
-`burnout3.exe` and choose your disc image. It needs Windows 10 or 11 (64-bit),
-a processor with AVX2 and a Vulkan 1.3 graphics driver - nothing to install.
+`burnout3.exe` and choose your disc image. It needs Windows 10 or 11 (64-bit)
+and a Vulkan 1.3 graphics driver - nothing to install. (A processor without
+AVX2 - Intel's Pentium and Celeron before 2021 - gets the build made for it,
+`burnout3-sse4.exe`, started by `burnout3.exe` itself.)
 The README in the zip has the controls, the PC settings and the known issues
 ([games/burnout3/port/release/README.txt](games/burnout3/port/release/README.txt)).
 
