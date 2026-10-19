@@ -1,6 +1,7 @@
 # A lighter frame: native effects, a leaner renderer, VU1
 
-Status: **plan, not started**. Written 2026-10-19 from a profile of the
+Status: **A2 (fog) done** (engine 8edd32e, branch effects: a channel shuffle
+on the target; see A2). Written 2026-10-19 from a profile of the
 scripted race (`race.args`). The work isn't done yet. This sets out where a
 race frame's time goes, why a 2004 game is not light on a 2020s PC, what
 would make it light, and the order.
@@ -137,14 +138,46 @@ draws the ORIGINAL effects natively and only then the modern ones.
   and draws into the frame in one pass.
 - Only on the GPU renderer: the software GS keeps the game's own draws.
 
-**A2. Fog native.**
+**A2. Fog native. Done**, not as planned above: as a fast path in the
+engine, for any game.
 
-- Override 0x002419C0 (the fog, gated by +0x69) on the GPU: one pass that
-  reads the depth buffer, takes the same top bits the game copies into the
-  frame's alpha, looks them up in the same palette (the CLUT the game loads
-  at 0x2D3C) and blends as the game's sprites do.
-- The pixels should be the same as today, or within a level.
-- Expected: most of fog's 3.4 ms on the Intel UHD.
+- **The game's packets can't be edited.** The fog function writes its GS
+  packets into the scratchpad, which is sent out whenever it fills, so part
+  is already gone by the time the function returns. A marker written from
+  the EE (A1) would need the game's own packet writer.
+- **What the fog does** (GS trace, the software GS's rules):
+  - 40 sprites, 8 wide in a comb, draw into a 16-bit view of the picture
+    with FBMSK 0x3FFF, sampling a 16-bit view of the depth buffer, 8 pixels
+    to the left. Each 16-bit pixel is half of a 32-bit word, and the mask
+    keeps each half's lower byte, so the picture's alpha becomes the depth's
+    bits 8-15 and its colour is unchanged.
+  - 256 points draw the palette into 0x169.
+  - 20 sprites read the picture's alpha as an 8-bit index (PSMT8H) through
+    it, MODULATE with the fog colour, blend (Cs - Cd) As + Cd, alpha kept,
+    only where Z < 0xFFFF.
+- **The fast path.** PCSX2 calls this trick a "channel shuffle". The bridge
+  recognises it (`Shuffle`, gpu_bridge.cpp) and the renderer does it on the
+  32-bit picture in one compute pass (`shuffle.comp`):
+  - each pixel's halves are found in the 16-bit view, and their texels in
+    the depth buffer, by the memory layouts' bit permutations inverted;
+  - through FRAME's mask, at each sub-pixel;
+  - a comb of sprites is one dispatch.
+- **What it replaced:** the 16-bit image, the write-backs of it, of the
+  picture and of the depth buffer, and the picture's reload, all at the
+  internal resolution.
+- **Exact.** Taken only where it is exactly the GS, checked once per
+  sprite's place: every Burnout 3 GPU run as recorded, bit-identical at 1x.
+  At 2x the alpha is per sub-pixel (about 1% of a frame's pixels differ, in
+  the distance).
+- **Measured, Intel UHD at 2x, GPU per frame:**
+
+  | Run | Before | After |
+  | --- | --- | --- |
+  | Race | 21.8 ms | 19.4 ms |
+  | Splitscreen | 29.6 ms | 26.7 ms |
+
+- **Left of the fog's 3.4 ms:** the fog draw itself (the effect), the
+  palette's points and the compute pass (about 0.9 ms).
 
 **A3. Bloom native.**
 

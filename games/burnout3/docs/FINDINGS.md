@@ -2279,6 +2279,38 @@ contact and shunts - a smoke cloud (MORE), more sparks too (MOST) - the race
 itself unchanged (score, speed, frame). MOST: VU1 +0.4% over the run; MORE
 nothing measurable.
 
+## The fog: depth into alpha, a channel shuffle
+
+The race's fog (0x002419C0, once a view, after the shadows; gated by
+0x00665F29) is three steps, as the GS trace of frame 18,001 shows:
+
+1. **Depth into alpha** (0x002416E0). 40 sprites, 8 pixels wide every 16,
+   896 rows, are drawn into a 16-bit view of the picture (FBP 0x46, PSMCT16,
+   FBMSK 0x3FFF). They sample a 16-bit view of the depth buffer (TBP 0x1A40
+   = ZBP 0xD2, PSMZ16), 8 texels to the left, as DECAL with a blend that
+   gives Cs.
+   - Through the two layouts (engine/tools/gsmem.py, every pixel), each
+     32-bit picture pixel's upper half takes the lower half of its own
+     depth.
+   - FBMSK keeps each half's lower byte (the mask applies to the colour as
+     8 bits a channel, before it is packed to 16).
+   - So the picture's alpha becomes the depth's bits 8-15, and its colour is
+     unchanged.
+2. **The palette** (0x002413E0). 256 points into 0x169 (CBP 0x2D3C): white,
+   its alpha a fog curve of the index from the view's two fog floats (12
+   flat entries, then a falloff).
+3. **The fog** (0x00241040). 20 sprites read the picture's alpha as PSMT8H
+   through that palette, MODULATE with the fog colour, blend (Cs - Cd) As +
+   Cd, alpha kept (FBMSK 0xFF000000), only where Z < 0xFFFF (ZTST GREATER,
+   no Z written). Alpha is thus the top byte of the fogged depth range.
+
+The packets go out through the scratchpad (*(gp-0x5EB0), 0x70000000), sent
+whenever it fills, so they are partly gone before the function returns.
+
+On the GPU, step 1 is done by the engine's channel shuffle (engine 8edd32e;
+docs/RUNTIME_PLAN.md, A2): one compute pass on the picture, instead of a
+16-bit image, three write-backs and a reload at the internal resolution.
+
 ## Open questions
 
 * Which compiler and flags produced this binary? Unresolved, and it blocks all
