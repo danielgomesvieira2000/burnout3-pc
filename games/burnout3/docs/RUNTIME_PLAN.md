@@ -388,6 +388,53 @@ the VU1 per-pair work, profiled with a sampler finer than the 1 ms one
 (the generated lines have too few samples); the PATH3 copies (held, then
 copied again into the GS ring).
 
+**C3 done: the fine profiler, and what it found** (2026-10-19; engine
+7f6aff5, 59d44f8, ce9b66e, 4cc892d):
+
+- **The profiler.** `PS2HOST_SAMPLE_US=50` (the sampler spins: 90,000
+  samples of the VU bench in five seconds) and `PS2HOST_SAMPLE_RAW=file`,
+  then `engine/tools/hotspots.py`: llvm-symbolizer resolves each address
+  to its chain of inlined functions, so a compiled VU block's time splits
+  by VuCore's steps; `--annotate` shows the hot instructions.
+- **VU1** (the bench, fast: 16.4 to 12.1 ms, hashes unchanged):
+  - Results are no longer clamped. A VU run rounds toward zero with DAZ
+    and FTZ, so an overflow is already the largest finite value; it was
+    ~15% of VU1's time.
+  - Superblocks: a conditional branch no longer ends a block (a side exit
+    where it is taken). The race's clipping loops were blocks of 2-3 pairs,
+    each starting with memory stall checks and a flag hand-over.
+  - Held flags land straight into a following block that reads none in its
+    first three pairs.
+- **GS thread** (splitscreen): every draw hashed its target and depth into
+  containers (5%), and every write to local memory went to each texture
+  on its pages (4%). Both fixed; the thread went from ~25% to ~40% idle.
+- **Splitscreen, Intel UHD at 2x, real time from boot:** ~56-58 new frames
+  a second (9,900 to 12,900; 44.9 at the start of the day). Several 5 s
+  windows hold 59.9. The heaviest ones are now held by the GPU (86-89%
+  busy, the GS thread waiting on it), not the CPU threads.
+- **Bench pitfall.** bench.sh's switch from virtual to real time can make
+  one GIF_STAT guess wrong, which turns guessing off for the whole run (the
+  EE then waits for the worker, 9-22% "joins", ~5 frames a second). In
+  real time from boot it does not happen. Use `REAL=1`.
+- **Tried for the GPU, no gain:** colour targets kept in GENERAL
+  (B2), no layout transitions, the same barriers. GPU busy and frame rate
+  were the same within run-to-run noise; reverted.
+- **What ends the passes** (PS2HOST_GPU_COUNT, splitscreen, a frame of
+  ~480): ~150 a draw's copy of its own target (shader blending, or a
+  texture of its own target), ~225 a target switch, ~100 other work
+  (swizzles, uploads), ~11 a source to make readable. The Intel driver
+  (101.4255, Vulkan 1.3) has VK_EXT_attachment_feedback_loop_layout and
+  VK_EXT_fragment_shader_interlock, not dynamic_rendering_local_read: B3
+  there means blending through interlock, a path of its own.
+
+- **What a pass break costs the Intel UHD: almost nothing.** A pass ended
+  after every batch (an experiment, not kept) took splitscreen from 477
+  passes a frame to 2,706 and its GPU time up 0.3-0.6 ms a frame: ~0.2 us a
+  break. With the GENERAL result above, the UHD's time at 2x is the
+  drawing itself, not the passes, barriers or layouts around it. B3 and B7
+  would not pay there; what would is less fragment work (gs.frag's cost per
+  pixel), or a lower resolution.
+
 1. **Profile which microprograms run the most** (the VU recompiler knows
    each program; count cycles per program per frame).
 2. **For the hot ones,** in the order the profile gives:
