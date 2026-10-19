@@ -29,6 +29,7 @@ extern const int kModCount;
 void F_001F43B0(lifted::Context& c);
 // GRAPHICS' memory, at the same step (graphics.cpp).
 void GraphicsFrame();
+void CustomSongsFrame();     // custom_songs.cpp
 
 namespace {
 
@@ -78,6 +79,7 @@ void Refresh() {
 void Frame(lifted::Context& c) {
     Refresh();
     GraphicsFrame();
+    CustomSongsFrame();
     if (On("mod.no_traffic")) generated::Write8(kTraffic, 0);
     if (On("mod.heavyweights")) {
         if (!g_heavyweights_set) g_heavyweights_was = u8(generated::ReadU8(kHeavyweights));

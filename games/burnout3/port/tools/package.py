@@ -38,13 +38,15 @@ LICENCES = [
     ("glslang", "glslang-src", ["LICENSE.txt"]),
     ("Vulkan-Headers", "vulkan_headers-src", ["LICENSE.md", "LICENSE.txt"]),
 ]
-# Single headers built in for texture packs (engine/host/CMakeLists.txt): the
-# licence in each, from where it starts to where its comment ends.
+# Single headers built in for texture packs and custom songs
+# (engine/host/CMakeLists.txt): the licence in each, from where it starts to
+# where its comment ends.
 HEADERS = os.path.join(BUILD, "port", "cmake", "ps2host", "third_party")
 HEADER_LICENCES = [
     ("xxHash", "xxhash.h", "xxHash - Extremely Fast Hash algorithm"),
     ("bcdec", "bcdec.h", "This software is available under 2 licenses"),
     ("stb_image", "stb_image.h", "This software is available under 2 licenses"),
+    ("minimp3", "minimp3.h", "To the extent possible under law"),
 ]
 # Files of the engine's own third-party code: (name, path from the repository).
 FILE_LICENCES = [
@@ -54,6 +56,26 @@ TEXTURE_PACK_README = """Put a PCSX2 texture pack for Burnout 3: Takedown (SLUS-
 folder: the pack's files (.dds or .png, named as PCSX2 names them), in
 folders of their own if the pack has them. The game finds them when it
 starts. Tab turns the pack off and on while you play.
+"""
+CUSTOM_SONGS_README = """Put your own MP3s in this folder: they join the EA TRAX songs - in the
+EA TRAX menu (DRIVER DETAILS, SETTINGS, EA GAMES TRAX), after the game's
+44, and in the music that plays while you race and in the menus.
+
+Name each file "Artist - Song Title.mp3":
+
+    Fuzzeke - Without A Care.mp3      Fuzzeke / Without A Care
+    The Example Band - My Song.mp3    The Example Band / My Song
+    My Song.mp3                       Unknown Artist / My Song
+
+The artist is what comes before the first " - ", the title what comes after.
+Names longer than 36 characters are cut (with "...") to fit the game's
+screens; accented letters are shown as their plain letter, and characters
+the game's font does not have are left out.
+
+Songs added or removed while the game runs are picked up within a few
+seconds (when no custom song is playing). Up to 100 songs; the first 100 by
+file name are used. Their ALL / RACE ONLY / MENU ONLY / OFF choices are kept
+in settings.ini here.
 """
 
 
@@ -135,6 +157,7 @@ def main():
         z.writestr("%s/README.txt" % name, readme.replace("\n", "\r\n"))
         z.writestr("%s/THIRD-PARTY-NOTICES.txt" % name, "\r\n".join(notices))
         z.writestr("%s/texture pack/README.txt" % name, TEXTURE_PACK_README.replace("\n", "\r\n"))
+        z.writestr("%s/custom_songs/README.txt" % name, CUSTOM_SONGS_README.replace("\n", "\r\n"))
     print("package: %s (%.1f MB; imports %s)" % (out, os.path.getsize(out) / 1e6, ", ".join(dlls)))
 
 

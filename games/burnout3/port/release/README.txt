@@ -143,6 +143,25 @@ start the game. Tab turns the pack off and on while you play. A texture is
 replaced the first time it is drawn, a moment after it appears.
 
 
+Custom songs
+------------
+
+Your own MP3s play with the game's EA TRAX songs: put them in the
+"custom_songs" folder beside burnout3.exe. They show up in the EA TRAX menu
+(DRIVER DETAILS, SETTINGS, EA GAMES TRAX) after the game's 44, with the same
+ALL / RACE ONLY / MENU ONLY / OFF choice, and play in the rotation - random or
+in order, their name on screen as each starts, L2 to skip one.
+
+Name each file "Artist - Song Title.mp3":
+
+    Fuzzeke - Without A Care.mp3      shown as  Fuzzeke / Without A Care
+    My Song.mp3                       shown as  Unknown Artist / My Song
+
+Names are cut to 36 characters (with "...") to fit the game's screens. Songs
+added or removed while the game runs are picked up within a few seconds. Up
+to 100 songs.
+
+
 Two players on one PC
 ---------------------
 
@@ -202,6 +221,7 @@ Files beside burnout3.exe
   pc_settings.ini   your settings, and where your disc image is
   memcard\          your memory card: the game's saves
   texture pack\     a PCSX2 texture pack, if you have one
+  custom_songs\     your own MP3s for EA TRAX (see "Custom songs")
   burnout3.log      what the last run did (useful in a bug report)
 
 To choose a different disc image, delete the "disc=" line from

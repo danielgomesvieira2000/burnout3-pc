@@ -1129,6 +1129,7 @@ void RegisterDevMenu();            // dev_menu.cpp
 void RegisterMods();               // mods.cpp
 void RegisterGraphics();           // graphics.cpp
 void RegisterLan();                // lan.cpp
+void RegisterCustomSongs();        // custom_songs.cpp
 
 void RegisterGameOverrides() {
     // VU1's fast mode: every scripted run draws every picture as the exact
@@ -1158,6 +1159,7 @@ void RegisterGameOverrides() {
     RegisterDevMenu();
     RegisterMods();
     RegisterGraphics();
+    RegisterCustomSongs();
     RegisterLan();
     using namespace ps2host::mc2;
     ps2host::Override(0x00244218, CardOr<GetInfo, F_00244218>, "libmc2 GetInfo (host card)");
