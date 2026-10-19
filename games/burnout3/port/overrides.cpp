@@ -49,8 +49,6 @@ void F_001313C0(lifted::Context& c);
 void F_0019A950(lifted::Context& c);
 // RenderWare's wait for its packet buffers to flip (see AddIdleLoop below).
 void F_001F2408(lifted::Context& c);
-// The frame's post effects: glow and speed blur (see PostEffects).
-void F_002FA9A0(lifted::Context& c);
 void F_001322B0(lifted::Context& c);
 // The frontend: its string lookup, the main menu's input, a message box.
 void F_00271A00(lifted::Context& c);
@@ -139,16 +137,6 @@ void SkipMovie(lifted::Context& c) {
         generated::Write8(movie + 0x4A, 1);
     }
     F_001313C0(c);
-}
-
-/* The frame's post effects (0x002FA9A0, from the race's and the frontend's
-   3D drawing): the frame copied to a half-size buffer, its bright parts
-   (glow) and a radial speed blur gathered there over frames, the buffer laid
-   over the whole frame (0x002F9F50). At 320x224 that layer softens the
-   picture at any internal resolution. BLUR OFF leaves the frame as drawn. */
-void PostEffects(lifted::Context& c) {
-    if (ps2host::Setting("blur", "original") == "off") return;
-    F_002FA9A0(c);
 }
 
 /* A function that may wait in an idle loop: in real time the wait sleeps
@@ -297,19 +285,34 @@ int Fullscreen() { return ps2host::WindowFullscreen() ? 1 : 0; }
 void SetFullscreen(int on) { ps2host::SetWindowFullscreen(on != 0); }
 int Vsync() { return ps2host::WindowVsync() ? 1 : 0; }
 void SetVsync(int on) { ps2host::SetWindowVsync(on != 0); }
-/* A setting's value among `values` (its index; the first if it is none of them). */
+/* A setting's value among `values` (its index; the default's, `fallback`,
+   if it is none of them - unset, the default). */
 template <std::size_t N>
-int Among(const char* key, const char* const (&values)[N]) {
-    const std::string now = ps2host::Setting(key, values[0]);
+int Among(const char* key, const char* const (&values)[N], int fallback = 0) {
+    const std::string now = ps2host::Setting(key, values[fallback]);
     for (std::size_t i = 0; i < N; ++i)
         if (now == values[i]) return int(i);
-    return 0;
+    return fallback;
 }
 const char* const kResolutions[] = {"original", "2x", "display"};
 int Resolution() { return Among("resolution", kResolutions); }
 void SetResolution(int which) { ps2host::SetSetting("resolution", kResolutions[which]); }
-int Blur() { return ps2host::Setting("blur", "original") == "off" ? 1 : 0; }
-void SetBlur(int off) { ps2host::SetSetting("blur", off ? "off" : "original"); }
+// GRAPHICS (graphics.cpp): each a setting, ORIGINAL as the game draws it.
+const char* const kBlooms[] = {"original", "off"};
+int Bloom() { return Among("bloom", kBlooms); }
+void SetBloom(int which) { ps2host::SetSetting("bloom", kBlooms[which]); }
+const char* const kBloomStrengths[] = {"low", "original", "high"};
+int BloomStrength() { return Among("bloom_strength", kBloomStrengths, 1); }
+void SetBloomStrength(int which) { ps2host::SetSetting("bloom_strength", kBloomStrengths[which]); }
+const char* const kBlurs[] = {"original", "off"};
+int Blur() { return Among("blur", kBlurs); }
+void SetBlur(int which) { ps2host::SetSetting("blur", kBlurs[which]); }
+const char* const kShadows[] = {"original", "soft", "off"};
+int Shadows() { return Among("shadows", kShadows); }
+void SetShadows(int which) { ps2host::SetSetting("shadows", kShadows[which]); }
+const char* const kDetails[] = {"original", "high"};
+int Detail() { return Among("detail", kDetails); }
+void SetDetail(int which) { ps2host::SetSetting("detail", kDetails[which]); }
 const char* const kAspects[] = {"4:3", "16:9", "auto"};
 int Aspect() { return Among("aspect", kAspects); }
 void SetAspect(int which) { ps2host::SetWindowAspect(kAspects[which]); }
@@ -341,7 +344,14 @@ const Option kOptions[] = {
      SetAspect, {"ORIGINAL (4:3)", "WIDESCREEN (16:9)", "AUTO"}, 3},
     {Page::kVideo, "ANTIALIASING", "EDGES AS DRAWN, SMOOTHED (FXAA, SMAA), OR SUPERSAMPLED (SSAA)",
      AntiAliasing, SetAntiAliasing, {"OFF", "FXAA", "SMAA", "SSAA 2X"}, 4},
-    {Page::kGraphics, "BLUR", "THE SPEED BLUR AND GLOW, OR A CLEAR PICTURE", Blur, SetBlur, {"ORIGINAL", "OFF"}, 2},
+    {Page::kGraphics, "BLOOM", "THE GLOW AROUND LIGHTS AND THE SKY, OR NONE", Bloom, SetBloom, {"ORIGINAL", "OFF"}, 2},
+    {Page::kGraphics, "BLOOM STRENGTH", "HOW STRONG THE GLOW IS, AND ITS TRAILS", BloomStrength, SetBloomStrength,
+     {"LOW", "ORIGINAL", "HIGH"}, 3},
+    {Page::kGraphics, "MOTION BLUR", "THE BLUR OF BOOSTING AND OF THE CAMERA, OR NONE", Blur, SetBlur,
+     {"ORIGINAL", "OFF"}, 2},
+    {Page::kGraphics, "SHADOWS", "THE CARS' SHADOWS AS DRAWN, SOFTER, OR NONE", Shadows, SetShadows,
+     {"ORIGINAL", "SOFT", "OFF"}, 3},
+    {Page::kGraphics, "DETAIL", "THE CARS' DETAILED MODELS FARTHER AWAY", Detail, SetDetail, {"ORIGINAL", "HIGH"}, 2},
     {Page::kMods, "SPEEDOMETER", "THE SPEED IN MILES OR IN KILOMETRES AN HOUR", Mod<kModKph>, SetMod<kModKph>,
      {"MPH", "KM/H"}, 2},
     {Page::kMods, "HORN", "HONK (CONTROLS: HORN), THE HEADLIGHTS ON WHILE IT IS HELD", Mod<kModHorn>,
@@ -1110,6 +1120,7 @@ void RegisterControls();           // controls.cpp
 void RegisterSixtyFps();           // sixty_fps.cpp
 void RegisterDevMenu();            // dev_menu.cpp
 void RegisterMods();               // mods.cpp
+void RegisterGraphics();           // graphics.cpp
 void RegisterLan();                // lan.cpp
 
 void RegisterGameOverrides() {
@@ -1139,6 +1150,7 @@ void RegisterGameOverrides() {
     RegisterSixtyFps();
     RegisterDevMenu();
     RegisterMods();
+    RegisterGraphics();
     RegisterLan();
     using namespace ps2host::mc2;
     ps2host::Override(0x00244218, CardOr<GetInfo, F_00244218>, "libmc2 GetInfo (host card)");
@@ -1155,7 +1167,6 @@ void RegisterGameOverrides() {
     // menus, a core spun while it waited for its next picture's blank.
     ps2host::AddIdleLoop(0x001F24E0u);
     ps2host::Override(0x001F2408u, WaitsForInterrupt<F_001F2408>, "RenderWare's packet wait: asleep in real time");
-    ps2host::Override(0x002FA9A0u, PostEffects, "the frame's speed blur and glow: BLUR (PC SETTINGS)");
     ps2host::Override(0x001156C0u, KernelStore, "kernel-mode store");
     ps2host::Override(0x0010D3E8u, TtyWrite, "TTY write (printf)");
     ps2host::Override(0x001313C0u, SkipMovie, "a movie screen's update: Start skips the movie");

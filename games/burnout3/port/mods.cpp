@@ -27,6 +27,8 @@ extern const char* const kModKeys[];
 extern const int kModCount;
 // The display's frame step (see Frame).
 void F_001F43B0(lifted::Context& c);
+// GRAPHICS' memory, at the same step (graphics.cpp).
+void GraphicsFrame();
 
 namespace {
 
@@ -71,9 +73,11 @@ void Refresh() {
     }
 }
 
-/* 0x001F43B0: the display's frame step - the mods' memory written first. */
+/* 0x001F43B0: the display's frame step - the mods' (and GRAPHICS') memory
+   written first. */
 void Frame(lifted::Context& c) {
     Refresh();
+    GraphicsFrame();
     if (On("mod.no_traffic")) generated::Write8(kTraffic, 0);
     if (On("mod.heavyweights")) {
         if (!g_heavyweights_set) g_heavyweights_was = u8(generated::ReadU8(kHeavyweights));

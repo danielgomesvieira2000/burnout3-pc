@@ -1,6 +1,8 @@
 # Graphics options: bloom, motion blur, reflections, shadows
 
-Status: **plan, not started**. Written 2026-10-19 from a read of the lifted
+Status: **steps 1-3 done** (BLOOM, BLOOM STRENGTH, MOTION BLUR, SHADOWS
+ORIGINAL/SOFT/OFF, DETAIL: port/graphics.cpp, FINDINGS "Graphics options");
+REFLECTIONS and the MODERN effects not started. Written 2026-10-19 from a read of the lifted
 code, two traced race frames (`race.args`, frames 18001 and 18400) and
 Nahelam's B3Mod and research notes (github.com/Nahelam/B3Mod,
 PS2-Game-Mods/Burnout 3 Takedown/Research: PAL symbols, mapped here to

@@ -2215,7 +2215,7 @@ VU1 work and the GS thread's: in real time (i7-13620H, 2x) both run 95-100%
 busy, about 88,000 primitives a frame and 200 write-backs and reloads (the
 one-player race: 70,000 and 75), 76 of 3,000 pictures dropped. The speed
 blur's strips (D2/D3/E0 in the depth buffer's memory) are run per view: BLUR
-off drops 51.
+off (then the radial blur alone) drops 51.
 
 **Vertical splitscreen (MODS' SPLITSCREEN: VERTICAL).** The race's +0xF
 (see port/mods.cpp) puts the views side by side. Known issue, seen by the
@@ -2224,6 +2224,51 @@ views side by side. The game's own HUD layout for it (Nehalem's patch turns
 on a mode the shipped game never uses) and the port's widescreen HUD anchors
 (port/widescreen.cpp, laid out for one view, or two one above the other)
 are the first suspects.
+
+## Graphics options
+
+PC SETTINGS' GRAPHICS (port/graphics.cpp; the plan, docs/GRAPHICS_PLAN.md).
+The race's render (0x00276300) draws per view the fog (0x002419C0), the glow
+(CB3Bloom::Render, 0x002659C0), then the camera's directional blur
+(0x00426C10) or the boost's radial blur (0x002FA9A0); the shadows
+(0x003033F0) before them. Each is gated by a byte of the graphics manager
+(0x00665EC0, all 1 from its set-up 0x0019EBF0, nothing else writes them;
+named by Nehalem's B3Mod debug menu): shadows +0x67, bloom +0x68, fog +0x69,
+blur +0x6A (both blurs), and the envmap's track +0x60 and instances +0x62.
+
+The old BLUR OFF skipped 0x002FA9A0 alone, said to remove "the speed blur
+and glow": it removed neither the glow nor the directional blur. MOTION BLUR
+OFF now clears +0x6A (and still skips 0x002FA9A0 for the frontend's
+radial-blur objects, 0x003D2FD0, which the byte does not gate): ~78% of a
+boosting race frame changes.
+
+**Bloom.** Bright pass at 320x224 ((C - T) rescaled, T = 255 x threshold),
+160x112 blur, an accumulator with feedback (the trails), added back 4x
+bilinear. Its view's values (+0x50 of the view's effects: P1 0x00666090, P2
+0x00666130) are written each frame by 0x0030A9D0 from the track's tweaks:
+threshold 0.75, intensity 1.0, persistence 0.5 (0.9 boosting). BLOOM
+STRENGTH scales them around the call (LOW: threshold +0.05, intensity x0.55,
+trails x0.6; HIGH: threshold -0.2, intensity x1.5). In the scripted race
+(Silver Lake, day) the glow is small: BLOOM OFF changes 0-0.5% of a frame,
+the software GS the same - lights, signs and white paint, never the sky
+(the bright pass's strips are masked; not traced further).
+
+**Shadows.** Blobs only: "blobbyshadow" (64x64 PSMT8, black, the shape in
+alpha; pack name 9c6418cb1b02ab39-19d6ca8581b702a1-00001993) on one
+oriented quad per car (0x00303C10's 2x4 strip: V 0-0.1875 and 0.8125-1 the
+ends, the middle stretched with the car). SOFT replaces it (texture_pack
+override) with a 256x256 blob made in code: the same footprint, a wider
+penumbra; the same darkness in all (+5%), spread wider.
+
+**Detail.** The LOD distances (0x00665F30.., from the table at 0x004B72A0
+{15, 30, 60, 20, 80} at each race's set-up): race cars' model 3 (the most
+detailed) within the first, 2, 1, then 0 (0x00151A40, each times the
+camera's factor); RenderVehicle (0x0021E6F0) takes the nearest slot it has
+(+0x4C, five). The traffic's by the last two (0x003078F0). DETAIL HIGH
+writes them 2.5x: the race +13,000 primitives a frame (~44,000), VU1 +3.6%
+over the run. In real time (i7-13620H): all cores at 2x, 0 late either way
+(VIF1 worker 45.8 -> 47.8%, GS thread 30.6 -> 32.7%); two cores at 1x, 57
+-> 125 of 2,800 pictures late.
 
 ## Open questions
 
