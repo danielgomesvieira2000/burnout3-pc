@@ -356,6 +356,38 @@ the Intel UHD's fixed cost is the open question this phase answers.
 - **GS thread:** B6 (a smaller vertex, one copy, push constants only when
   changed, no allocation per batch) and the bridge's per-draw path.
 
+**C2 done: the first round** (2026-10-19; engine 964dcc6, b9672e4):
+
+- **What the measurements said, not the guesses.** Most of the stall
+  bookkeeping was already folded away by clang mid-block. Dropping all the
+  ready-cycle stores (inexact, as a bound) gained only 5%. The real costs
+  were elsewhere:
+  - **Block entries.** 2.5 frames entered 700,000 blocks of 8 pairs on
+    average, each through Vu::RunCompiled's loop and an indirect call.
+    Now a block goes on into the next with a tail call where the generator
+    knows it, and a run is one call.
+  - **Saved registers.** Each block saved and restored 18 registers
+    (Windows' convention). Now preserve_none.
+  - **The flag queue.** Now the generator follows which flags have landed
+    within a block (vurecomp.py: Flags) and queues only what may not have
+    as the block leaves.
+  - VU bench: 17.5 to 16.4 ms fast, 21.9 to 19.7 ms exact, hashes unchanged.
+- **GS thread: the glow's ZIntoColour (A3).** It remade a 4 MB map of the
+  target's words whenever the target changed, and splitscreen's two views
+  took turns: 15% of the GS thread. Its pieces are now kept by place.
+- **Splitscreen, Intel UHD at 2x, real time:** 44.9 to 53.5 new frames a
+  second over the same stretch (9,900 to 11,700). The VIF1 worker is now
+  the limit, at 91% busy: VU1 programs about 80% of its work, unpacking
+  and PATH3's copies most of the rest.
+- **Tried and dropped:** the count and the cycle handed between chained
+  blocks in registers (no gain).
+- **Every GPU run as recorded,** in all three games.
+
+**Next for splitscreen at 60** (about 10% more off the VIF1 worker):
+the VU1 per-pair work, profiled with a sampler finer than the 1 ms one
+(the generated lines have too few samples); the PATH3 copies (held, then
+copied again into the GS ring).
+
 1. **Profile which microprograms run the most** (the VU recompiler knows
    each program; count cycles per program per frame).
 2. **For the hot ones,** in the order the profile gives:
