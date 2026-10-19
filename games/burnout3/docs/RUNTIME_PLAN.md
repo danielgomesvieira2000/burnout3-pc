@@ -434,6 +434,29 @@ copied again into the GS ring).
   drawing itself, not the passes, barriers or layouts around it. B3 and B7
   would not pay there; what would is less fragment work (gs.frag's cost per
   pixel), or a lower resolution.
+- **Where the UHD's time goes** (engine 5767ad7: PS2HOST_GPU_PROFILE lists
+  the dearest kinds of draw), splitscreen at 2x: the scene into the frame
+  27%; the fog (the frame's depth read through the CLUT from D6) 13%; the
+  envmap faces (193, 19B from 156) ~9%; the cars' reflections (from 16B)
+  8%; the swizzles 13%; the final 16-bit copy (shader blending) 4%.
+- **The lower view's fog feeds back on itself.** Its triangles write depth
+  (ZTST ALWAYS, AFAIL FB_ONLY) into the memory their own texture - D6, a
+  1024-wide PSMT8H view of the depth buffer's pages - reads. So between
+  groups of triangles the depth buffer is written back and the view
+  reloaded: ~110 of each a frame, two thirds of all the frame's syncs.
+  Engine c549898 moves only the columns of the pages concerned (exact);
+  the swizzles went 12.9% to 11.5%, now held by their fixed cost (the
+  barriers of a true chain: draw, write-back, reload, draw).
+  **Next:** sample that view straight from the depth image (the address
+  maths of ZIntoColour and the shuffle), with no round trip through
+  memory: up to ~10% of the UHD's time in splitscreen.
+- **At the end of the day** (engine c549898, Intel UHD at 2x, real time):
+  splitscreen 57.4-57.6 new frames a second (9,900-12,900, real time from
+  boot, two runs); single player 0 late frames (bench.sh's own setup, as
+  this morning). Real time from boot, single player meets a heavier moment
+  at 19,200-19,500 (48.8 a second: VU1 up to 88 ms in a frame, the GS
+  thread and the worker waiting on each other) that the usual setup never
+  reaches: the next thing to profile (`--sample-vif1` over those frames).
 
 1. **Profile which microprograms run the most** (the VU recompiler knows
    each program; count cycles per program per frame).
