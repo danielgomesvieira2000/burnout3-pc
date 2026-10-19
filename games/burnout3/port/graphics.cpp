@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -205,6 +206,17 @@ void GraphicsFrame() {
         g_shadows_now = shadows;
     }
     SetDetail(Is("lod", "original", "high"));
+    // debug.switches_off=<offsets, hex, comma-separated> (a scripted run's
+    // --setting, to measure what each effect costs): those switch bytes of
+    // the graphics manager 0 - 5F the track, 60 track into the envmap, 62
+    // instances into it, 67 shadows, 68 bloom, 69 fog, 6A blur, 6C particles.
+    static const std::string off = ps2host::Setting("debug.switches_off", "");
+    for (std::size_t at = 0; at < off.size();) {
+        const std::size_t comma = std::min(off.find(',', at), off.size());
+        const u32 offset = u32(std::strtoul(off.substr(at, comma - at).c_str(), nullptr, 16));
+        if (offset && offset < 0x100u) generated::Write8(kGraphicsManager + offset, 0);
+        at = comma + 1;
+    }
 }
 
 void RegisterGraphics() {
