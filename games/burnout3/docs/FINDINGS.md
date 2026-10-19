@@ -2311,6 +2311,24 @@ On the GPU, step 1 is done by the engine's channel shuffle (engine 8edd32e;
 docs/RUNTIME_PLAN.md, A2): one compute pass on the picture, instead of a
 16-bit image, three write-backs and a reload at the internal resolution.
 
+## The glow's strips, and a Z in its own target's memory
+
+The bright pass (CB3Bloom::Render, 0x002659C0) works in 64-pixel strips of
+its strip buffer (FBP 0xD2, FBW 2: 128 wide, rows to 480), ten a frame.
+
+- **One sprite, both halves.** It lays the threshold grey down as colour
+  over 32 columns and, ZTST ALWAYS with the same grey as Z and ZBUF in the
+  same memory, as Z over the 32 next to them. A Z format's page is a 32-bit
+  colour page with its 32x16 quarters swapped (block index bits 3 and 4,
+  engine/tools/gsmem.py: Z pixel (x, y) is colour pixel (x ^ 32, y ^ 16) of
+  the same page), so one sprite covers both halves of a 64-column strip.
+- **In turn.** The subtract passes (ALPHA A4, A8) do the same with D2 and D3
+  in turn (D3: the buffer's second page column, its Z at D2).
+- **On the GPU.** The engine draws such a Z into the colour target where its
+  memory is, and D3 as D2's image 64 pixels across (engine 154eb00). Before,
+  it kept four images over that memory and brought them up to date through
+  it about 110 times a frame.
+
 ## Open questions
 
 * Which compiler and flags produced this binary? Unresolved, and it blocks all

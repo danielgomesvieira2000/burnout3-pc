@@ -1,7 +1,8 @@
 # A lighter frame: native effects, a leaner renderer, VU1
 
-Status: **A2 (fog) done** (engine 8edd32e, branch effects: a channel shuffle
-on the target; see A2). Written 2026-10-19 from a profile of the
+Status: **A2 (fog) and A3 (bloom) done** (engine 8edd32e and 154eb00,
+branch effects; see A2, A3). The Intel UHD at 2x, single player: 0 late
+frames (was 460 of 2,800); splitscreen is now held by the CPU (Phase C). Written 2026-10-19 from a profile of the
 scripted race (`race.args`). The work isn't done yet. This sets out where a
 race frame's time goes, why a 2004 game is not light on a 2020s PC, what
 would make it light, and the order.
@@ -179,7 +180,39 @@ engine, for any game.
 - **Left of the fog's 3.4 ms:** the fog draw itself (the effect), the
   palette's points and the compute pass (about 0.9 ms).
 
-**A3. Bloom native.**
+**A3. Bloom: done, as the engine's aliasing made cheap.** The glow is the
+game's own drawing, unchanged; what cost 3.2 ms was not its pixels but the
+engine keeping four views of the same memory up to date through it:
+
+- **What happens.** The bright pass lays its threshold down in 64-pixel
+  strips of its strip buffer (D2, 128 wide), 32 columns as colour and the
+  32 next to them as Z (ZTST ALWAYS, the Z the same grey), the two page
+  columns in turn (D2, then D3 with its Z at D2).
+- **Before.** That was four images: D2 and D3 as colour, D2 and D3 in the Z
+  format. They took turns to come up to date through memory, about 110
+  write-backs and reloads a frame, each with its global barriers.
+- **Now** (engine 154eb00):
+  - **ZIntoColour.** A Z format's page is a 32-bit colour page with its
+    32x16 quarters swapped (the block index's bits 3 and 4), so a sprite's
+    Z is drawn into the colour target, each quarter where its memory is.
+  - **Containing, pages across.** D3 is drawn as D2's image 64 pixels to
+    the right.
+  - One image, five write-backs and five reloads a frame after the fog.
+- **Exact.** Every GPU run of the three games as recorded.
+- **Measured, Intel UHD at 2x, the race:**
+
+  | | Before | After | With the glow off |
+  | --- | --- | --- | --- |
+  | Barriers a frame | 442 | 280 | 271 |
+  | Dispatches a frame | 243 | 137 | 131 |
+  | GPU per frame | 19.4 ms | 18.0 ms | |
+
+  In real time: 0 late frames, 59.9 new pictures a second.
+
+The plan's native bloom (the same arithmetic in 3-4 dispatches) is not
+needed for speed now. It remains the way to a MODERN bloom (A5).
+
+**A3 as first planned.**
 
 - Override 0x002659C0: the bright pass, the 160x112 downsample and blur, the
   accumulator with its persistence, and the add-back.
