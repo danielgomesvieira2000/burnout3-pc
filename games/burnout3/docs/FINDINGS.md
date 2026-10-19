@@ -2264,11 +2264,20 @@ penumbra; the same darkness in all (+5%), spread wider.
 {15, 30, 60, 20, 80} at each race's set-up): race cars' model 3 (the most
 detailed) within the first, 2, 1, then 0 (0x00151A40, each times the
 camera's factor); RenderVehicle (0x0021E6F0) takes the nearest slot it has
-(+0x4C, five). The traffic's by the last two (0x003078F0). DETAIL HIGH
+(+0x4C, five). The traffic's by the last two (0x003078F0). LOD HIGH
 writes them 2.5x: the race +13,000 primitives a frame (~44,000), VU1 +3.6%
 over the run. In real time (i7-13620H): all cores at 2x, 0 late either way
 (VIF1 worker 45.8 -> 47.8%, GS thread 30.6 -> 32.7%); two cores at 1x, 57
 -> 125 of 2,800 pictures late.
+
+**Particles.** Nehalem's "Render extra particles while driving" (lifted with
+the MODS, port/tools/lift_mods.py): the particles' update (0x00261E00) asks
+0x00254A50 for its extra ones always (0x00261EB8 li a0,1: MORE, "partial"),
+and also sets its four extra emitters (+0x20F0) going always (0x00261E6C li
+s2,1, a race's flag: MOST, "full"). In the scripted race they show at
+contact and shunts - a smoke cloud (MORE), more sparks too (MOST) - the race
+itself unchanged (score, speed, frame). MOST: VU1 +0.4% over the run; MORE
+nothing measurable.
 
 ## Open questions
 

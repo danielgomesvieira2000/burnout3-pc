@@ -1,7 +1,8 @@
 # Graphics options: bloom, motion blur, reflections, shadows
 
 Status: **steps 1-3 done** (BLOOM with HIGH and LOW, MOTION BLUR, SHADOWS
-ORIGINAL/SOFT/OFF, DETAIL: port/graphics.cpp, FINDINGS "Graphics options");
+ORIGINAL/SOFT/OFF, DETAIL as LOD, and PARTICLES: port/graphics.cpp, FINDINGS
+"Graphics options");
 REFLECTIONS and the MODERN effects not started. Written 2026-10-19 from a read of the lifted
 code, two traced race frames (`race.args`, frames 18001 and 18400) and
 Nahelam's B3Mod and research notes (github.com/Nahelam/B3Mod,

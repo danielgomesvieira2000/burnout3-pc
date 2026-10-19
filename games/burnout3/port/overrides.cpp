@@ -307,9 +307,18 @@ void SetBlur(int which) { ps2host::SetSetting("blur", kBlurs[which]); }
 const char* const kShadows[] = {"original", "soft", "off"};
 int Shadows() { return Among("shadows", kShadows); }
 void SetShadows(int which) { ps2host::SetSetting("shadows", kShadows[which]); }
-const char* const kDetails[] = {"original", "high"};
-int Detail() { return Among("detail", kDetails); }
-void SetDetail(int which) { ps2host::SetSetting("detail", kDetails[which]); }
+const char* const kLods[] = {"original", "high"};
+int Lod() { return Among("lod", kLods); }
+void SetLod(int which) { ps2host::SetSetting("lod", kLods[which]); }
+// PARTICLES: Nehalem's patch, partial (MORE) or full (MOST): two mods'
+// switches (port/tools/lift_mods.py).
+int Particles() {
+    return ps2host::SettingOn("mod.particles_most", false) ? 2 : ps2host::SettingOn("mod.particles_more", false) ? 1 : 0;
+}
+void SetParticles(int which) {
+    ps2host::SetSettingOn("mod.particles_more", which == 1);
+    ps2host::SetSettingOn("mod.particles_most", which == 2);
+}
 const char* const kAspects[] = {"4:3", "16:9", "auto"};
 int Aspect() { return Among("aspect", kAspects); }
 void SetAspect(int which) { ps2host::SetWindowAspect(kAspects[which]); }
@@ -347,7 +356,9 @@ const Option kOptions[] = {
      {"ORIGINAL", "OFF"}, 2},
     {Page::kGraphics, "SHADOWS", "THE CARS' SHADOWS AS DRAWN, SOFTER, OR NONE", Shadows, SetShadows,
      {"ORIGINAL", "SOFT", "OFF"}, 3},
-    {Page::kGraphics, "DETAIL", "THE CARS' DETAILED MODELS FARTHER AWAY", Detail, SetDetail, {"ORIGINAL", "HIGH"}, 2},
+    {Page::kGraphics, "LOD", "THE CARS' DETAILED MODELS FARTHER AWAY", Lod, SetLod, {"ORIGINAL", "HIGH"}, 2},
+    {Page::kGraphics, "PARTICLES", "SMOKE AND SPARKS WHILE DRIVING: AS DRAWN, MORE, OR THE MOST", Particles,
+     SetParticles, {"ORIGINAL", "MORE", "MOST"}, 3},
     {Page::kMods, "SPEEDOMETER", "THE SPEED IN MILES OR IN KILOMETRES AN HOUR", Mod<kModKph>, SetMod<kModKph>,
      {"MPH", "KM/H"}, 2},
     {Page::kMods, "HORN", "HONK (CONTROLS: HORN), THE HEADLIGHTS ON WHILE IT IS HELD", Mod<kModHorn>,

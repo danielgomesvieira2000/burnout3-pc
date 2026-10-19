@@ -117,8 +117,9 @@ long gone) has four pages and the game's hidden menu (Triangle goes back):
   GRAPHICS   the game's own effects, each as the PS2 drew it, changed or
              off: BLOOM (the glow around lights: original, high, off or
              low), MOTION BLUR (boosting's and the camera's), SHADOWS (softer, or
-             none), and DETAIL (the cars' detailed models farther away -
-             heavier on the processor)
+             none), LOD (the cars' detailed models farther away -
+             heavier on the processor) and PARTICLES (more smoke and
+             sparks while driving: Nehalem's patch)
   CONTROLS   KEYBOARD (RACING), KEYBOARD (MENUS), CONTROLLER (RACING),
              CONTROLLER (MENUS): every key and button (see "Controls");
              BUTTON PROMPTS (auto, PlayStation or Xbox) and a DualSense's

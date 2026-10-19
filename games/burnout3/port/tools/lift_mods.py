@@ -50,6 +50,13 @@ MODS = [
     # Every race car's headlights on (after the horn's: on, held or not).
     ("mod.headlights", [(0x001C4930, 0x8E430CC0, 4), (0x001C4934, 0x24040004, 4),
                         (0x001C4940, 0xA0640058, 4)]),
+    # More particles while driving (GRAPHICS' PARTICLES; Nehalem's "Render
+    # extra particles while driving"): the particles' update (0x00261E00) asks
+    # for its extra ones (0x00254A50's a0) always - MORE, "partial" - and also
+    # sets its four extra emitters going (+0x20F0) always - MOST, "full" (s2,
+    # a race's flag, 1).
+    ("mod.particles_more", [(0x00261EB8, 0x24040001, 4)]),
+    ("mod.particles_most", [(0x00261E6C, 0x24120001, 4)]),
     # No pause menu after five idle minutes.
     ("always", [(0x003954E8, 0x00000000, 4),
                 # EA Trax in splitscreen: the music's update each frame

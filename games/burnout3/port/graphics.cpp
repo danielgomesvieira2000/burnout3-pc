@@ -18,8 +18,10 @@
  *   MOTION BLUR     ORIGINAL / OFF (the key "blur", as it was saved)
  *   SHADOWS         ORIGINAL / SOFT / OFF - SOFT the blob drawn here (see
  *                   SoftBlob)
- *   DETAIL          ORIGINAL / HIGH - the cars' and the traffic's detailed
+ *   LOD             ORIGINAL / HIGH - the cars' and the traffic's detailed
  *                   models out to longer distances (see the LOD distances)
+ *   PARTICLES       ORIGINAL / MORE / MOST - Nehalem's patch, lifted with the
+ *                   MODS' (port/tools/lift_mods.py)
  */
 
 #include <algorithm>
@@ -149,8 +151,8 @@ std::shared_ptr<const pack::Image> SoftBlob() {
    {15, 30, 60, 20, 80} as a race is set up (0x0019E9A0): a race car's
    model the most detailed (3) within the first, then 2, 1, 0 beyond the
    third (0x00151A40), the traffic's by the last two (0x003078F0), each
-   times the camera's own factor. DETAIL HIGH: each kDetailScale times as
-   far; ORIGINAL the table's back. */
+   times the camera's own factor. LOD HIGH: each kDetailScale times as far;
+   ORIGINAL the table's back. */
 constexpr u32 kLodDistances = 0x00665F30u, kLodTable = 0x004B72A0u, kLodCount = 5;
 constexpr float kDetailScale = 2.5f;
 bool g_detail_set = false;
@@ -202,7 +204,7 @@ void GraphicsFrame() {
         }
         g_shadows_now = shadows;
     }
-    SetDetail(Is("detail", "original", "high"));
+    SetDetail(Is("lod", "original", "high"));
 }
 
 void RegisterGraphics() {
