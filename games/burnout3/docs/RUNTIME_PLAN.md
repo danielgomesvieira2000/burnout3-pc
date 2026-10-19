@@ -312,6 +312,50 @@ the Intel UHD's fixed cost is the open question this phase answers.
 
 ## Phase C: VU1 (CPU, 7 ms a frame)
 
+**C1 done: where VU1's time goes** (2026-10-19; engine dea63b9 adds
+`PS2HOST_VU_BY_PROGRAM` to `--vu-bench`):
+
+- **Six programs, 90%.** 4,000 VU1 runs from the race (`--vu-snapshot ..
+  18000 4000`, about 2.5 frames), 17.7 ms replayed:
+
+  | Program | Share | ns per pair |
+  | --- | --- | --- |
+  | 14E0 | 21% | 1.97 |
+  | 1548 | 20% | 3.90 |
+  | 1910 | 19% | 3.93 |
+  | 0000 | 14% | 4.14 |
+  | 0020 | 11% | 3.52 |
+  | 1318 | 7% | 3.47 |
+
+  In the real-time worker no compiled block is over 2%: a program's time is
+  spread over its many small blocks. Rewriting a program by hand would not
+  pay.
+- **What a pair costs** (the bench with one cost removed; measurements, not
+  exact code):
+  - the stall checks and ready-cycle bookkeeping: about 10%;
+  - the operands' clamping where not known clean: about 12%.
+  - The arithmetic is already one SSE operation and a four-instruction
+    clamp; the rest is register traffic through the Vu's memory and the
+    per-pair bookkeeping.
+- **Tried and dropped.** The clean masks as block locals gained 2% and broke
+  6 of the 960 interpreter cross-checks.
+- **Splitscreen** (Intel UHD, 2x, after A2 and A3), per blank: the VIF1
+  worker is busy 12.9 ms (VU1 11.5), the GS thread 12.2 ms (recording Vulkan
+  work 5.3). At ~46 pictures a second both are at a picture's 16.7 ms:
+  splitscreen at 60 needs about 20% off both, not one.
+
+**What would give that 20%:**
+
+- **VU1: timing and cleanliness known when compiling.** Within a block, the
+  stalls and the clean registers are mostly known from the pairs before. A
+  block can be compiled for the common state at its start (everything
+  landed, registers clean as the block before left them), with a check at
+  entry that falls back to today's code otherwise. That drops most stall
+  checks, ready-cycle writes and clamps. It is exact by construction and
+  checked by the bench's state hash and the interpreter cross-check.
+- **GS thread:** B6 (a smaller vertex, one copy, push constants only when
+  changed, no allocation per batch) and the bridge's per-draw path.
+
 1. **Profile which microprograms run the most** (the VU recompiler knows
    each program; count cycles per program per frame).
 2. **For the hot ones,** in the order the profile gives:
