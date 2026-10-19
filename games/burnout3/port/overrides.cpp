@@ -298,12 +298,9 @@ const char* const kResolutions[] = {"original", "2x", "display"};
 int Resolution() { return Among("resolution", kResolutions); }
 void SetResolution(int which) { ps2host::SetSetting("resolution", kResolutions[which]); }
 // GRAPHICS (graphics.cpp): each a setting, ORIGINAL as the game draws it.
-const char* const kBlooms[] = {"original", "off"};
+const char* const kBlooms[] = {"original", "high", "off", "low"};
 int Bloom() { return Among("bloom", kBlooms); }
 void SetBloom(int which) { ps2host::SetSetting("bloom", kBlooms[which]); }
-const char* const kBloomStrengths[] = {"low", "original", "high"};
-int BloomStrength() { return Among("bloom_strength", kBloomStrengths, 1); }
-void SetBloomStrength(int which) { ps2host::SetSetting("bloom_strength", kBloomStrengths[which]); }
 const char* const kBlurs[] = {"original", "off"};
 int Blur() { return Among("blur", kBlurs); }
 void SetBlur(int which) { ps2host::SetSetting("blur", kBlurs[which]); }
@@ -344,9 +341,8 @@ const Option kOptions[] = {
      SetAspect, {"ORIGINAL (4:3)", "WIDESCREEN (16:9)", "AUTO"}, 3},
     {Page::kVideo, "ANTIALIASING", "EDGES AS DRAWN, SMOOTHED (FXAA, SMAA), OR SUPERSAMPLED (SSAA)",
      AntiAliasing, SetAntiAliasing, {"OFF", "FXAA", "SMAA", "SSAA 2X"}, 4},
-    {Page::kGraphics, "BLOOM", "THE GLOW AROUND LIGHTS AND THE SKY, OR NONE", Bloom, SetBloom, {"ORIGINAL", "OFF"}, 2},
-    {Page::kGraphics, "BLOOM STRENGTH", "HOW STRONG THE GLOW IS, AND ITS TRAILS", BloomStrength, SetBloomStrength,
-     {"LOW", "ORIGINAL", "HIGH"}, 3},
+    {Page::kGraphics, "BLOOM", "THE GLOW AROUND LIGHTS: AS DRAWN, STRONGER, NONE, OR SOFTER", Bloom, SetBloom,
+     {"ORIGINAL", "HIGH", "OFF", "LOW"}, 4},
     {Page::kGraphics, "MOTION BLUR", "THE BLUR OF BOOSTING AND OF THE CAMERA, OR NONE", Blur, SetBlur,
      {"ORIGINAL", "OFF"}, 2},
     {Page::kGraphics, "SHADOWS", "THE CARS' SHADOWS AS DRAWN, SOFTER, OR NONE", Shadows, SetShadows,

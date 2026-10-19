@@ -13,9 +13,8 @@
  * GraphicsFrame), only while a setting is not ORIGINAL; the 1 back once it
  * is again.
  *
- *   BLOOM           ORIGINAL / OFF
- *   BLOOM STRENGTH  LOW / ORIGINAL / HIGH - the glow's threshold, intensity
- *                   and trails (see BloomRender)
+ *   BLOOM           ORIGINAL / HIGH / OFF / LOW - HIGH and LOW the glow's
+ *                   threshold, intensity and trails changed (see BloomRender)
  *   MOTION BLUR     ORIGINAL / OFF (the key "blur", as it was saved)
  *   SHADOWS         ORIGINAL / SOFT / OFF - SOFT the blob drawn here (see
  *                   SoftBlob)
@@ -73,11 +72,11 @@ bool Is(const char* key, const char* fallback, const char* value) {
    0x0030A9D0 from the track's tweaks - threshold +0 (0.75: the bright pass
    takes what is above 0xBF), intensity +4 (1.0: the glow's grey as it is
    added back) and persistence +8 (0.5, up to 0.9 boosting: the share of the
-   frame before kept, the glow's trails). BLOOM STRENGTH scales them for
+   frame before kept, the glow's trails). BLOOM HIGH and LOW scale them for
    this draw, the game's own values back after it. */
 void BloomRender(lifted::Context& c) {
-    const std::string strength = ps2host::Setting("bloom_strength", "original");
-    if (strength == "original") {
+    const std::string strength = ps2host::Setting("bloom", "original");
+    if (strength != "low" && strength != "high") {
         F_002659C0(c);
         return;
     }
@@ -177,6 +176,18 @@ std::string g_shadows_now;
 
 /* At the display's frame step (mods.cpp), a few times a frame. */
 void GraphicsFrame() {
+    // BLOOM's HIGH and LOW were BLOOM STRENGTH's (a playtest build's): its
+    // value, with BLOOM ORIGINAL, is BLOOM's - once, the settings all read.
+    static bool migrated = false;
+    if (!migrated) {
+        migrated = true;
+        const std::string strength = ps2host::Setting("bloom_strength", "");
+        if (!strength.empty()) {
+            if ((strength == "low" || strength == "high") && Is("bloom", "original", "original"))
+                ps2host::SetSetting("bloom", strength);
+            ps2host::SetSetting("bloom_strength", "");
+        }
+    }
     g_bloom.Set(Is("bloom", "original", "off"));
     g_blur.Set(Is("blur", "original", "off"));
     const std::string shadows = ps2host::Setting("shadows", "original");
@@ -195,6 +206,6 @@ void GraphicsFrame() {
 }
 
 void RegisterGraphics() {
-    ps2host::Override(0x002659C0u, BloomRender, "the glow: BLOOM STRENGTH (PC SETTINGS)");
+    ps2host::Override(0x002659C0u, BloomRender, "the glow: BLOOM HIGH and LOW (PC SETTINGS)");
     ps2host::Override(0x002FA9A0u, RadialBlur, "the radial blur: MOTION BLUR (PC SETTINGS)");
 }

@@ -2246,8 +2246,8 @@ boosting race frame changes.
 160x112 blur, an accumulator with feedback (the trails), added back 4x
 bilinear. Its view's values (+0x50 of the view's effects: P1 0x00666090, P2
 0x00666130) are written each frame by 0x0030A9D0 from the track's tweaks:
-threshold 0.75, intensity 1.0, persistence 0.5 (0.9 boosting). BLOOM
-STRENGTH scales them around the call (LOW: threshold +0.05, intensity x0.55,
+threshold 0.75, intensity 1.0, persistence 0.5 (0.9 boosting). BLOOM HIGH
+and LOW scale them around the call (LOW: threshold +0.05, intensity x0.55,
 trails x0.6; HIGH: threshold -0.2, intensity x1.5). In the scripted race
 (Silver Lake, day) the glow is small: BLOOM OFF changes 0-0.5% of a frame,
 the software GS the same - lights, signs and white paint, never the sky

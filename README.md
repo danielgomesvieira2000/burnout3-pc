@@ -46,7 +46,7 @@ wrong, press **F12** at that moment and attach the folder it writes to
   controller), all drawn by the port.
 - **PC settings** in the game's own main menu (where ONLINE used to be), in
   pages: VIDEO (fullscreen, vertical sync, resolution, the aspect ratio,
-  anti-aliasing: FXAA, SMAA or SSAA 2x), GRAPHICS (bloom and its strength, motion blur, soft shadows, detail),
+  anti-aliasing: FXAA, SMAA or SSAA 2x), GRAPHICS (bloom high, low or off, motion blur, soft shadows, detail),
   CONTROLS (the keyboard's and the controller's bindings, racing and menus;
   button prompts; DualSense trigger effects), MODS (Nehalem's game patches:
   km/h, the horn, mirror mode, no traffic, Crash Breaker in every mode,
