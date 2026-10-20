@@ -537,6 +537,51 @@ interpreter, and the GPU runs' pictures.
   the GS thread (58%) are level now: two workers for the two views are not
   needed yet.
 
+## Phase B8: the GS thread (plan, 2026-10-20)
+
+**Why.** After C2, splitscreen at 2x on 4 threads has VIF1's worker 60%
+and the GS thread 58% busy: the GS thread is the other half of the limit.
+Sampled over splitscreen's race (engine v0.13.1, 2x, all cores), of its
+busy time: OnDraw (a draw's bookkeeping) ~31%, Gs::Words (the GIF's
+packets into registers and draws) ~21%, TransferBlock (image transfers
+into GS memory) ~10%, SyncWrite (what a transfer makes stale) ~8%, the
+threaded renderer's comparison of each draw's state with the last ~4.5%.
+
+1. **B8.1 SyncWrite:** its pages' lists of cached textures hold every
+   texture the game's upload slots ever had - 258 looked at a write, 245
+   marked invalid again, 0.2 still valid. Lists of the textures that may be
+   valid only.
+2. **B8.2 The draw state's comparison:** OnDraw's fast path knows the state
+   is the last one's but for `gouraud`; tell the renderer so, instead of
+   200 bytes compared a draw.
+3. **B8.3 Image transfers of 8 and 4 bits** (CLUTs and palettised
+   textures) a run of a column at a time, as the 32-bit ones (0bcecad).
+4. **B8.4 Gs::Words and OnDraw**, by line: what is left after 1-3.
+
+Each step: the eleven GPU runs as recorded, splitscreen on 4 threads and
+the GS thread's samples measured.
+
+**Done (engine branch gs-b8):**
+
+- **B8.1** (072299a): the pages' lists hold only textures that may be
+  valid. SyncWrite 4.5% -> 2.0% of the GS thread's samples.
+- **B8.2** (531800d): the fast path's draws reach the renderer as
+  DrawTrianglesAgain when nothing has drawn since the draw of that state:
+  the 200-byte comparison (3.4%) gone.
+- **B8.3** (01b9843): splitscreen's image transfers are all 32- and 16-bit,
+  none 8 or 4: 16-bit ones sixteen pixels at a time (the 32-bit ones were
+  already). TransferBlock 6.1% -> 3.6%.
+- Together the GS thread 58.8% -> 52.1% of the samples busy. Splitscreen
+  at 2x on 4 threads: the GS thread 58% -> 51% busy, the process 1.83 ->
+  1.76 cores, 59.9 new pictures a second, 99.9% of frames within 23.5 ms.
+  The race at 1x on 4 cores, with C2: the process 1.10 -> 0.93 cores.
+- **B8.4, not done:** what is left is a primitive's own bookkeeping, spread
+  thin (OnDraw ~15%, Drew ~4%, Gs::Words ~12% - its hottest line the strip's
+  vertices shifted, 6% of it). The way past it is primitives drawn in
+  batches; but Drew over a batch's rectangle would mark blocks the GPU never
+  drew as newer than memory, and a write-back of those could put older
+  pixels over newer ones - a design of its own, not a step.
+
 ## PGO's runs: the rest of the game (plan, 2026-10-20)
 
 The profile-guided build (`port.py pgo`) learns from three scripted runs -
