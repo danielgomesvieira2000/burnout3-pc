@@ -106,6 +106,24 @@ picture the same: everything per tick now), placing objects only 15 / 3
 10.5, 10.5. The race at 120: 8.7, 9.0, 9.8, 10.8, 12.7 - no pairs; at 144
 even.
 
+## Step 4, done: splitscreen, and stepping down (2026-10-20)
+
+Splitscreen too: player 2's camera values are 0xBB0 after player 1's
+(0x00517BE0: the way it looks at +0x20, where it is at +0x30). Its view
+before: 4 / 19 between pictures; with them 9.7 / 12.7 (what is left: the
+HUD's speed and the speed streaks, a tick's). Real time (RTX 4070 Laptop,
+2x): splitscreen 120 holds (2-3 late in 22 s; VIF1's worker 85%, the GS
+thread 79%), 144 does not (GS thread 100%, 503 of 3000 late).
+
+So a race steps down where the machine does not keep up: the engine counts
+the pictures it showed late (LatePictures: dropped, or 1.5 blank periods
+after the one before); every two seconds of race frames, more than 5% late
+and the rate takes the multiple of 60 below (144 -> 120 -> 60) for the rest
+of the race (the first look after a change is let go: its catching up).
+Splitscreen at 144: 120 after 4 s, then holds; one player at 144 and
+splitscreen at 120 stay. (The game's own blanks a picture took were no
+guide: 2-50 of 240 "slow" with presents steady at 120.)
+
 **Next:** the take-down cheaper (the addresses kept from tick to tick);
 the crash's flying parts (where they live, apart from the movies');
 then the mechanism into the engine for every game.

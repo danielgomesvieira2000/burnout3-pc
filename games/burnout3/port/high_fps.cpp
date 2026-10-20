@@ -4,10 +4,10 @@
  * display; 60 the game's own).
  *
  * The race ticks 60 times a second - its physics, clock, crashes and AI
- * take a sixtieth each - and stays so. While a one-player race runs (its
- * HUD drawn: the menus' backdrops run the race's world too; not with a menu
- * up - the pause's, the race's end - nor in splitscreen, whose two views
- * already take what a machine has), the vertical blanks come twice as often
+ * take a sixtieth each - and stays so. While a race runs, splitscreen's too
+ * (its HUD drawn: the menus' backdrops run the race's world too; not with a
+ * menu up - the pause's, the race's end), the vertical blanks come twice as
+ * often
  * (SetFastForward(2)) - or at the screen's refresh (SetBlankRate; a whole
  * multiple of 60 as SetFastForward's) - and the game draws a picture at
  * each. Its main loop (0x00132600) runs the race's ticks in a loop, as many
@@ -54,7 +54,6 @@ void F_002225C0(lifted::Context& c);
 
 namespace {
 
-constexpr u32 kPlayers = 0x0064D3A0u;   // the race's players (2 or more: splitscreen, party modes)
 // Where the race's transforms live (find_transforms.py, in a race and in a
 // crash): the cars, their wheels, the traffic between 0x00517000 and
 // 0x00660000. Not a crash's flying parts (about 0x00825000: the movies'
@@ -99,28 +98,61 @@ struct Placed {
 };
 std::vector<Placed> g_placed;
 
-// The camera: the draw makes the view (0x00227360, three times a picture)
-// from the camera's own values, set in the ticks (a crash's camera moves on
-// its own) - 0x00517030: its field of view (+0x14), the way it looks
-// (+0x20), where it is (+0x30). Placed between ticks as the transforms
-// are, value by value: one of 1e-6 to 1e6 either way (a pointer, a count, a
-// flag reads as a far smaller float) that moved by less than kCut.
-constexpr u32 kCameraValues = 0x00517030u;
-constexpr int kCameraCount = 16;
-float g_camera_last[kCameraCount], g_camera_now[kCameraCount];
-float g_camera_placed[kCameraCount], g_camera_was[kCameraCount];
-bool g_camera_placing = false;          // g_camera_placed is in RAM (PutBack)
+// The cameras: the draw makes each view (0x00227360, three times a
+// picture) from its camera's own values, set in the ticks (a crash's camera
+// moves on its own) - player 1's at 0x00517030, player 2's (splitscreen)
+// 0xBB0 on: the field of view (+0x14), the way it looks (+0x20), where it
+// is (+0x30). Placed between ticks as the transforms are, value by value:
+// one of 1e-6 to 1e6 either way (a pointer, a count, a flag reads as a far
+// smaller float) that moved by less than kCut.
+constexpr u32 kCameraValues = 0x00517030u, kCameraStride = 0xBB0u;
+constexpr int kCameras = 2, kCameraCount = 16;
+struct CameraValues {
+    float last[kCameraCount], now[kCameraCount], placed[kCameraCount], was[kCameraCount];
+    bool placing = false;               // `placed` is in RAM (PutBack)
+};
+CameraValues g_cameras[kCameras];
+u32 CameraAddress(int which) { return kCameraValues + kCameraStride * u32(which); }
 
 constexpr double kStepRate = 1e6 / 16683.0;    // the blanks' own, 59.94 (threads.cpp's VblankTimer)
 
 /* FRAME RATE, as pictures a second (60: none above the game's own):
    PS2HOST_FRAME_RATE, else the setting - 120, or "display", the screen's
    refresh (up to 240; 60 where it is not known or below 90). */
+// What this machine kept up with in this race (0: no limit found): a rate
+// whose pictures were often shown late (the window's LatePictures:
+// splitscreen at 144 on the author's laptop, one in six) steps down a
+// multiple of 60 for the rest of the race. Looked at every two seconds or
+// so of race frames, the first such stretch after a change let go (its
+// catching up).
+double g_cap = 0.0;
+int g_sampled = 0;                      // race frames since the last look
+int g_looks = 0;                        // looks since the rate changed
+u64 g_late_seen = 0;                    // LatePictures at the last look
+
 double Wanted() {
     static const char* env = std::getenv("PS2HOST_FRAME_RATE");
     const std::string rate = env ? std::string(env) : ps2host::Setting("frame_rate", "60");
     const double hz = rate == "display" ? double(ps2host::WindowRefreshRate()) : std::atof(rate.c_str());
-    return hz >= 90.0 ? std::min(hz, 240.0) : 60.0;
+    const double want = hz >= 90.0 ? std::min(hz, 240.0) : 60.0;
+    return g_cap > 0.0 ? std::min(want, g_cap) : want;
+}
+
+/* Each race frame above 60: every two seconds or so, the pictures shown
+   late since; more than 5% and the rate steps down (to the multiple of 60
+   below it). */
+void KeepUp() {
+    const int sample = int(2.0 * g_rate);
+    if (++g_sampled < sample) return;
+    const u64 late_now = ps2host::LatePictures(), late = late_now - g_late_seen;
+    g_late_seen = late_now;
+    g_sampled = 0;
+    if (g_looks++ == 0) return;         // (the change's own catching up)
+    if (late * 20 > u64(sample)) {
+        g_cap = std::max(60.0, 60.0 * std::ceil(g_rate / 60.0 - 1.0 - 1e-6));
+        std::fprintf(stderr, "[high fps] %llu of %d pictures late at %.0f a second: %.0f for this race\n",
+                     static_cast<unsigned long long>(late), sample, g_rate, g_cap);
+    }
 }
 
 /* The blanks at `hz`: a whole multiple of 60 (within a hertz for each 60:
@@ -169,10 +201,12 @@ bool Shaped(const float* m) {
 
 /* The transforms as the tick left them. */
 void TakeDown() {
-    if (const u8* camera = generated::RamPointer(kCameraValues, sizeof g_camera_now)) {
-        std::memcpy(g_camera_last, g_camera_now, sizeof g_camera_last);
-        std::memcpy(g_camera_now, camera, sizeof g_camera_now);
-    }
+    for (int k = 0; k < kCameras; ++k)
+        if (const u8* camera = generated::RamPointer(CameraAddress(k), sizeof g_cameras[k].now)) {
+            CameraValues& v = g_cameras[k];
+            std::memcpy(v.last, v.now, sizeof v.last);
+            std::memcpy(v.now, camera, sizeof v.now);
+        }
     g_last.swap(g_now);
     g_now.clear();
     const u8* base = generated::RamPointer(kObjectsBegin, kObjectsEnd - kObjectsBegin);
@@ -248,16 +282,19 @@ bool AValue(float v) { return std::fabs(v) > 1e-6f && std::fabs(v) < 1e6f; }
    left them). */
 void PlaceBetween(float t) {
     if (t >= 1.0f || g_last.empty()) return;
-    if (float* camera = reinterpret_cast<float*>(generated::RamPointer(kCameraValues, sizeof g_camera_now))) {
-        std::memcpy(g_camera_was, camera, sizeof g_camera_was);
-        std::memcpy(g_camera_placed, camera, sizeof g_camera_placed);
+    for (int k = 0; k < kCameras; ++k) {
+        CameraValues& v = g_cameras[k];
+        float* camera = reinterpret_cast<float*>(generated::RamPointer(CameraAddress(k), sizeof v.now));
+        if (!camera) continue;
+        std::memcpy(v.was, camera, sizeof v.was);
+        std::memcpy(v.placed, camera, sizeof v.placed);
         for (int i = 0; i < kCameraCount; ++i) {
-            const float a = g_camera_last[i], b = g_camera_now[i];
+            const float a = v.last[i], b = v.now[i];
             if (a == b || !AValue(a) || !AValue(b) || !(std::fabs(b - a) < kCut)) continue;
-            g_camera_placed[i] = a + t * (b - a);
+            v.placed[i] = a + t * (b - a);
         }
-        std::memcpy(camera, g_camera_placed, sizeof g_camera_placed);
-        g_camera_placing = true;
+        std::memcpy(camera, v.placed, sizeof v.placed);
+        v.placing = true;
     }
     for (const auto& [address, now] : g_now) {
         const auto last = g_last.find(address);
@@ -274,11 +311,12 @@ void PutBack() {
             std::memcpy(p, placed.was.m, sizeof placed.was.m);
     }
     g_placed.clear();
-    if (g_camera_placing) {
-        u8* camera = generated::RamPointer(kCameraValues, sizeof g_camera_now);
-        if (camera && std::memcmp(camera, g_camera_placed, sizeof g_camera_placed) == 0)
-            std::memcpy(camera, g_camera_was, sizeof g_camera_was);
-        g_camera_placing = false;
+    for (int k = 0; k < kCameras; ++k) {
+        CameraValues& v = g_cameras[k];
+        if (!v.placing) continue;
+        u8* camera = generated::RamPointer(CameraAddress(k), sizeof v.now);
+        if (camera && std::memcmp(camera, v.placed, sizeof v.placed) == 0) std::memcpy(camera, v.was, sizeof v.was);
+        v.placing = false;
     }
 }
 
@@ -299,7 +337,9 @@ void HighFpsFrame() {
     // stay at the rate (a change drains the GS thread: a hitch).
     constexpr int kSettle = 30;
     static int differing = 0;
-    const double want = Racing() && generated::ReadS32(kPlayers) < 2 ? Wanted() : 60.0;
+    const bool racing = Racing();
+    if (!racing) g_cap = 0.0;           // (a new race tries the setting's rate again)
+    const double want = racing ? Wanted() : 60.0;
     const double now = g_rate > 0.0 ? g_rate : 60.0;
     differing = std::fabs(want - now) >= 0.5 ? differing + 1 : 0;
     if (differing >= (want > 60.0 ? 1 : kSettle)) {
@@ -311,6 +351,8 @@ void HighFpsFrame() {
         g_time = 1.0;
         g_behind = 0.0;
         g_counted = false;
+        g_sampled = 0;
+        g_looks = 0;
         if (want > 60.0) {
             g_rate = want;
             g_per_picture = Pace(want);
@@ -368,6 +410,7 @@ void FrameStart(lifted::Context& c) {
    too the ticks the frame ran are counted, and the picture's time found. */
 void AfterTicks(lifted::Context& c) {
     g_blanks_since = 0;
+    if (g_rate > 0.0) KeepUp();
     const u32 count = generated::ReadU32(u32(c.r[28]) - 0x5C5Cu);
     g_frame_ticks = g_counted ? count - g_tick_count : 1;
     g_tick_count = count;
@@ -394,8 +437,9 @@ void AfterTicks(lifted::Context& c) {
 void HighFpsBlank() {
     if (g_rate <= 0.0 || ++g_blanks_since <= kGone * std::max(1, int(g_rate / 60.0 + 0.5))) return;
     std::fprintf(stderr, "[high fps] 60 pictures a second (the race's frames stopped)\n");
+    g_cap = 0.0;
     g_placed.clear();
-    g_camera_placing = false;
+    for (CameraValues& v : g_cameras) v.placing = false;
     g_last.clear();
     g_now.clear();
     g_rate = 0.0;
