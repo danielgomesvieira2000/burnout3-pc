@@ -265,7 +265,7 @@ struct PageInfo {
     const char* help;
 };
 const PageInfo kPages[] = {
-    {Page::kVideo, "VIDEO", "THE WINDOW, RESOLUTION, PICTURE SHAPE AND SMOOTHING"},
+    {Page::kVideo, "VIDEO", "THE WINDOW, FRAME RATE, RESOLUTION, SHAPE AND SMOOTHING"},
     {Page::kGraphics, "GRAPHICS", "THE GAME'S OWN EFFECTS"},
     {Page::kControls, "CONTROLS", "YOUR KEYS AND BUTTONS, AND THE BUTTONS SHOWN"},
     {Page::kMods, "MODS", "NEHALEM'S MODS: KM/H, THE HORN, MIRROR MODE AND MORE"},
@@ -294,6 +294,10 @@ int Among(const char* key, const char* const (&values)[N], int fallback = 0) {
         if (now == values[i]) return int(i);
     return fallback;
 }
+// FRAME RATE (high_fps.cpp): a one-player race's pictures, its steps at 60.
+const char* const kFrameRates[] = {"60", "120"};
+int FrameRate() { return Among("frame_rate", kFrameRates); }
+void SetFrameRate(int which) { ps2host::SetSetting("frame_rate", kFrameRates[which]); }
 const char* const kResolutions[] = {"original", "2x", "display"};
 int Resolution() { return Among("resolution", kResolutions); }
 void SetResolution(int which) { ps2host::SetSetting("resolution", kResolutions[which]); }
@@ -344,6 +348,8 @@ void SetTraffic(int on) { SetMod<kModNoTraffic>(1 - on); }
 const Option kOptions[] = {
     {Page::kVideo, "FULLSCREEN", "THE WHOLE SCREEN OR A WINDOW (ALT+ENTER)", Fullscreen, SetFullscreen, {"OFF", "ON"}, 2},
     {Page::kVideo, "VERTICAL SYNC", "NO TEARING, OR THE LEAST DELAY", Vsync, SetVsync, {"OFF", "ON"}, 2},
+    {Page::kVideo, "FRAME RATE", "RACES AT 60 PICTURES A SECOND, OR 120 FOR A FAST SCREEN", FrameRate, SetFrameRate,
+     {"60", "120"}, 2},
     {Page::kVideo, "RESOLUTION", "DRAWN AS THE PS2 DID, TWICE AS SHARP, OR AS SHARP AS THE SCREEN", Resolution,
      SetResolution, {"ORIGINAL", "2X", "DISPLAY"}, 3},
     {Page::kVideo, "ASPECT RATIO", "THE PICTURE'S SHAPE: A TELEVISION'S, WIDESCREEN, OR THE SCREEN'S OWN", Aspect,
