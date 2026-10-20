@@ -25,6 +25,32 @@ asked", is no guide: it stays set after a race's first crash.)
   vsync are not evenly paced. Interpolation at any fraction of a step
   (below) is what lets the rate follow the display's (144) later.
 
+## Step 2, done: the pictures between steps (port/high_fps.cpp)
+
+After each step the race's transforms are taken down by shape - every
+RwMatrix (three orthonormal rows, a finite position) between 0x00500000 and
+0x00700000, where engine/tools/find_transforms.py found all 80 that move in
+the scripted race: the six racers, their wheels (car-local, about +-0.8,
++-1.2), two arrays of copies a car each (strides 0x180 and 0x50) - and, for
+the picture drawn then, each that moved is placed half way back towards the
+step before (positions averaged, rotations the rows' means made orthonormal
+again; one that jumped more than 50 units a step is a cut and left alone);
+before the next picture and the next step it is put back. The pictures show
+the race at N - 1/2, N, N + 1/2, N + 1: evenly, half a step (8 ms) late.
+The camera is made in the draw from the cars, and follows.
+
+- **Checked** in virtual time, the mean difference between successive
+  pictures: without the placing 0.3, 18.4, 0.4, 13.4, 0.2 (pairs, then a
+  step); with it 14.5, 13.7, 10.3, 8.7, 8.6, 9.0, 9.4.
+- **Real time** (bench.sh, 1x): all cores 0 late, 99.9% of frames within
+  8.75 ms, the process 1.93 cores (the EE ~44%: the take-down's scan of 2 MB
+  a step is ~8 of it); 4 threads 3 late, 99.9% within 12.5 ms, 2.17 cores.
+
+**Next:** FRAME RATE in PC SETTINGS (60 / 120); the radial blur and the HUD
+at a step's pace; the display's own rate (144 Hz: the placing at any
+fraction, not only a half); the take-down cheaper (the addresses kept from
+step to step); then the mechanism into the engine for every game.
+
 ## For every game (the engine)
 
 The mechanism is not Burnout 3's: a game's world stepped at its own rate
