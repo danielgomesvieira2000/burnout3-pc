@@ -1,7 +1,7 @@
 /*
  * PC SETTINGS' MODS: Nehalem's PCSX2 patches for Burnout 3 (github.com/
- * Nahelam/PS2-Game-Mods, Burnout 3 Takedown/Various, SLUS-21050), each a
- * setting.
+ * Nahelam/PS2-Game-Mods, Burnout 3 Takedown/Various and Crash Breaker
+ * Expansion, SLUS-21050), each a setting.
  *
  * Most change the game's code: those functions are lifted again with the
  * mods' words written in (port/tools/lift_mods.py, at build time) and run
@@ -51,6 +51,15 @@ u8 g_heavyweights_was = 0;
 
 bool On(const char* key) { return !g_all_off && ps2host::SettingOn(key, false); }
 
+/* CRASH BREAKER in every mode, Nehalem's Crash Breaker Expansion (its code:
+   lift_mods.py). Its pointer: an entry of a table of the game's at
+   0x004DDE34 (0x001507D0) made its own code's (0x000B3E20: the game's, then
+   its own) - written every frame while the mod is on, the game's back once
+   it is turned off. */
+constexpr u32 kCrashBreakerEntry = 0x004DDE34u, kCrashBreakerGame = 0x001507D0u, kCrashBreakerMod = 0x000B3E20u;
+bool g_crash_breaker_set = false;
+
+
 /* The game's one race (0x00665EC0), set up once at boot (0x0019EE40): its
    +0xC (0, the view as the track is) 1 for MIRROR MODE - everything
    mirrored, the controls as they were - and its +0xF (0, a splitscreen
@@ -90,6 +99,13 @@ void Frame(lifted::Context& c) {
     } else if (g_heavyweights_set) {
         g_heavyweights_set = false;
         generated::Write8(kHeavyweights, g_heavyweights_was);
+    }
+    if (On("mod.crash_breaker")) {
+        generated::Write32(kCrashBreakerEntry, kCrashBreakerMod);
+        g_crash_breaker_set = true;
+    } else if (g_crash_breaker_set) {
+        generated::Write32(kCrashBreakerEntry, kCrashBreakerGame);
+        g_crash_breaker_set = false;
     }
     for (RaceFlag& f : g_race_flags) {
         if (On(f.key)) {

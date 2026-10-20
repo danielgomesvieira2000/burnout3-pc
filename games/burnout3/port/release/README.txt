@@ -134,8 +134,11 @@ long gone) has four pages and the game's hidden menu (Triangle goes back):
              TRIGGER EFFECTS
   MODS       Nehalem's patches for the game (see Credits): SPEEDOMETER in
              km/h, a HORN, MIRROR MODE, no TRAFFIC, CRASH BREAKER in every
-             mode, HEADLIGHTS always on, the HEAVYWEIGHTS in every mode,
-             and the SPLITSCREEN one above the other or side by side
+             mode (Nehalem's Crash Breaker Expansion: the rivals and the
+             other players caught in the blast too, a rival's car blown up
+             an Aftertouch Takedown, the prompt while you crash),
+             HEADLIGHTS always on, the HEAVYWEIGHTS in every mode, and the
+             SPLITSCREEN one above the other or side by side
   DEVELOPER MENU   the game's own hidden menu: unlock all, lock all, the
              awards (what it unlocks is kept when the game saves)
 
@@ -260,7 +263,7 @@ and the MODS page come from PCSX2 patches for the game, from Nehalem's
 PS2-Game-Mods (github.com/Nahelam/PS2-Game-Mods):
   Nehalem      60 FPS Menus, 60 FPS Crashes, Development Menu, mph2kph,
                horn, headlights_hold, partial_mirror_mode, disable_traffic,
-               crashbreaker_in_all_modes, perma_headlights,
+               Crash Breaker Expansion, perma_headlights,
                vertical_split_screen, disable_idle_check
   escape209    heavyweights_always_available (the original SLUS patch;
                ported to the other releases by Nehalem)
