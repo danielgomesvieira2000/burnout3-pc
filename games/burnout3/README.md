@@ -83,6 +83,8 @@ does plays the scripted race, splitscreen and car select (game.json's
 `pgo_runs`), and every build after it is compiled with the counts - the
 game's code and the GS about 10-12% less CPU in a race, the pictures the
 same (`build --no-pgo`: without; build/port/pgo.profdata is the profile).
+game.json's `"lto": true` links it with ThinLTO as well (the race in
+virtual time another 12% faster; `PS2_LTO=off` builds without).
 
 ```sh
 python engine/tools/port.py --game games/burnout3 pgo
