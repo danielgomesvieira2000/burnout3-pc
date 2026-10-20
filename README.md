@@ -236,11 +236,17 @@ patch in: [lift_mods.py](games/burnout3/port/tools/lift_mods.py),
 | MODS: HORN, the headlights while it sounds | horn, headlights_hold | Nehalem |
 | MODS: MIRROR MODE | partial_mirror_mode | Nehalem |
 | MODS: TRAFFIC (off) | disable_traffic | Nehalem |
-| MODS: CRASH BREAKER (all modes) | crashbreaker_in_all_modes | Nehalem |
+| MODS: CRASH BREAKER (all modes): rivals and other players caught in the blast, a rival blown up an Aftertouch Takedown, the prompt while crashing (splitscreen too) | [Crash Breaker Expansion](https://github.com/Nahelam/PS2-Game-Mods/tree/main/Burnout%203%20Takedown/Crash%20Breaker%20Expansion) - its hooks and its own code, lifted (it replaces his earlier crashbreaker_in_all_modes) | Nehalem |
 | MODS: HEADLIGHTS (always on) | perma_headlights | Nehalem |
+| GRAPHICS: PARTICLES (more, most) | Render extra particles while driving | Nehalem |
 | MODS: HEAVYWEIGHTS (all modes) | heavyweights_always_available | [escape209](https://github.com/escape209) (the original SLUS patch; ported to the other releases by Nehalem) |
 | MODS: SPLITSCREEN (vertical) | vertical_split_screen | Nehalem |
 | No pause after five idle minutes (always on) | disable_idle_check | Nehalem |
+
+The patches are their authors' work, brought into the port with their
+credit; they remain theirs. The port carries their words (the changed
+instructions and, for the Crash Breaker Expansion, its own code) in
+lift_mods.py, nothing of the game's.
 
 ### Third-party software
 

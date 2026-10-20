@@ -4,8 +4,9 @@
     python games/burnout3/port/tools/lift_mods.py --out build/port/cmake/mods_lifted.cpp
 
 A mod is a PCSX2 patch (Nehalem's, github.com/Nahelam/PS2-Game-Mods, Burnout 3
-Takedown/Various, SLUS-21050): words written over the game's code, and code of
-its own written to free memory. The port runs the game's code translated, not
+Takedown/Various and Burnout 3 Takedown/Crash Breaker Expansion, SLUS-21050 -
+his work, with his credit: README.md's Credits): words written over the
+game's code, and code of its own written to free memory. The port runs the game's code translated, not
 the code in memory, so a word written there would do nothing: each function a
 mod changes is lifted again from the executable with the mod's words written
 in - once for each combination of the mods that change it - and a mod's own

@@ -258,13 +258,16 @@ Credits
 
 LAN play, the GPU renderer's own thread: PaPe (github.com/nynjardin).
 
-The 60 FPS menus and crashes, the DEVELOPER MENU, the no-idle-pause fix
-and the MODS page come from PCSX2 patches for the game, from Nehalem's
-PS2-Game-Mods (github.com/Nahelam/PS2-Game-Mods):
+The 60 FPS menus and crashes, the DEVELOPER MENU, the no-idle-pause fix,
+GRAPHICS' PARTICLES and the MODS page come from PCSX2 patches for the
+game, from Nehalem's PS2-Game-Mods (github.com/Nahelam/PS2-Game-Mods):
   Nehalem      60 FPS Menus, 60 FPS Crashes, Development Menu, mph2kph,
                horn, headlights_hold, partial_mirror_mode, disable_traffic,
-               Crash Breaker Expansion, perma_headlights,
-               vertical_split_screen, disable_idle_check
+               perma_headlights, vertical_split_screen, disable_idle_check,
+               render extra particles while driving, and the Crash Breaker
+               Expansion (MODS' CRASH BREAKER in every mode: the rivals
+               caught in the blast, Aftertouch Takedowns, the prompt while
+               crashing - Burnout 3 Takedown/Crash Breaker Expansion)
   escape209    heavyweights_always_available (the original SLUS patch;
                ported to the other releases by Nehalem)
 
