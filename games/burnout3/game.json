@@ -13,6 +13,6 @@
     "stack_top": "0x01F00000",
     "stack_size": "0x10000"
   },
-  "pgo_runs": ["race", "splitscreen", "car_select"],
+  "pgo_runs": ["race", "splitscreen", "car_select", "crash", "road_rage"],
   "lto": true
 }

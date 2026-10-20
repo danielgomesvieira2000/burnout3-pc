@@ -537,6 +537,38 @@ interpreter, and the GPU runs' pictures.
   the GS thread (58%) are level now: two workers for the two views are not
   needed yet.
 
+## PGO's runs: the rest of the game (plan, 2026-10-20)
+
+The profile-guided build (`port.py pgo`) learns from three scripted runs -
+a World Tour race at Silver Lake, splitscreen and the car select - and
+compiles what they never run for size. Other events and courses run code
+those three never reach (the crash junctions and their scoring, Road
+Rage's takedown targets, other regions' streaming and scenery, the menus
+they pass through).
+
+1. **New scripted runs**, through PC SETTINGS' developer menu (Unlock
+   All) and SINGLE EVENT (RACE, TIME ATTACK, ROAD RAGE, CRASH):
+   - `crash`: a crash junction, driven into the traffic, Crashbreaker;
+   - `road_rage`: a Road Rage, accelerating into the others;
+   - `race_far_east` (or the region the unlocked list offers): a race on
+     another region's course;
+   - each with its GPU pictures recorded (`regress.py --update`): new
+     regression runs too.
+2. **pgo_runs** (game.json): the three and the new ones.
+3. **Measure** each new run in virtual time with the old profile and the
+   new one, and the race and splitscreen (they must not lose).
+
+**Done:** `crash` (Trailer Trash, Crashbreaker, the results) and
+`road_rage` (a USA mountain course; Unlock All opens no other region for
+it) are new GPU regression runs (105 pictures each, the same every time)
+and in pgo_runs. Two rounds each, in virtual time, the old profile against
+the new: crash 83/78 s against 82/78, Road Rage 70/70 against 70/70, the
+race 65/65 against 65/66, splitscreen 45/45 against 45/45 - no change. The
+three runs' profile already had what a crash junction and Road Rage run
+much of: the same streaming, physics, AI and drawing on other data. The
+wider profile stays (it costs nothing), and the two runs guard those
+modes' pictures from here on.
+
 ## The night of 2026-10-20: the CPU
 
 What the three busy threads cost in the race (bench.sh, 1x, 4 cores, real
