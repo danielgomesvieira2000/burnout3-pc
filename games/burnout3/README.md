@@ -78,6 +78,16 @@ burnout3.exe <extracted SLUS_210.50> --disc "Burnout 3 - Takedown.iso" $(cat gam
 python engine/tools/port.py --game games/burnout3 build
 ```
 
+And with clang-cl, a profile-guided build: a build that counts what its code
+does plays the scripted race, splitscreen and car select (game.json's
+`pgo_runs`), and every build after it is compiled with the counts - the
+game's code and the GS about 10-12% less CPU in a race, the pictures the
+same (`build --no-pgo`: without; build/port/pgo.profdata is the profile).
+
+```sh
+python engine/tools/port.py --game games/burnout3 pgo
+```
+
 ## What is specific to this game
 
 ```

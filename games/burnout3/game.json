@@ -12,5 +12,6 @@
     "scratch_size": "0x20000",
     "stack_top": "0x01F00000",
     "stack_size": "0x10000"
-  }
+  },
+  "pgo_runs": ["race", "splitscreen", "car_select"]
 }
