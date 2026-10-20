@@ -472,6 +472,71 @@ copied again into the GS ring).
 Expected: hard to say before step 1. The programs are few and regular
 (transform, clip, light), so a large share is plausible.
 
+## Phase C2: VU1's bookkeeping (plan, 2026-10-20)
+
+**Why.** VU1 is splitscreen's limit on 4 threads (the VIF1 worker 75% busy
+at 2x; the GS thread 60%). The compiled code runs 2.1 ns a pair - three
+times the console's VU1 - but the arithmetic is a fifth of it. The VU
+bench (`--vu-bench vu_race.bin`, 11.9 ms, sampled at 20 us):
+
+| What | Share of VU time |
+| --- | --- |
+| The FMACs' arithmetic (Fmac, LanesSse, Result) | ~20% |
+| Flags (FlagsOf, LandFlags, QueueFlags, StickyFlagsOf, LandMac) | ~15% |
+| Stall timing (Wait, max, Issue, LandNow, Next) | ~12% |
+| Lower writes held to the pair's end (Finish, HoldVf, FinishUpper) | ~12% |
+| Operands cleaned (Clean4, ClampLanes, CleanMagnitude) | ~6% |
+
+The machine code shows why: every FMAC loads its operands from the VU's
+register file in memory and stores its result back (the next one's load
+waits on that store), tests the operands' "unclean" bits in memory, and
+stores its ready times. Hand-written native programs were the first idea;
+but the 95 programs are variants of a few (68, 69 and 70 nearly the same),
+per game - the compiler is where the time is to be taken, for every program
+of every game.
+
+**Rule:** exact. Each step keeps the VU bench's state hash
+(4B01DD4A223E16BB), the host tests' random programs against the
+interpreter, and the GPU runs' pictures.
+
+1. **C2.0 Bounds.** Throwaway builds without each piece (operands always
+   clean, no waits, no flags) on the VU bench: what each could give at most,
+   to order the rest.
+2. **C2.1 Registers in registers.** Within a compiled block, the vector
+   registers and ACC an FMAC reads come from locals (vector registers of the
+   host), memory written through as now: the dependent chains of a matrix
+   multiply no longer go through a store and a load.
+3. **C2.2 Bookkeeping in locals.** The unclean bits and the flags' latest
+   values in the block's locals, written back where it leaves.
+4. **C2.3 Timing known ahead.** Waits on registers written within the block
+   and the stall-free stretches worked out by the generator.
+5. **Then measure** splitscreen on 4 threads. If VU1 is still the limit:
+   splitscreen's two views on two workers (their VU1 lists are independent
+   within a frame), then native transforms for what is left.
+
+**Done (engine branch vu-c2):**
+
+- **C2.0**, the bounds on the VU bench (11.9 ms): operands always clean
+  10.4 ms; no waits 10.9; no flags 10.3.
+- **Operands clamped, not tracked** (109addf): a clean field clamped is the
+  field itself, so an FMAC clamps every operand it does not know clean
+  (four instructions) and nothing records which registers are clean - the
+  tests and updates of that record in memory were dearer than the clamps.
+  11.9 -> 10.2 ms, the hash the same.
+- **MAC alone in fast blocks** (7ac256f): no VU program reads STATUS, and
+  its bits were a read and write of status_latest_ chaining every FMAC to
+  the last. 10.2 -> 9.0 ms; the bench's second hash (all but MAC and
+  STATUS) the same in fast and exact mode.
+- **Not kept:** C2.1, registers in locals: 2% (9.7 -> 9.5 ms without PGO)
+  for a second copy of the FMAC and 7 more generated files - the compiler
+  was already keeping most values from memory. C2.3: the generator already
+  leaves out every wait after a block's third pair but those on registers
+  written in the last three; what is left are loads the stalls need.
+- **Splitscreen at 2x on 4 threads:** the VIF1 worker 75% -> 60% busy, the
+  process 2.19 -> 1.83 cores, 59.9 new pictures a second. The worker and
+  the GS thread (58%) are level now: two workers for the two views are not
+  needed yet.
+
 ## The night of 2026-10-20: the CPU
 
 What the three busy threads cost in the race (bench.sh, 1x, 4 cores, real
