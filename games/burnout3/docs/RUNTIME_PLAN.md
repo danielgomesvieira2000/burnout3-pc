@@ -582,6 +582,22 @@ the GS thread's samples measured.
   drew as newer than memory, and a write-back of those could put older
   pixels over newer ones - a design of its own, not a step.
 
+## Weak hardware after 0.5.3 (measured 2026-10-20)
+
+bench.sh, real time, 0.5.3-alpha (engine v0.13.2):
+
+| Machine | Case | Result |
+| --- | --- | --- |
+| 2 threads (1 core + HT), RTX | race, 1x | 1 late frame of 2,800, 0 blanks lost, 99.9% within 20 ms (two runs) - was 77 late and 13 lost at 0.5.2's engine, 194 and 31 the night before |
+| Intel UHD | splitscreen, 1x | 59.9 new pictures a second, 0 dropped, 2 late |
+| Intel UHD | race, 2x | 3 dropped, 22 late; the GPU 71-79% busy |
+| Intel UHD | splitscreen, 2x | 57.5 a second, 82 dropped, 184 late; the GPU 86% busy - unchanged: the GPU's limit, not the CPU's |
+
+Two cores are done. What is left is integrated graphics at 2x in
+splitscreen, and that is the GPU's work: the lower view's fog sampling the
+depth buffer through memory (~110 write-backs and reloads a frame, Phase C)
+is the known lever - read straight from the depth image instead.
+
 ## PGO's runs: the rest of the game (plan, 2026-10-20)
 
 The profile-guided build (`port.py pgo`) learns from three scripted runs -
