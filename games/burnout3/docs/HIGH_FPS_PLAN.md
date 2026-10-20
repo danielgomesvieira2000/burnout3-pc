@@ -156,7 +156,17 @@ in the menus, and what moves placed between.
 the crash's flying parts (where they live, apart from the movies');
 then the mechanism into the engine for every game.
 
-## For every game (the engine)
+## For every game (the engine) - done 2026-10-20
+
+The mechanism is the engine's now: engine/host/include/ps2host/high_fps.h
+(HighFpsGame: the transform regions, the cameras' value blocks, the cut;
+five hooks a game calls from its overrides), engine/host/src/high_fps.cpp,
+engine/tools/high_fps_trace.py and frame_motion.py, and the skill
+ps2-high-fps (how a game's places are found, the traps, the checks).
+port/high_fps.cpp is Burnout 3's places alone. Checked: 324 of 324 pictures
+at 120 (race, crash, garage, splitscreen) the same as before the move; the
+GPU regressions 10 of 10. What follows was the plan for it:
+
 
 The mechanism is not Burnout 3's: a game's world stepped at its own rate
 and the pictures drawn between, from its moving objects' transforms blended.
