@@ -483,6 +483,15 @@ time; each thread's share of a core over frames 18,600-21,400):
 | After the inline memory and FMACs, the timer (58b0c4d, 6b1b11a) | ~32% | 33-35% | 29-30% | 2% |
 | After PGO (e10d7d3) | 28% | ~33% | 27.6% | 1.8% |
 
+At the night's end (engine e2caa4d, PGO and ThinLTO), bench.sh at 1x:
+
+| | Start of the night | End |
+| --- | --- | --- |
+| Race, 4 cores: the process | 1.44 cores | 1.10 cores; 0 dropped, 0 blanks lost |
+| Race, 2 cores (one with HT) | 194 late, 31 blanks lost, longest 420 ms | 77 late, 13 lost, longest 229 ms |
+| Splitscreen 2x RTX, 4 cores | 58.2 a second (worker 86%, GS 78%) | 59.6 (75%, 60%) |
+| Splitscreen 2x RTX, 16 cores | 59.9, 2.06 cores | 59.9, 1.84 cores; 99.9% 17.7 ms |
+
 The scripted runs in virtual time (all the work on one thread, as fast as
 it goes - the cleanest measure of the code's speed), seconds:
 
