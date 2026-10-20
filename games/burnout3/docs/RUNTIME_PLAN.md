@@ -526,6 +526,11 @@ it goes - the cleanest measure of the code's speed), seconds:
   them with CFC2 in Burnout 3; VU0 4% less, the EE no different - the
   timeline's "VU0 8%" merges spans under 20 us apart and overstates it);
   stopping SyncWrite's walk of the images early (no difference).
+- **Found on the way:** `port.py run` (and `pgo`'s runs) played with the
+  FPU rounding to nearest - the verification harness's mode, inherited
+  from the import of ps2decomp/cppcheck.py - not toward zero as the
+  console and every regression do (engine ad140dc). Mister Mosquito's
+  PGO build: its menu and stage runs 11-12% faster in virtual time too.
 - **Not ours:** the two-core bench's 120-420 ms frames. The pacing report
   now gives the process's cores over each late frame (e49165c): those had
   1.1-1.3 of their 2 - the machine's other work. Its threads all show
