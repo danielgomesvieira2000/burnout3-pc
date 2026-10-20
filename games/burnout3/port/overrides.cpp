@@ -297,7 +297,12 @@ int Among(const char* key, const char* const (&values)[N], int fallback = 0) {
 // FRAME RATE (high_fps.cpp): a one-player race's pictures, its steps at 60.
 const char* const kFrameRates[] = {"60", "120", "display"};
 int FrameRate() { return Among("frame_rate", kFrameRates); }
-void SetFrameRate(int which) { ps2host::SetSetting("frame_rate", kFrameRates[which]); }
+void SetFrameRate(int which) {
+    ps2host::SetSetting("frame_rate", kFrameRates[which]);
+    // DISPLAY: fullscreen at the screen's own rate (144 kept), the others at
+    // one 60 divides evenly (120 on a 144 Hz screen: the menus even).
+    ps2host::SetWindowKeepRefresh(std::string(kFrameRates[which]) == "display");
+}
 const char* const kResolutions[] = {"original", "2x", "display"};
 int Resolution() { return Among("resolution", kResolutions); }
 void SetResolution(int which) { ps2host::SetSetting("resolution", kResolutions[which]); }

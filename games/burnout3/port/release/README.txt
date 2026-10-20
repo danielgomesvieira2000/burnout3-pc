@@ -45,7 +45,8 @@ Getting started
 
 The game plays in a window or fullscreen (Alt+Enter switches). In
 fullscreen on a 144 Hz screen it switches to 120 Hz, so that the game's 60
-frames a second show evenly.
+frames a second show evenly - unless FRAME RATE is DISPLAY: then it keeps
+the screen's own rate (races at 144, the menus at 60 a little unevenly).
 
 
 Controls
