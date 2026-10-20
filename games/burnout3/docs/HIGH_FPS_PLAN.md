@@ -46,8 +46,19 @@ The camera is made in the draw from the cars, and follows.
   8.75 ms, the process 1.93 cores (the EE ~44%: the take-down's scan of 2 MB
   a step is ~8 of it); 4 threads 3 late, 99.9% within 12.5 ms, 2.17 cores.
 
-**Next:** FRAME RATE in PC SETTINGS (60 / 120); the radial blur and the HUD
-at a step's pace; the display's own rate (144 Hz: the placing at any
+**The blurs need nothing (measured).** The plan below took the radial blur
+to blend with the last picture, its trails half as long at 120. It does
+not: 0x002FA9A0 reads this view's FRAME and scissor and draws copies of
+the picture as it is, scaled towards the blur's centre - nothing kept from
+one picture to the next. In virtual time, the in-between placing off, two
+pictures of one step while boosting differ by 0.5-1.1 on average (the
+edges, where the radial blur is strongest, 0.1-0.6), against ~15 between
+steps; the directional blur's pairs 0.3. What does move with the picture
+is small: the exhaust's flame flickers (7 at the car's rear).
+
+FRAME RATE is in PC SETTINGS > VIDEO (60 / 120; game a987ef3).
+
+**Next:** the display's own rate (144 Hz: the placing at any
 fraction, not only a half); the take-down cheaper (the addresses kept from
 step to step); then the mechanism into the engine for every game.
 
