@@ -45,11 +45,11 @@ wrong, press **F12** at that moment and attach the folder it writes to
   menus and in the race - with PlayStation or Xbox marks (automatic by
   controller), all drawn by the port.
 - **PC settings** in the game's own main menu (where ONLINE used to be), in
-  pages: VIDEO (fullscreen, vertical sync, resolution, the aspect ratio,
+  pages: VIDEO (fullscreen, vertical sync, the frame rate, resolution, the aspect ratio,
   anti-aliasing: FXAA, SMAA or SSAA 2x), GRAPHICS (bloom high, low or off, motion blur, soft shadows, LOD, more particles),
   CONTROLS (the keyboard's and the controller's bindings, racing and menus;
   button prompts; DualSense trigger effects), MODS (Nehalem's game patches:
-  km/h, the horn, mirror mode, no traffic, Crash Breaker in every mode,
+  km/h, the horn, mirror mode, no traffic, Crash Breaker in every mode (the Crash Breaker Expansion),
   headlights, heavyweights, a vertical splitscreen) and the game's hidden
   DEVELOPER MENU. Saved in `pc_settings.ini`; QUIT GAME in the main menu.
 - **Two players on one PC**: MULTIPLAYER > SPLITSCREEN - each player presses
@@ -57,8 +57,14 @@ wrong, press **F12** at that moment and attach the folder it writes to
   first player 1, the next player 2; in the race each drives their own car,
   in the menus every device works as before. Both halves drawn at the
   internal resolution, with the race's music.
-- **Smooth frames**: 120 Hz in fullscreen on a 144 Hz screen so that 60
-  frames a second show evenly (frame pacing off by default:
+- **High frame rates**: PC SETTINGS > VIDEO > FRAME RATE - 60, 120 or
+  DISPLAY (your screen's own rate, 144, 165, up to 240) in races, crashes,
+  splitscreen and the menus. The game still runs at its own 60 steps a
+  second - nothing plays faster - and the pictures between are drawn
+  between them: the cars, the traffic, the cameras, the garage's car. Where
+  the PC cannot keep up, a race steps down to 120 or 60 by itself.
+- **Smooth frames**: at 60, 120 Hz in fullscreen on a 144 Hz screen so that
+  60 frames a second show evenly (frame pacing off by default:
   `frame_pacing=on` in `pc_settings.ini` turns it on).
 - **Controls**: any controller SDL knows (Xbox, PlayStation, ...) as a
   DualShock 2, with **rumble**; the keyboard; the **mouse in the menus**
@@ -143,7 +149,6 @@ workflow it follows is in the engine's skills (`engine/.claude/skills`).
 ## To do
 
 - More playtesting: whole careers, every event type, every track.
-- Higher frame-rate settings (beyond the game's 60 frames a second).
 - Steering wheel support, with force feedback.
 - Graphical mods and options (beyond texture packs).
 - Better performance on slower machines.
