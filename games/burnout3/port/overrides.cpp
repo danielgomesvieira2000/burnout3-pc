@@ -295,7 +295,7 @@ int Among(const char* key, const char* const (&values)[N], int fallback = 0) {
     return fallback;
 }
 // FRAME RATE (high_fps.cpp): a one-player race's pictures, its steps at 60.
-const char* const kFrameRates[] = {"60", "120"};
+const char* const kFrameRates[] = {"60", "120", "display"};
 int FrameRate() { return Among("frame_rate", kFrameRates); }
 void SetFrameRate(int which) { ps2host::SetSetting("frame_rate", kFrameRates[which]); }
 const char* const kResolutions[] = {"original", "2x", "display"};
@@ -348,8 +348,8 @@ void SetTraffic(int on) { SetMod<kModNoTraffic>(1 - on); }
 const Option kOptions[] = {
     {Page::kVideo, "FULLSCREEN", "THE WHOLE SCREEN OR A WINDOW (ALT+ENTER)", Fullscreen, SetFullscreen, {"OFF", "ON"}, 2},
     {Page::kVideo, "VERTICAL SYNC", "NO TEARING, OR THE LEAST DELAY", Vsync, SetVsync, {"OFF", "ON"}, 2},
-    {Page::kVideo, "FRAME RATE", "RACES AT 60 PICTURES A SECOND, OR 120 FOR A FAST SCREEN", FrameRate, SetFrameRate,
-     {"60", "120"}, 2},
+    {Page::kVideo, "FRAME RATE", "RACES AT 60 PICTURES A SECOND, 120, OR THE SCREEN'S RATE", FrameRate, SetFrameRate,
+     {"60", "120", "DISPLAY"}, 3},
     {Page::kVideo, "RESOLUTION", "DRAWN AS THE PS2 DID, TWICE AS SHARP, OR AS SHARP AS THE SCREEN", Resolution,
      SetResolution, {"ORIGINAL", "2X", "DISPLAY"}, 3},
     {Page::kVideo, "ASPECT RATIO", "THE PICTURE'S SHAPE: A TELEVISION'S, WIDESCREEN, OR THE SCREEN'S OWN", Aspect,
@@ -1131,6 +1131,7 @@ void RegisterWidescreen();         // widescreen.cpp
 void RegisterMouse();              // mouse.cpp
 void RegisterControls();           // controls.cpp
 void RegisterSixtyFps();           // sixty_fps.cpp
+void RegisterHighFps();            // high_fps.cpp
 void RegisterDevMenu();            // dev_menu.cpp
 void RegisterMods();               // mods.cpp
 void RegisterGraphics();           // graphics.cpp
@@ -1162,6 +1163,7 @@ void RegisterGameOverrides() {
     RegisterMouse();
     RegisterControls();
     RegisterSixtyFps();
+    RegisterHighFps();
     RegisterDevMenu();
     RegisterMods();
     RegisterGraphics();

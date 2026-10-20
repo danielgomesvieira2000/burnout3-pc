@@ -26,6 +26,8 @@
 #include "ps2host/host.h"
 #include "ps2host/run.h"
 
+void HighFpsBlank();            // high_fps.cpp
+
 // The frontend's frame rate as a screen starts; the main loop's as a crash
 // slows; a movie screen as its movie starts (see each below).
 void F_00132090(lifted::Context& c);
@@ -67,6 +69,7 @@ u32 g_picture_blanks = 1;
 
 void BlankHandler(lifted::Context& c) {
     static u32 blanks = 0;
+    if (u32(c.r[4]) == 2) HighFpsBlank();
     const u32 data = u32(generated::ReadS32(u32(c.r[28]) - 0x5E24u));
     const bool start = u32(c.r[4]) == 2;
     const bool ready = generated::ReadU8(data - 0x5EA1u) != 0;
@@ -122,6 +125,9 @@ void MovieRate(lifted::Context& c) {
 }
 
 }  // namespace
+
+// The blanks the last picture took (high_fps.cpp's ticks).
+unsigned PictureBlanks() { return g_picture_blanks; }
 
 // The movie screen's start as registered here, for lan.cpp's debug probe of
 // the same function to call in turn.

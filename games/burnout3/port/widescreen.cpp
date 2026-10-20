@@ -50,8 +50,6 @@ void F_0021A4F0(lifted::Context& c);
 void F_00364920(lifted::Context& c);
 // The race's world each frame: the cars, the traffic, the clock (see RaceWorld).
 void F_0019A550(lifted::Context& c);
-bool HighFpsStepWorld();    // high_fps.cpp
-void HighFpsWorldStepped();
 
 namespace {
 
@@ -644,9 +642,7 @@ unsigned long long g_race_world_calls = 0;
 void RaceWorld(lifted::Context& c) {
     ++g_race_world_calls;
     if (g_editor.on && g_editor.paused) return;
-    if (!HighFpsStepWorld()) return;    // high_fps.cpp: 120 pictures, 60 steps
     F_0019A550(c);
-    HighFpsWorldStepped();
 }
 
 }  // namespace

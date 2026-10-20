@@ -1,6 +1,7 @@
 # Higher frame rates: a plan for interpolated frames
 
-Status: **step 1 done (2026-10-20)**; written 2026-10-10 from what the port
+Status: **steps 1-3 done (2026-10-20)**: 120 and the screen's own rate,
+crashes and the camera between ticks; written 2026-10-10 from what the port
 showed of the game then.
 
 ## Step 1, done: two pictures a step (port/high_fps.cpp)
@@ -58,9 +59,56 @@ is small: the exhaust's flame flickers (7 at the car's rear).
 
 FRAME RATE is in PC SETTINGS > VIDEO (60 / 120; game a987ef3).
 
-**Next:** the display's own rate (144 Hz: the placing at any
-fraction, not only a half); the take-down cheaper (the addresses kept from
-step to step); then the mechanism into the engine for every game.
+## Step 3, done: DISPLAY, the ticks, crashes and the camera (2026-10-20)
+
+FRAME RATE gained DISPLAY: the screen's refresh (the engine's
+WindowRefreshRate; 90 to 240 Hz, else 60). A whole multiple of 60 (within a
+hertz each) blanks through SetFastForward, exactly; another (144, 165)
+through the engine's new SetBlankRate(hz). Playtesting step 2 showed the
+menus and crashes at double speed, which led to:
+
+- **The race's ticks, not its world.** The main loop (0x00132600) runs the
+  race in a fixed-step loop: as many ticks as 0x00376570 says the last
+  picture took - at least one a picture. Step 2 held back only the world
+  update (0x0019A550) on every second picture; the rest of a tick (the race
+  clock 0x0064E47C, the crash's logic, the menus' backdrops) still ran per
+  picture - twice as fast at 120. Now 0x00376570's answer to the main loop
+  (returning to 0x00132F64 / 0x00132F7C) is the accumulator's: 0, 1 or more
+  ticks a picture, counted in blanks (PictureBlanks), so a late picture
+  catches up as at 60. The world is no longer gated by itself.
+- **0x00131F90**, run once a frame after the ticks (a crash's camera
+  moves, Impact Time's clock), runs only on frames that ticked.
+- **Racing** is the HUD drawn (0x001A0790) and no menu up - the world alone
+  is not: the menus' and the intro's backdrops run the race's world, and a
+  crash's slow motion steps the world only every 2-3 ticks. Dropping to 60
+  waits ~30 calls (a HUD skipped for a moment no longer switches: each
+  switch drains the GS).
+- **The picture's time comes from what ran**: the race's tick count
+  (gp-0x5C5C, counted up per tick at 0x00132DC8) less the pictures' time,
+  kept in [0, 1) - the grants run a frame earlier than assumed, and this
+  needs no assumption.
+- **The camera**: the view is made in the draw (0x00227360, three times a
+  picture: from 0x00276370, 0x00134D70 and 0x00132FC0) from the camera's
+  values at 0x00517030 - field of view (+0x14), the way it looks (+0x20),
+  where it is (+0x30) - set in the ticks. They are blended value by value
+  (floats 1e-6 to 1e6 either way, moved less than 50). Its matrices
+  (0x01E78760, the RwFrame at 0x01ED0E80) are made from them - placing them
+  did nothing; lifting +0x34 at 0x00517030 moved the view.
+- **PutBack only what is as placed**: what the draw wrote anew stays.
+- Not blended: a crash's flying parts (about 0x00825000-0x00827300): the
+  movies' buffers share that memory - placed there, a movie broke (MPEG
+  errors).
+
+Checked in virtual time (mean difference between successive pictures, a
+crash's slow motion at 120): before, no placing 15 / 0.0 (the in-between
+picture the same: everything per tick now), placing objects only 15 / 3
+(the camera still at 60); with the camera's values 9.7, 9.6, 9.9, 9.8,
+10.5, 10.5. The race at 120: 8.7, 9.0, 9.8, 10.8, 12.7 - no pairs; at 144
+even.
+
+**Next:** the take-down cheaper (the addresses kept from tick to tick);
+the crash's flying parts (where they live, apart from the movies');
+then the mechanism into the engine for every game.
 
 ## For every game (the engine)
 
@@ -81,9 +129,12 @@ What moves to the engine (ps2host), once step 2 works here:
 - a tool to find a game's moving transforms (RAM snapshots a step apart:
   what changes by small, smooth amounts, in RwMatrix shape).
 
-What a game supplies: its world-update function (where the step is gated),
-when high frame rates are allowed (Burnout 3: a one-player race), and where
-its transforms are (or a function listing them each step).
+What a game supplies: where its steps are counted (Burnout 3: the fixed-step
+loop's count, 0x00376570 - gating one function inside a step, as step 2
+did, leaves the rest of the step at the picture rate), what runs once a
+frame and must run once a step, when high frame rates are allowed (Burnout
+3: a one-player race, no menu up), and where its transforms and its
+camera's values are (or a function listing them each step).
 
 ## The goal
 
