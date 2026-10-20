@@ -107,9 +107,20 @@ std::vector<Placed> g_placed;
 // smaller float) that moved by less than kCut.
 constexpr u32 kCameraValues = 0x00517030u, kCameraStride = 0xBB0u;
 constexpr int kCameras = 2, kCameraCount = 16;
+// A camera's own cut, tick to tick: a jump - its position moved more than
+// 3 times as far as in the tick before (and over a unit), or over a unit
+// against the way it moved in the tick before, or its values at
+// +0x20 turned more than 60 degrees and twice as far as in the tick before
+// (the game cut to another camera, or turned it round: 2.4 units against
+// 0.05, 140 degrees against 35, in the scripted crash and race). Such a
+// tick is shown as it is, not blended: a picture between the two showed
+// neither, a one-picture lurch.
 struct CameraValues {
     float last[kCameraCount], now[kCameraCount], placed[kCameraCount], was[kCameraCount];
     bool placing = false;               // `placed` is in RAM (PutBack)
+    float step = 0.0f, turn = 0.0f;     // the last tick's
+    float way[3] = {};                  // the last tick's move
+    bool cut = false;                   // the last tick a cut
 };
 CameraValues g_cameras[kCameras];
 u32 CameraAddress(int which) { return kCameraValues + kCameraStride * u32(which); }
@@ -206,6 +217,17 @@ void TakeDown() {
             CameraValues& v = g_cameras[k];
             std::memcpy(v.last, v.now, sizeof v.last);
             std::memcpy(v.now, camera, sizeof v.now);
+            const float d[3] = {v.now[12] - v.last[12], v.now[13] - v.last[13], v.now[14] - v.last[14]};
+            const float step = std::sqrt(Dot3(d, d));
+            const float lengths = std::sqrt(Dot3(v.last + 8, v.last + 8) * Dot3(v.now + 8, v.now + 8));
+            const float turn = lengths > 0.0f
+                ? std::acos(std::min(1.0f, std::max(-1.0f, Dot3(v.last + 8, v.now + 8) / lengths))) * 57.29578f
+                : 0.0f;
+            const bool reversed = step > 1.0f && Dot3(d, v.way) < 0.0f;
+            v.cut = (step > 1.0f && step > 3.0f * v.step) || reversed || (turn > 60.0f && turn > 2.0f * v.turn);
+            std::memcpy(v.way, d, sizeof v.way);
+            v.step = step;
+            v.turn = turn;
         }
     g_last.swap(g_now);
     g_now.clear();
@@ -285,7 +307,7 @@ void PlaceBetween(float t) {
     for (int k = 0; k < kCameras; ++k) {
         CameraValues& v = g_cameras[k];
         float* camera = reinterpret_cast<float*>(generated::RamPointer(CameraAddress(k), sizeof v.now));
-        if (!camera) continue;
+        if (!camera || v.cut) continue;
         std::memcpy(v.was, camera, sizeof v.was);
         std::memcpy(v.placed, camera, sizeof v.placed);
         for (int i = 0; i < kCameraCount; ++i) {
@@ -318,6 +340,50 @@ void PutBack() {
         if (camera && std::memcmp(camera, v.placed, sizeof v.placed) == 0) std::memcpy(camera, v.was, sizeof v.was);
         v.placing = false;
     }
+}
+
+/* PS2HOST_HIGH_FPS_TRACE=<file>: a line (CSV) for each race frame above 60,
+   as its picture is placed - its time, the ticks it ran, where it is
+   between them, how many transforms were placed, and each camera's
+   position as the last two ticks left it and as placed, how far it went
+   in the tick and how far its way of looking turned (the dot of the two
+   ticks' directions). For a picture that looks wrong: tools/
+   high_fps_trace.py finds where a camera's path jumps. */
+std::FILE* TraceFile() {
+    static std::FILE* file = [] {
+        const char* path = std::getenv("PS2HOST_HIGH_FPS_TRACE");
+        std::FILE* f = path ? std::fopen(path, "w") : nullptr;
+        if (f) {
+            std::fprintf(f, "frame,ms,rate,ticks,t,placed");
+            for (int k = 0; k < kCameras; ++k)
+                std::fprintf(f, ",c%d_last_x,c%d_last_y,c%d_last_z,c%d_now_x,c%d_now_y,c%d_now_z,"
+                             "c%d_x,c%d_y,c%d_z,c%d_step,c%d_turn", k, k, k, k, k, k, k, k, k, k, k);
+            std::fprintf(f, "\n");
+        }
+        return f;
+    }();
+    return file;
+}
+
+unsigned long long g_race_frames = 0;   // AfterTicks's, for the trace
+
+void Trace(float t) {
+    std::FILE* f = TraceFile();
+    static unsigned long long traced = 0;
+    if (!f || traced == g_race_frames) return;
+    traced = g_race_frames;
+    std::fprintf(f, "%llu,%.3f,%.0f,%u,%.4f,%zu", g_race_frames, double(ps2host::ClockNs()) / 1e6, g_rate,
+                 g_frame_ticks, double(t), g_placed.size());
+    for (const CameraValues& v : g_cameras) {
+        const float* a = v.last + 12;
+        const float* b = v.now + 12;
+        const float* placed = v.placing ? v.placed + 12 : v.now + 12;
+        const float d[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+        std::fprintf(f, ",%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.4f,%.5f", a[0], a[1], a[2], b[0], b[1], b[2],
+                     placed[0], placed[1], placed[2], std::sqrt(Dot3(d, d)), Dot3(v.last + 8, v.now + 8));
+    }
+    std::fprintf(f, "\n");
+    if (g_race_frames % 120 == 0) std::fflush(f);
 }
 
 bool Blend() {
@@ -366,6 +432,7 @@ void HighFpsFrame() {
     if (g_rate > 0.0 && Blend()) {
         PutBack();
         PlaceBetween(g_picture_time);
+        Trace(g_picture_time);
     }
 }
 
@@ -410,6 +477,7 @@ void FrameStart(lifted::Context& c) {
    too the ticks the frame ran are counted, and the picture's time found. */
 void AfterTicks(lifted::Context& c) {
     g_blanks_since = 0;
+    ++g_race_frames;
     if (g_rate > 0.0) KeepUp();
     const u32 count = generated::ReadU32(u32(c.r[28]) - 0x5C5Cu);
     g_frame_ticks = g_counted ? count - g_tick_count : 1;
