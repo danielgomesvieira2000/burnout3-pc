@@ -472,6 +472,66 @@ copied again into the GS ring).
 Expected: hard to say before step 1. The programs are few and regular
 (transform, clip, light), so a large share is plausible.
 
+## The night of 2026-10-20: the CPU
+
+What the three busy threads cost in the race (bench.sh, 1x, 4 cores, real
+time; each thread's share of a core over frames 18,600-21,400):
+
+| | EE | VIF1's worker | GS thread | timer |
+| --- | --- | --- | --- | --- |
+| Before (engine 1cc92de, Intel UHD at 2x) | 39.8% | - | - | 6.1% |
+| After the inline memory and FMACs, the timer (58b0c4d, 6b1b11a) | ~32% | 33-35% | 29-30% | 2% |
+| After PGO (e10d7d3) | 28% | ~33% | 27.6% | 1.8% |
+
+The scripted runs in virtual time (all the work on one thread, as fast as
+it goes - the cleanest measure of the code's speed), seconds:
+
+| | race | splitscreen | car select | race training |
+| --- | --- | --- | --- | --- |
+| Before PGO | 87 | 60 | 33 | 45 |
+| PGO (e10d7d3) | 79 | 54 | 32 | 43 |
+| PGO and ThinLTO (b868513) | 70 | 49 | 26 | 36 |
+
+- **Lifted code** (58b0c4d): main RAM's address checked in one comparison
+  inline (RamPointer, a fifth of the EE's time before), the scratchpad next;
+  macro mode's FMACs folded from their constant words, not decoded each
+  time (5%).
+- **The vertical blank timer** (6b1b11a) spins only for the blank itself;
+  an EE timer interrupt is slept to.
+- **PATH3** (4a1fd1a): the textures VIF1's worker holds are spans of its
+  copy of the transfer, not copied in and out again (splitscreen at 2x on
+  4 cores: the worker 86% -> 83%, the GS thread 78% -> 76%). Scratchpad
+  DMA a run at a time.
+- **32-bit image transfers** (0bcecad) eight pixels at a time: WriteRun a
+  third less of the GS thread.
+- **PGO** (e10d7d3, `port.py ... pgo`): branches laid out and inlining
+  chosen from the race, splitscreen and car select. The VU blocks
+  (straight-line code) are unchanged; the game's code and the GS's
+  bookkeeping are what gain.
+- **ThinLTO** (b868513, port.py's default with clang-cl): the host's
+  functions the game's code calls inlined across files; the VU bench 12.0
+  -> 11.6 ms too. In real time the threads' shares move less than the
+  virtual-time runs suggest (their busy time includes waiting in loops
+  whose cost no compiler changes).
+- **Tried, not kept:** VU0 programs with the fast flags (the EE never reads
+  them with CFC2 in Burnout 3; VU0 4% less, the EE no different - the
+  timeline's "VU0 8%" merges spans under 20 us apart and overstates it);
+  stopping SyncWrite's walk of the images early (no difference).
+- **Not ours:** the two-core bench's 120-420 ms frames. The pacing report
+  now gives the process's cores over each late frame (e49165c): those had
+  1.1-1.3 of their 2 - the machine's other work. Its threads all show
+  "busy" because they were preempted inside their sections.
+- **Splitscreen at 2x on the RTX:** 58.2 new pictures a second on 4 cores
+  (two physical: the worker and the GS thread share them with the EE),
+  59.9 with all 16 - the VIF1 worker the limit, VU1 three quarters of it.
+- **VU1's flags are near their floor.** fast_drops already follows MAC to
+  its readers across the program and no VU program reads STATUS; what is
+  left (18% of the flag programs' time) is MAC a reader can see.
+- **Left:** the EE copies ~220 MB a second for VIF1's worker (the frames
+  line says; 2-4% of the EE); the VU's stall bookkeeping (Wait, Issue:
+  ~10% of VU1); OnDraw's per-draw bookkeeping (14% of the GS thread, no
+  one line).
+
 ## Order
 
 1. **A1 + A2 (fog).** The biggest pixel cost, and the simplest effect: proves
