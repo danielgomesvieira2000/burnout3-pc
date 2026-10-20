@@ -600,9 +600,6 @@ unsigned Generation() { return g_state.generation; }
 
 }  // namespace controls
 
-/* The race's HUD's draws so far (high_fps.cpp). */
-unsigned long long RaceHudCalls() { return controls::g_hud_calls; }
-
 /* Once a pad read (mouse.cpp's MouseTick, after the keyboard and the
    controller are read): whether the racing bindings hold, a binding's time
    running out, and the triggers' push. */

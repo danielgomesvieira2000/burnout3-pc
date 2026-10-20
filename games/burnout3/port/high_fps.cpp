@@ -1,13 +1,13 @@
 /*
- * 120 pictures a second in a race, or the screen's own rate (docs/
- * HIGH_FPS_PLAN.md), FRAME RATE in pc_settings.ini (frame_rate=120 or
- * display; 60 the game's own).
+ * 120 pictures a second, or the screen's own rate (docs/HIGH_FPS_PLAN.md),
+ * FRAME RATE in pc_settings.ini (frame_rate=120 or display; 60 the game's
+ * own).
  *
  * The race ticks 60 times a second - its physics, clock, crashes and AI
- * take a sixtieth each - and stays so. While a race runs, splitscreen's too
- * (its HUD drawn: the menus' backdrops run the race's world too; not with a
- * menu up - the pause's, the race's end), the vertical blanks come twice as
- * often
+ * take a sixtieth each - and stays so; the menus are the same loop (the main
+ * loop's state 5: the frontend over the race's, its backdrops the race's
+ * world) and tick with it. While that loop runs (not the loading screens),
+ * splitscreen's too, the vertical blanks come twice as often
  * (SetFastForward(2)) - or at the screen's refresh (SetBlankRate; a whole
  * multiple of 60 as SetFastForward's) - and the game draws a picture at
  * each. Its main loop (0x00132600) runs the race's ticks in a loop, as many
@@ -45,8 +45,6 @@
 #include "ps2host/run.h"
 #include "ps2host/settings.h"
 
-bool MenuShowing();                     // mouse.cpp
-unsigned long long RaceHudCalls();      // controls.cpp
 unsigned PictureBlanks();               // sixty_fps.cpp
 void F_00376570(lifted::Context& c);
 void F_00131F90(lifted::Context& c);
@@ -54,12 +52,17 @@ void F_002225C0(lifted::Context& c);
 
 namespace {
 
-// Where the race's transforms live (find_transforms.py, in a race and in a
-// crash): the cars, their wheels, the traffic between 0x00517000 and
-// 0x00660000. Not a crash's flying parts (about 0x00825000: the movies'
-// buffers share that memory - placed there, a movie broke), nor the
-// camera's matrices (made anew in the draw: the camera's values below are).
-constexpr u32 kObjectsBegin = 0x00500000u, kObjectsEnd = 0x00700000u;
+// Where the transforms live (find_transforms.py, in a race, a crash and the
+// garage): the cars, their wheels, the traffic between 0x00517000 and
+// 0x00660000; the camera's RwFrame about 0x01ED0E80 - in a race made anew in
+// the draw (the camera's values below are placed instead), in the garage
+// (the car select) set in the ticks: its modelling matrix moved, the view
+// moves. Not a crash's flying parts (about 0x00825000: the movies' buffers
+// share that memory - placed there, a movie broke).
+struct Region {
+    u32 begin, end;
+};
+constexpr Region kRegions[] = {{0x00500000u, 0x00700000u}, {0x01ED0000u, 0x01EE0000u}};
 constexpr float kCut = 50.0f;           // further a step than this: a cut, not motion
 
 // The pictures a second while above 60 (0: not), and the steps one picture
@@ -145,7 +148,15 @@ double Wanted() {
     static const char* env = std::getenv("PS2HOST_FRAME_RATE");
     const std::string rate = env ? std::string(env) : ps2host::Setting("frame_rate", "60");
     const double hz = rate == "display" ? double(ps2host::WindowRefreshRate()) : std::atof(rate.c_str());
-    const double want = hz >= 90.0 ? std::min(hz, 240.0) : 60.0;
+    double want = hz >= 90.0 ? std::min(hz, 240.0) : 60.0;
+    // PS2HOST_HIGH_FPS_FROM=<frame>: 60 until then (a scripted run's test:
+    // its presses land as at 60 - the menus run above 60 too - and the same
+    // screen at 60 and above is compared at the same times).
+    static const unsigned long long from = [] {
+        const char* e = std::getenv("PS2HOST_HIGH_FPS_FROM");
+        return e ? std::strtoull(e, nullptr, 10) : 0ull;
+    }();
+    if (ps2host::FrameNumber() < from) want = 60.0;
     return g_cap > 0.0 ? std::min(want, g_cap) : want;
 }
 
@@ -181,17 +192,20 @@ double Pace(double hz) {
     return kStepRate / hz;
 }
 
-/* A race running: its HUD drawn within the last few calls (Frame's, a few
-   a picture) - the menus' and the intro's backdrops run the race's world
-   too, without the HUD; the world itself is no guide, a crash's slow motion
-   steps it seldom - and no menu up (the pause's, the race's end: at 60). */
+unsigned long long g_race_frames = 0;   // AfterTicks's: the race loop's frames
+
+/* The race's loop running: its frames (AfterTicks) went on within the last
+   few calls (Frame's, a few a picture). The menus run in it too - the
+   frontend is the main loop's state 5 with the race's, its backdrops the
+   race's world - so they tick at 60 as a race does and are placed between
+   ticks the same way; not the loading screens (states 4, 7), nor a movie
+   played outside it. */
 bool Racing() {
-    static unsigned long long hud_seen = 0;
-    static int hud_still = 99;
-    const unsigned long long hud = RaceHudCalls();
-    hud_still = hud != hud_seen ? 0 : hud_still + 1;
-    hud_seen = hud;
-    return hud_still <= 8 && !MenuShowing();
+    static unsigned long long seen = 0;
+    static int still = 99;
+    still = g_race_frames != seen ? 0 : still + 1;
+    seen = g_race_frames;
+    return still <= 8;
 }
 
 float Dot3(const float* a, const float* b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
@@ -231,14 +245,16 @@ void TakeDown() {
         }
     g_last.swap(g_now);
     g_now.clear();
-    const u8* base = generated::RamPointer(kObjectsBegin, kObjectsEnd - kObjectsBegin);
-    if (!base) return;
-    for (u32 at = 0; at + 64 <= kObjectsEnd - kObjectsBegin; at += 16) {
-        Matrix m;
-        std::memcpy(m.m, base + at, sizeof m.m);
-        if (!Shaped(m.m)) continue;
-        g_now.emplace(kObjectsBegin + at, m);
-        at += 48;                       // (its rows are not another's)
+    for (const Region& region : kRegions) {
+        const u8* base = generated::RamPointer(region.begin, region.end - region.begin);
+        if (!base) continue;
+        for (u32 at = 0; at + 64 <= region.end - region.begin; at += 16) {
+            Matrix m;
+            std::memcpy(m.m, base + at, sizeof m.m);
+            if (!Shaped(m.m)) continue;
+            g_now.emplace(region.begin + at, m);
+            at += 48;                   // (its rows are not another's)
+        }
     }
 }
 
@@ -365,7 +381,6 @@ std::FILE* TraceFile() {
     return file;
 }
 
-unsigned long long g_race_frames = 0;   // AfterTicks's, for the trace
 
 void Trace(float t) {
     std::FILE* f = TraceFile();

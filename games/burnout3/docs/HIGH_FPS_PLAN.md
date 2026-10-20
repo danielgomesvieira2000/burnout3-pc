@@ -124,6 +124,34 @@ Splitscreen at 144: 120 after 4 s, then holds; one player at 144 and
 splitscreen at 120 stay. (The game's own blanks a picture took were no
 guide: 2-50 of 240 "slow" with presents steady at 120.)
 
+## Step 5, done: the menus (2026-10-20)
+
+The frontend is not apart from the race: the main loop's state 5 runs both
+(states seen: 1 and 7 boot, 4 a race's loading, 5 everything else, the
+menus from frame 507), the menus' timers (0x001D3A60) inside the race's
+loop of ticks. So the menus take the race's mechanism as they are: Racing
+is now the race loop running (AfterTicks), not the HUD - 60 ticks a second
+in the menus, and what moves placed between.
+
+- **Tried first, dropped**: the frontend's own frame time (0x001D3D30 sets
+  1/rate: gp-0x5F30, and gp-0x5F2C in ms, never read). Told 120 mid-screen
+  (its timers' +0x1C too) the car select ran natively at 120 - picture
+  9600 at 120 the same as frame 9302 at 60, no drift - but the main menu
+  ran twice as fast (its backdrop and screen tick, not time): only safe
+  screen by screen.
+- **The garage's camera**: there the camera's RwFrame (0x01ED0E80, its
+  modelling matrix at 0x01ED0E90) is set in the ticks and only read by the
+  draw - moved before the draw (+0.5 at 0x01ED0EC0), the view moved (13.3);
+  so 0x01ED0000-0x01EE0000 is taken down with the objects. In a race the
+  draw makes it anew (and PutBack leaves what the draw wrote).
+- **Checked** (PS2HOST_HIGH_FPS_FROM=<frame>: 60 until then, so a scripted
+  run's presses still land): picture FROM+2k at 120 the same as frame
+  FROM+k at 60 (0.00, the switch's 2-3 frames apart throughout) on the main
+  menu, the car select, the intro movie and the World Tour map - nothing
+  faster. The car select between pictures: 3.2 / 0.0 before, 2.0 / 2.0 now.
+  What stays at 60: the menus' flat pictures (the map, the text's slides)
+  and the movies (the main menu's backdrop is one, at 30).
+
 **Next:** the take-down cheaper (the addresses kept from tick to tick);
 the crash's flying parts (where they live, apart from the movies');
 then the mechanism into the engine for every game.

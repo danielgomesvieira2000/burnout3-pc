@@ -46,7 +46,7 @@ Getting started
 The game plays in a window or fullscreen (Alt+Enter switches). In
 fullscreen on a 144 Hz screen it switches to 120 Hz, so that the game's 60
 frames a second show evenly - unless FRAME RATE is DISPLAY: then it keeps
-the screen's own rate (races at 144, the menus at 60 a little unevenly).
+the screen's own rate (144).
 
 
 Controls
@@ -110,11 +110,12 @@ long gone) has four pages and the game's hidden menu (Triangle goes back):
 
   VIDEO      fullscreen, vertical sync, the frame rate (60; 120 for a
              120 Hz or faster screen; or DISPLAY, your screen's own rate -
-             144, 165, up to 240 - in races, splitscreen too: the race
-             still runs at its own 60 steps a second, the pictures between
-             drawn between them; the menus stay at 60; where the PC cannot
-             keep up, a race steps down to 120 or 60 by itself), the
-             internal resolution
+             144, 165, up to 240 - in races, splitscreen too, and the
+             menus: the game still runs at its own 60 steps a second, the
+             pictures between drawn between them - the cars, the camera,
+             the garage's car; the menus' flat pictures and movies move at
+             60; where the PC cannot keep up, a race steps down to 120 or
+             60 by itself), the internal resolution
              (original, twice as sharp, or as sharp as your screen - up to
              4x), the aspect ratio (4:3, 16:9 or your window's), and
              anti-aliasing: off, FXAA (edges smoothed, almost free), SMAA
