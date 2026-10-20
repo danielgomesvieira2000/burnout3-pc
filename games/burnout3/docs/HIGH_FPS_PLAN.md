@@ -1,8 +1,52 @@
 # Higher frame rates: a plan for interpolated frames
 
-Status: **plan, not started**. Written 2026-10-10 from what the port shows of
-the game today. The work isn't done yet; this sets out the approach, what is
-already known, what isn't, and the order to do it in.
+Status: **step 1 done (2026-10-20)**; written 2026-10-10 from what the port
+showed of the game then.
+
+## Step 1, done: two pictures a step (port/high_fps.cpp)
+
+`frame_rate=120` in pc_settings.ini (or PS2HOST_FRAME_RATE=120; off by
+default, no menu entry yet). While a one-player race runs - its world
+stepping (RaceWorld calls) and fewer than 2 players (0x0064D3A0) - the
+vertical blanks come twice as often (SetFastForward(2)) and the world
+(0x0019A550) steps at every second picture. (+0x2DA65, the "half rate
+asked", is no guide: it stays set after a race's first crash.)
+
+- **Cost, measured** (bench.sh, 1x, all cores, RTX): 119.9 new pictures a
+  second, presents every 8.34 ms (jitter 0.1-0.2 ms), 0 late; VIF1's worker
+  41-49% busy, the GS thread 35-44%, the EE 31-37% of a core, the process
+  1.87 cores. The VU1 blocker the plan feared is gone (phase C2): two
+  pictures a step fit.
+- **Pictures in pairs**: in virtual time (the blanks at 60, the gating as at
+  120) pictures 2k and 2k+1 show the same world, and differ only in what
+  moves with the picture: the radial blur (it blends with the last picture:
+  at 120 its trail is half as long) and the HUD's flashing.
+- The display: 144 Hz on the author's laptop - 120 pictures under 144 Hz
+  vsync are not evenly paced. Interpolation at any fraction of a step
+  (below) is what lets the rate follow the display's (144) later.
+
+## For every game (the engine)
+
+The mechanism is not Burnout 3's: a game's world stepped at its own rate
+and the pictures drawn between, from its moving objects' transforms blended.
+What moves to the engine (ps2host), once step 2 works here:
+
+- the rate (the blanks' multiple, or the display's refresh), the setting
+  (`frame_rate`), and the stepping cadence: an accumulator that says, at
+  each picture, whether the world steps and at what fraction between its
+  last two steps the picture is;
+- snapshots of registered transforms (RenderWare's RwMatrix - right, up, at,
+  pos: most PS2 games of the time - and plain float vectors), their blend
+  (positions lerped, rotations slerped and made orthonormal again), placed
+  before an in-between picture and put back after it;
+- cut detection (a transform that jumps further than a step's travel: shown
+  as it is, not blended);
+- a tool to find a game's moving transforms (RAM snapshots a step apart:
+  what changes by small, smooth amounts, in RwMatrix shape).
+
+What a game supplies: its world-update function (where the step is gated),
+when high frame rates are allowed (Burnout 3: a one-player race), and where
+its transforms are (or a function listing them each step).
 
 ## The goal
 
