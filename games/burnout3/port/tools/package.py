@@ -5,7 +5,7 @@ but its translated program, and nothing of the machine it was built on.
     python games/burnout3/port/tools/package.py
 
 Build first (engine/tools/port.py --game games/burnout3 pgo, for the
-profile-guided build - or build - then build --sse4). Written to
+profile-guided build - or build - then --sse4 build). Written to
 build/release/Burnout3-PC-<version>-windows-x64.zip (build/ is never
 committed). Refuses:
   - a build carrying the disc-made logo icon (build/port/icon.ico: EA's
