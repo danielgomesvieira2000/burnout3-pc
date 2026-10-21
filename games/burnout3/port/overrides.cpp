@@ -64,6 +64,9 @@ bool LanEnabled();                 // iop_servers.cpp: the LAN, on unless B3_LAN
 void LanPresetLogin();             // lan.cpp: SELECT EA ACCOUNT logs in by itself
 void LanStopLobby();               // lan_lobby.cpp: the lobby this game served, closed
 
+// The graphics settings' defaults (graphics.cpp).
+const char* GraphicsDefault(const char* key);
+
 namespace {
 
 /* 0x001156C0, the SDK's kernel-mode store: it disables interrupts, enters kernel
@@ -306,16 +309,32 @@ void SetFrameRate(int which) {
 const char* const kResolutions[] = {"original", "2x", "display"};
 int Resolution() { return Among("resolution", kResolutions); }
 void SetResolution(int which) { ps2host::SetSetting("resolution", kResolutions[which]); }
-// GRAPHICS (graphics.cpp): each a setting, ORIGINAL as the game draws it.
-const char* const kBlooms[] = {"original", "high", "off", "low"};
-int Bloom() { return Among("bloom", kBlooms); }
+// GRAPHICS (graphics.cpp): each a setting, ORIGINAL as the game draws it,
+// MODERN the PC's (the defaults: GraphicsDefault).
+template <std::size_t N>
+int AmongGraphics(const char* key, const char* const (&values)[N]) {
+    const std::string now = ps2host::Setting(key, GraphicsDefault(key));
+    for (std::size_t i = 0; i < N; ++i)
+        if (now == values[i]) return int(i);
+    return 0;
+}
+const char* const kBlooms[] = {"original", "modern", "high", "off"};
+int Bloom() { return AmongGraphics("bloom", kBlooms); }
 void SetBloom(int which) { ps2host::SetSetting("bloom", kBlooms[which]); }
-const char* const kBlurs[] = {"original", "off"};
-int Blur() { return Among("blur", kBlurs); }
+const char* const kBlurs[] = {"original", "modern", "off"};
+int Blur() { return AmongGraphics("blur", kBlurs); }
 void SetBlur(int which) { ps2host::SetSetting("blur", kBlurs[which]); }
-const char* const kShadows[] = {"original", "soft", "off"};
-int Shadows() { return Among("shadows", kShadows); }
+const char* const kShadows[] = {"original", "modern", "soft", "off"};
+int Shadows() { return AmongGraphics("shadows", kShadows); }
 void SetShadows(int which) { ps2host::SetSetting("shadows", kShadows[which]); }
+const char* const kOcclusions[] = {"off", "on"};
+int Occlusion() { return AmongGraphics("ao", kOcclusions); }
+void SetOcclusion(int which) { ps2host::SetSetting("ao", kOcclusions[which]); }
+const char* const kModerns[] = {"original", "modern"};
+int Lighting() { return AmongGraphics("lighting", kModerns); }
+void SetLighting(int which) { ps2host::SetSetting("lighting", kModerns[which]); }
+int Reflections() { return AmongGraphics("reflections", kModerns); }
+void SetReflections(int which) { ps2host::SetSetting("reflections", kModerns[which]); }
 const char* const kLods[] = {"original", "high"};
 int Lod() { return Among("lod", kLods); }
 void SetLod(int which) { ps2host::SetSetting("lod", kLods[which]); }
@@ -361,12 +380,18 @@ const Option kOptions[] = {
      SetAspect, {"ORIGINAL (4:3)", "WIDESCREEN (16:9)", "AUTO"}, 3},
     {Page::kVideo, "ANTIALIASING", "EDGES AS DRAWN, SMOOTHED (FXAA, SMAA), OR SUPERSAMPLED (SSAA)",
      AntiAliasing, SetAntiAliasing, {"OFF", "FXAA", "SMAA", "SSAA 2X"}, 4},
-    {Page::kGraphics, "BLOOM", "THE GLOW AROUND LIGHTS: AS DRAWN, STRONGER, NONE, OR SOFTER", Bloom, SetBloom,
-     {"ORIGINAL", "HIGH", "OFF", "LOW"}, 4},
-    {Page::kGraphics, "MOTION BLUR", "THE BLUR OF BOOSTING AND OF THE CAMERA, OR NONE", Blur, SetBlur,
-     {"ORIGINAL", "OFF"}, 2},
-    {Page::kGraphics, "SHADOWS", "THE CARS' SHADOWS AS DRAWN, SOFTER, OR NONE", Shadows, SetShadows,
-     {"ORIGINAL", "SOFT", "OFF"}, 3},
+    {Page::kGraphics, "LIGHTING", "THE PICTURE'S TONE AND COLOUR: AS DRAWN, OR MODERN", Lighting,
+     SetLighting, {"ORIGINAL", "MODERN"}, 2},
+    {Page::kGraphics, "AMBIENT OCCLUSION", "SHADE WHERE THINGS MEET: CARS AND ROAD, CORNERS", Occlusion,
+     SetOcclusion, {"OFF", "ON"}, 2},
+    {Page::kGraphics, "BLOOM", "THE GLOW AROUND LIGHTS: AS DRAWN, MODERN, STRONGER, OR NONE", Bloom, SetBloom,
+     {"ORIGINAL", "MODERN", "HIGH", "OFF"}, 4},
+    {Page::kGraphics, "MOTION BLUR", "THE SPEED'S BLUR: AS DRAWN, THE CAMERA'S OWN, OR NONE", Blur, SetBlur,
+     {"ORIGINAL", "MODERN", "OFF"}, 3},
+    {Page::kGraphics, "SHADOWS", "THE CARS' SHADOWS: AS DRAWN, THE SUN'S, SOFTER, OR NONE", Shadows, SetShadows,
+     {"ORIGINAL", "MODERN", "SOFT", "OFF"}, 4},
+    {Page::kGraphics, "REFLECTIONS", "THE CARS' PAINT: AS DRAWN, OR SHARP AND LACQUERED", Reflections,
+     SetReflections, {"ORIGINAL", "MODERN"}, 2},
     {Page::kGraphics, "LOD", "THE CARS' DETAILED MODELS FARTHER AWAY", Lod, SetLod, {"ORIGINAL", "HIGH"}, 2},
     {Page::kGraphics, "PARTICLES", "SMOKE AND SPARKS WHILE DRIVING: AS DRAWN, MORE, OR THE MOST", Particles,
      SetParticles, {"ORIGINAL", "MORE", "MOST"}, 3},

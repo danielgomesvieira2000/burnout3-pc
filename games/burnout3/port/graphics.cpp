@@ -13,11 +13,18 @@
  * GraphicsFrame), only while a setting is not ORIGINAL; the 1 back once it
  * is again.
  *
- *   BLOOM           ORIGINAL / HIGH / OFF / LOW - HIGH and LOW the glow's
- *                   threshold, intensity and trails changed (see BloomRender)
- *   MOTION BLUR     ORIGINAL / OFF (the key "blur", as it was saved)
- *   SHADOWS         ORIGINAL / SOFT / OFF - SOFT the blob drawn here (see
- *                   SoftBlob)
+ *   AMBIENT OCCLUSION  ON / OFF - shade where things meet (Occlusion)
+ *   LIGHTING        MODERN / ORIGINAL - a grade of the picture (Grade)
+ *   BLOOM           ORIGINAL / MODERN / HIGH / OFF (LOW, a setting's still)
+ *                   - MODERN the PC's glow (ModernBloom), HIGH and LOW the
+ *                   glow's threshold, intensity and trails changed
+ *   MOTION BLUR     ORIGINAL / MODERN / OFF (the key "blur", as it was
+ *                   saved) - MODERN the camera's own (CameraBlur)
+ *   SHADOWS         ORIGINAL / MODERN / SOFT / OFF - SOFT the blob drawn
+ *                   here (see SoftBlob), MODERN it and the sun's
+ *   REFLECTIONS     MODERN / ORIGINAL - the paint's environment map sharp
+ *                   and by a Fresnel term
+ *   MODERN everywhere by default (GraphicsDefault).
  *   LOD             ORIGINAL / HIGH - the cars' and the traffic's detailed
  *                   models out to longer distances (see the LOD distances)
  *   PARTICLES       ORIGINAL / MORE / MOST - Nehalem's patch, lifted with the
@@ -74,6 +81,24 @@ Switch g_bloom{kBloomOn}, g_blur{kBlurOn}, g_shadows{kShadowsOn};
 bool Is(const char* key, const char* fallback, const char* value) {
     return ps2host::Setting(key, fallback) == value;
 }
+
+}  // namespace
+
+/* The graphics settings' defaults: the PC's look, MODERN, unless the
+   "graphics" setting is "original" - the game's own pictures by default
+   (the recorded runs' --setting graphics=original). */
+const char* GraphicsDefault(const char* key) {
+    static const bool original = ps2host::Setting("graphics", "modern") == "original";
+    const std::string k = key;
+    if (k == "ao") return original ? "off" : "on";
+    if (k == "bloom" || k == "blur" || k == "shadows" || k == "lighting" || k == "reflections")
+        return original ? "original" : "modern";
+    return "original";
+}
+
+namespace {
+
+std::string Graphics(const char* key) { return ps2host::Setting(key, GraphicsDefault(key)); }
 
 // ---------------------------------------------------------------- the PC's effects
 //
@@ -204,6 +229,20 @@ void DepthParams(const Camera& k, float* p) {
     p[3] = k.window_y;
 }
 
+/* The player's car in the view's space - its place in the race's block
+   (0x0064E710; player 2's not known) - the centre of its body, when it is
+   in front of the camera as a chase camera has it. */
+bool CarInView(const Camera& k, int view, float* out) {
+    if (view != 0) return false;
+    const float car[3] = {F32(0x0064E710u) - k.pos[0], F32(0x0064E714u) - k.pos[1], F32(0x0064E718u) - k.pos[2]};
+    const float* rows[3] = {k.right, k.up, k.at};
+    const float sign[3] = {-1.0f, 1.0f, 1.0f};      // (RenderWare's "right" points left on screen)
+    for (int i = 0; i < 3; ++i) out[i] = sign[i] * (rows[i][0] * car[0] + rows[i][1] * car[1] + rows[i][2] * car[2]);
+    out[1] += 0.3f;
+    out[2] -= 0.4f;
+    return out[2] > 1.1f && out[2] < 15.0f && std::fabs(out[0]) < 6.0f;
+}
+
 /* AO (ambient occlusion), before the fog: the corners, the cars' contact
    with the road, the walls' feet. */
 void Occlusion(lifted::Context& c) {
@@ -213,8 +252,24 @@ void Occlusion(lifted::Context& c) {
     float p[22] = {};
     DepthParams(k, p);
     p[4] = 1.5f;            // radius, world units
-    p[5] = 0.9f;            // strength
+    p[5] = Graphics("ao") == "on" ? 0.75f : 0.0f;   // strength
     p[6] = 180.0f;          // gone by this distance
+    // SHADOWS MODERN: the sun's shadows through the depth buffer - a sun
+    // high in the sky (the world's y up), its direction into the view's.
+    if (Graphics("shadows") == "modern") {
+        float sun[3] = {0.35f, 0.85f, -0.40f};
+        const float length = std::sqrt(sun[0] * sun[0] + sun[1] * sun[1] + sun[2] * sun[2]);
+        for (float& x : sun) x /= length;
+        p[7] = -(k.right[0] * sun[0] + k.right[1] * sun[1] + k.right[2] * sun[2]);
+        p[8] = k.up[0] * sun[0] + k.up[1] * sun[1] + k.up[2] * sun[2];
+        p[9] = k.at[0] * sun[0] + k.at[1] * sun[1] + k.at[2] * sun[2];
+        p[10] = 0.5f;       // strength
+        p[11] = 15.0f;      // the longest shadow, metres
+    }
+    // The player's car (p12-15: its centre, view space, and size): no sun's
+    // shadow of its own on it, and less occlusion - its paint keeps its
+    // gloss; what it casts on the road stays.
+    if (CarInView(k, int(v.index & 1), &p[12])) p[15] = 2.6f;
     EmitEffect(c, EffectId::kOcclusion, v, p, 22);
 }
 
@@ -266,20 +321,23 @@ void CameraBlur(lifted::Context& c, float boost) {
         turn += p[4 + 4 * i + i];
     }
     // A cut (a replay's camera, a crash's): no blur across it. Else the
-    // motion scaled to the shutter: an 80th of a second, a 40th boosting.
+    // motion scaled to the shutter: a 100th of a second, a 50th boosting.
     const float moved = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
-    const double shutter = (1.0 + std::clamp(boost, 0.0f, 1.0f)) / 80.0;
+    const double shutter = (1.0 + std::clamp(boost, 0.0f, 1.0f)) / 100.0;
     const float scale = float(std::min(shutter / std::max(elapsed, 1e-3), 4.0));
+    // (the camera's turning at half its share: a chase camera swings, and a
+    // whole picture smeared by it reads as a fault, not as speed)
     for (int i = 0; i < 12; ++i) {
         const float identity = (i % 5 == 0) ? 1.0f : 0.0f;
-        p[4 + i] = (moved > 8.0f || turn < 2.9f) ? identity : identity + scale * (p[4 + i] - identity);
+        const float share = (i % 4 == 3) ? scale : 0.5f * scale;
+        p[4 + i] = (moved > 8.0f || turn < 2.9f) ? identity : identity + share * (p[4 + i] - identity);
     }
     p[16] = 1.0f;                                              // (a gain on it)
-    p[17] = 0.07f;                                             // the most, a share of the height
-    p[18] = 0.0f;                                              // the car: centre, radius, far side
-    p[19] = 0.42f;
-    p[20] = 0.42f;
-    p[21] = 9.0f;
+    p[17] = 0.05f;                                             // the most, a share of the height
+    // The player's car (its place in the race's block, 0x0064E710; player
+    // 2's not known: none), a sphere around it kept sharp - only where it is
+    // in front of the camera as a chase camera has it.
+    if (CarInView(k, view, &p[18])) p[21] = 2.6f;
     EmitEffect(c, EffectId::kMotionBlur, v, p, 22);
 }
 
@@ -292,7 +350,7 @@ void GradeParams(float* p) {
     p[15] = 0.15f;          // vignette
     p[16] = 0.01f;          // warmth
 }
-bool ModernLighting() { return Is("lighting", "original", "modern"); }
+bool ModernLighting() { return Graphics("lighting") == "modern"; }
 void NeutralGrade(float* p) {
     p[9] = 0.5f;
     p[12] = 0.0f;
@@ -311,9 +369,9 @@ void ModernBloom(lifted::Context& c) {
     float p[22] = {};
     // (in the picture's white: the track's threshold, 0.75 of the halved
     // colours' range, is 1.5 times white)
-    p[0] = std::clamp(2.0f * threshold - 0.8f, 0.5f, 1.6f);
-    p[1] = 0.4f * std::clamp(intensity, 0.0f, 2.0f);
-    p[2] = 0.3f;
+    p[0] = std::clamp(2.0f * threshold - 0.9f, 0.45f, 1.6f);
+    p[1] = 0.55f * std::clamp(intensity, 0.0f, 2.0f);
+    p[2] = 0.35f;
     if (ModernLighting()) GradeParams(p);
     else NeutralGrade(p);
     EmitEffect(c, EffectId::kBloom, v, p, 22);
@@ -334,7 +392,7 @@ void Grade(lifted::Context& c) {
    frame before kept, the glow's trails). BLOOM HIGH and LOW scale them for
    this draw, the game's own values back after it. */
 void BloomRender(lifted::Context& c) {
-    const std::string strength = ps2host::Setting("bloom", "original");
+    const std::string strength = Graphics("bloom");
     // (the glow's switch: OFF draws none, and no grade of the glow's)
     if (strength == "modern" && generated::ReadU8(kBloomOn)) {
         ModernBloom(c);
@@ -374,7 +432,7 @@ void BloomRender(lifted::Context& c) {
    and the frontend's radial-blur objects' (0x003D2FD0, which the byte does
    not): MOTION BLUR OFF skips it for those too. */
 void RadialBlur(lifted::Context& c) {
-    const std::string blur = ps2host::Setting("blur", "original");
+    const std::string blur = Graphics("blur");
     if (blur == "off") return;
     // MODERN in the race (the frontend's radial blurs have no 3D view of
     // their own: the game's, there).
@@ -388,7 +446,7 @@ void RadialBlur(lifted::Context& c) {
 /* 0x00426C10: the camera's directional blur (the race's, instead of the
    radial one when the camera asks): MODERN's blur in its place. */
 void DirectionalBlur(lifted::Context& c) {
-    if (Is("blur", "original", "modern") && CurrentView().zbuf) {
+    if (Graphics("blur") == "modern" && CurrentView().zbuf) {
         CameraBlur(c, 0.0f);
         return;
     }
@@ -398,7 +456,7 @@ void DirectionalBlur(lifted::Context& c) {
 /* 0x002419C0: the fog, AO before it. */
 void Fog(lifted::Context& c) {
     ++g_pictures[CurrentView().index & 1];
-    if (Is("ao", "off", "on")) Occlusion(c);
+    if (Graphics("ao") == "on" || Graphics("shadows") == "modern") Occlusion(c);
     F_002419C0(c);
 }
 
@@ -479,21 +537,32 @@ void GraphicsFrame() {
             ps2host::SetSetting("bloom_strength", "");
         }
     }
-    g_bloom.Set(Is("bloom", "original", "off"));
-    g_blur.Set(Is("blur", "original", "off"));
-    const std::string shadows = ps2host::Setting("shadows", "original");
+    g_bloom.Set(Graphics("bloom") == "off");
+    g_blur.Set(Graphics("blur") == "off");
+    const std::string shadows = Graphics("shadows");
     g_shadows.Set(shadows == "off");
     if (shadows != g_shadows_now) {
         static std::shared_ptr<const pack::Image> soft;
-        if (shadows == "soft") {
+        // (MODERN: the soft blob for the contact, the sun's shadows besides)
+        const bool soft_now = shadows == "soft" || shadows == "modern";
+        const bool soft_before = g_shadows_now == "soft" || g_shadows_now == "modern";
+        if (soft_now) {
             if (!soft) soft = SoftBlob();
             pack::SetOverride(kBlobName, soft);
-        } else if (g_shadows_now == "soft") {
+        } else if (soft_before) {
             pack::SetOverride(kBlobName, std::shared_ptr<const pack::Image>());
         }
         g_shadows_now = shadows;
     }
     SetDetail(Is("lod", "original", "high"));
+    // REFLECTIONS MODERN: the cars' environment map - its three faces (FBP
+    // 0x18B, 0x193, 0x19B, their Z 0x16B-0x17B) and the sphere map warped
+    // from them (FBP 0x16B, 256 wide: TBP 0x2D60 as the paint samples it) -
+    // at the internal resolution, and the paint's reflection by a Fresnel
+    // term (ps2host::SetGpuDrawTag).
+    const bool modern_reflections = Graphics("reflections") == "modern";
+    ps2host::SetGpuScaleRule(modern_reflections ? 0x16Bu : 0u, modern_reflections ? 0x1A7u : 0u, modern_reflections ? 4u : 0u);
+    ps2host::SetGpuDrawTag(0x2D60u, modern_reflections ? 1u : 0u);
     // debug.switches_off=<offsets, hex, comma-separated> (a scripted run's
     // --setting, to measure what each effect costs): those switch bytes of
     // the graphics manager 0 - 5F the track, 60 track into the envmap, 62
@@ -531,5 +600,9 @@ void NoteCamera(u32 camera) {
                              "at %.3f %.3f %.3f pos %.2f %.2f %.2f\n",
                      unsigned(view), unsigned(camera), k.window_x, k.window_y, k.near_plane, k.far_plane, k.z_scale,
                      k.z_shift, k.at[0], k.at[1], k.at[2], k.pos[0], k.pos[1], k.pos[2]);
+        std::fprintf(stderr, "[fx]   values +20 %.2f %.2f %.2f %.2f +30 %.2f %.2f %.2f %.2f car %.2f %.2f %.2f\n",
+                     F32(0x00517050u), F32(0x00517054u), F32(0x00517058u), F32(0x0051705Cu), F32(0x00517060u),
+                     F32(0x00517064u), F32(0x00517068u), F32(0x0051706Cu), F32(0x00539D90u), F32(0x00539D94u),
+                     F32(0x00539D98u));
     }
 }

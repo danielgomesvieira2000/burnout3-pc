@@ -1,1 +1,1 @@
---virtual-time --memcard {memcard} --press start@2000 --press start@2250 --press down@2750 --press cross@2900 --press cross@3450 --press up@4050 --press cross@4200 --press cross@4450 --until-frame 5350
+--virtual-time --memcard {memcard} --press start@2000 --press start@2250 --press down@2750 --press cross@2900 --press cross@3450 --press up@4050 --press cross@4200 --press cross@4450 --until-frame 5350 --setting graphics=original
