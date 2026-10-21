@@ -24,7 +24,9 @@
  *                   here (see SoftBlob), MODERN it and the sun's
  *   REFLECTIONS     MODERN / ORIGINAL - the paint's environment map sharp
  *                   and by a Fresnel term
- *   MODERN everywhere by default (GraphicsDefault).
+ *   TEXTURES        ORIGINAL / MODERN - trilinear, anisotropic, the level
+ *                   from the screen (ORIGINAL by default)
+ *   MODERN by default but TEXTURES (GraphicsDefault).
  *   LOD             ORIGINAL / HIGH - the cars' and the traffic's detailed
  *                   models out to longer distances (see the LOD distances)
  *   PARTICLES       ORIGINAL / MORE / MOST - Nehalem's patch, lifted with the
@@ -91,6 +93,8 @@ const char* GraphicsDefault(const char* key) {
     static const bool original = ps2host::Setting("graphics", "modern") == "original";
     const std::string k = key;
     if (k == "ao") return original ? "off" : "on";
+    // (TEXTURES: ORIGINAL - the game's own level choice is already sharp;
+    // MODERN smooths its bands in motion, at a cost)
     if (k == "bloom" || k == "blur" || k == "shadows" || k == "lighting" || k == "reflections")
         return original ? "original" : "modern";
     return "original";
@@ -629,6 +633,9 @@ void GraphicsFrame() {
     const bool modern_reflections = Graphics("reflections") == "modern" && !g_split;
     ps2host::SetGpuScaleRule(modern_reflections ? 0x16Bu : 0u, modern_reflections ? 0x1A7u : 0u, modern_reflections ? 4u : 0u);
     ps2host::SetGpuDrawTag(0x2D60u, modern_reflections ? 1u : 0u);
+    // TEXTURES MODERN: mipmapped textures filtered as a modern GPU does -
+    // their detail at the internal resolution, no bands, the road sharp.
+    ps2host::SetGpuModernTextures(Graphics("textures") == "modern");
     // debug.switches_off=<offsets, hex, comma-separated> (a scripted run's
     // --setting, to measure what each effect costs): those switch bytes of
     // the graphics manager 0 - 5F the track, 60 track into the envmap, 62

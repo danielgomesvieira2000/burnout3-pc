@@ -334,6 +334,8 @@ const char* const kModerns[] = {"original", "modern"};
 int Lighting() { return AmongGraphics("lighting", kModerns); }
 void SetLighting(int which) { ps2host::SetSetting("lighting", kModerns[which]); }
 int Reflections() { return AmongGraphics("reflections", kModerns); }
+int Textures() { return AmongGraphics("textures", kModerns); }
+void SetTextures(int which) { ps2host::SetSetting("textures", kModerns[which]); }
 void SetReflections(int which) { ps2host::SetSetting("reflections", kModerns[which]); }
 const char* const kLods[] = {"original", "high"};
 int Lod() { return Among("lod", kLods); }
@@ -392,6 +394,8 @@ const Option kOptions[] = {
      {"ORIGINAL", "MODERN", "SOFT", "OFF"}, 4},
     {Page::kGraphics, "REFLECTIONS", "THE CARS' PAINT: AS DRAWN, OR SHARP AND LACQUERED", Reflections,
      SetReflections, {"ORIGINAL", "MODERN"}, 2},
+    {Page::kGraphics, "TEXTURES", "THE ROAD AND WALLS: AS DRAWN, OR SHARP INTO THE DISTANCE", Textures,
+     SetTextures, {"ORIGINAL", "MODERN"}, 2},
     {Page::kGraphics, "LOD", "THE CARS' DETAILED MODELS FARTHER AWAY", Lod, SetLod, {"ORIGINAL", "HIGH"}, 2},
     {Page::kGraphics, "PARTICLES", "SMOKE AND SPARKS WHILE DRIVING: AS DRAWN, MORE, OR THE MOST", Particles,
      SetParticles, {"ORIGINAL", "MORE", "MOST"}, 3},

@@ -7,6 +7,47 @@ is a race that looks like a later Xbox 360 game. This plan builds on
 GRAPHICS_PLAN.md (the game's render order, its switches and the effect
 parameters measured there), which it does not repeat.
 
+## Status (2026-10-22, 01:30)
+
+Done, and MODERN by default (`graphics=original` restores the game's look;
+the recorded runs pin it, all as recorded):
+
+| Effect | Setting | How |
+| --- | --- | --- |
+| Ambient occlusion | AMBIENT OCCLUSION ON | Scalable AO at half resolution before the fog; the player's car at a third |
+| Sun shadows | SHADOWS MODERN | Rays through the depth buffer to a high world-fixed sun, in the AO pass; the soft blob kept for contact; none on the player's own car |
+| Speed blur | MOTION BLUR MODERN | Reprojection with the camera's previous place (view matrix); 1/100 s shutter, 1/50 boosting; the camera's turning at half; the player's car kept sharp (an ellipsoid at 0x0064E710) |
+| Glow | BLOOM MODERN | 6-level soft-knee chain at the internal resolution |
+| Grade | LIGHTING MODERN | Shoulder, contrast 1.04, saturation 1.08, vignette, warmth |
+| Reflections | REFLECTIONS MODERN | The envmap at the internal resolution (a scale rule); the paint's reflection scaled by a Fresnel term from its sphere-map radius |
+
+**Measured.** At 3x on the RTX 4070 Laptop the race holds 60 pictures a
+second with the GPU 37-38% busy, the same as ORIGINAL. The effects cost
+about 0.4-1.1 ms a picture.
+
+**Findings that shaped it:**
+
+- The 3D is drawn at half intensity, and the display copy doubles it. The
+  picture's white is 0.5 in the target (parameter p9 of the glow and the
+  grade).
+- The Fresnel term cannot scale the blend's share. That needs the target in
+  the shader, and a copy of it for each of the reflection pass's thousands of
+  triangles: the race fell to 25 pictures a second. The term scales the
+  reflection's colour instead.
+- The race's RwCamera Z mapping is Z = 5.03e6 / w + 1175 (near 0.3, metres).
+  The camera's place comes from its view matrix: its frame holds the last
+  view's.
+
+**Splitscreen.** The graphics manager's block is shared by both views
+(index 0), and the camera is the last view's while effects are written. Split
+views therefore keep the game's blur, bloom and envmap; AO and the grade run.
+
+**Not done.** Particles: the fire and sparks are a CLUT'd 4-bit atlas
+(TBP 0x3B20/0x35E0); a replacement needs its layout. A generated glow
+sprite for the 32x32 gradient was tried and dropped, because that gradient
+is also the cars' glints, which washed out. Also not done: soft particles,
+and the track's own sun direction.
+
 Every effect is a PC SETTINGS value. ORIGINAL draws exactly what the game
 draws, so the recorded runs keep their pictures (their `.args` pin ORIGINAL).
 MODERN becomes the default for players once each effect holds up.
