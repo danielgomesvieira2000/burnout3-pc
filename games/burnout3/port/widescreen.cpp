@@ -51,6 +51,8 @@ void F_00364920(lifted::Context& c);
 // The race's world each frame: the cars, the traffic, the clock (see RaceWorld).
 void F_0019A550(lifted::Context& c);
 
+void NoteCamera(u32 camera);     // graphics.cpp
+
 namespace {
 
 // ------------------------------------------------------------ the camera
@@ -64,6 +66,7 @@ namespace {
 
 /* 0x001E2110(camera, &window): RenderWare's RwCameraSetViewWindow. */
 void SetViewWindow(lifted::Context& c) {
+    NoteCamera(u32(c.r[4]));
     const float wider = ps2host::PictureAspect() / (4.0f / 3.0f);
     const u32 window = u32(c.r[5]);
     const u32 x_bits = generated::ReadU32(window), y_bits = generated::ReadU32(window + 4);
