@@ -130,6 +130,13 @@ float F32(u32 address) {
     return f;
 }
 
+/* A view of a split screen (two players): the camera RenderWare has while
+   its effects are written is the one the last view was drawn with, and the
+   graphics manager's block is one for both (its index 0) - so what needs
+   the camera's place (the camera's blur, the sun's direction) is left to the
+   game's own there. */
+bool Split(const View& v) { return v.h < 400 || v.w < 600; }
+
 View CurrentView() {
     View v;
     v.index = generated::ReadU32(0x00667050u);
@@ -148,6 +155,8 @@ View CurrentView() {
    RwCamera: its frame +0x04 (RwObject's parent), view window +0x68,
    near +0x80, far +0x84, zScale +0x8C, zShift +0x90. */
 u32 g_cameras[2] = {};
+// (One camera serves both views in splitscreen, placed for each in turn.)
+u32 CameraOf(u32 view) { return g_cameras[view & 1] ? g_cameras[view & 1] : g_cameras[0]; }
 
 struct Camera {
     bool valid = false;
@@ -165,16 +174,67 @@ Camera ReadCamera(u32 camera) {
     k.far_plane = F32(camera + 0x84u);
     k.z_scale = F32(camera + 0x8Cu);
     k.z_shift = F32(camera + 0x90u);
-    const u32 frame = generated::ReadU32(camera + 0x04u);
-    if (frame) {
-        for (int i = 0; i < 3; ++i) {
-            k.right[i] = F32(frame + 0x50u + 4u * i);
-            k.up[i] = F32(frame + 0x60u + 4u * i);
-            k.at[i] = F32(frame + 0x70u + 4u * i);
-            k.pos[i] = F32(frame + 0x80u + 4u * i);
-        }
+    // Its place from the view matrix (+0x20, rows of a 3x3 and the
+    // translation at +0x50), which RenderWare makes for the view being drawn
+    // (RwCameraBeginUpdate) - not from its frame: splitscreen's one camera
+    // is placed for both views before either is drawn. The matrix takes a
+    // world point to the camera's, its columns the screen's right and down
+    // (scaled, and mixed with "at" for the window's offset) and "at".
+    float m[3][3], t[3];
+    for (int r = 0; r < 3; ++r) {
+        for (int i = 0; i < 3; ++i) m[r][i] = F32(camera + 0x20u + 16u * r + 4u * i);
+        t[r] = F32(camera + 0x50u + 4u * r);
     }
-    k.valid = k.window_x > 0.0f && k.window_y > 0.0f;
+    auto column = [&](int i, float* out) {
+        for (int r = 0; r < 3; ++r) out[r] = m[r][i];
+    };
+    auto dot = [](const float* a, const float* b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; };
+    auto normalise = [&](float* a) {
+        const float l = std::sqrt(dot(a, a));
+        if (l > 1e-6f)
+            for (int i = 0; i < 3; ++i) a[i] /= l;
+        return l > 1e-6f;
+    };
+    float x[3], y[3];
+    column(2, k.at);
+    column(0, x);
+    column(1, y);
+    bool ok = normalise(k.at);
+    const float xa = dot(x, k.at), ya = dot(y, k.at);
+    for (int i = 0; i < 3; ++i) {
+        x[i] -= xa * k.at[i];
+        y[i] -= ya * k.at[i];
+    }
+    ok = normalise(x) && normalise(y) && ok;
+    for (int i = 0; i < 3; ++i) {
+        k.right[i] = -x[i];             // (as the frame has it: RenderWare's "right" points left)
+        k.up[i] = -y[i];
+    }
+    // The camera where the matrix gives 0: M^T p = -t.
+    const float det = m[0][0] * (m[1][1] * m[2][2] - m[2][1] * m[1][2]) -
+                      m[1][0] * (m[0][1] * m[2][2] - m[2][1] * m[0][2]) +
+                      m[2][0] * (m[0][1] * m[1][2] - m[1][1] * m[0][2]);
+    if (std::fabs(det) > 1e-9f) {
+        // p = -(M^T)^-1 t: Cramer's rule on the rows of M^T (M's columns).
+        float a[3][3];
+        for (int r = 0; r < 3; ++r)
+            for (int c = 0; c < 3; ++c) a[r][c] = m[c][r];
+        const float b[3] = {-t[0], -t[1], -t[2]};
+        auto det3 = [](const float (*q)[3]) {
+            return q[0][0] * (q[1][1] * q[2][2] - q[1][2] * q[2][1]) - q[0][1] * (q[1][0] * q[2][2] - q[1][2] * q[2][0]) +
+                   q[0][2] * (q[1][0] * q[2][1] - q[1][1] * q[2][0]);
+        };
+        const float d = det3(a);
+        for (int c = 0; c < 3; ++c) {
+            float q[3][3];
+            for (int r = 0; r < 3; ++r)
+                for (int j = 0; j < 3; ++j) q[r][j] = j == c ? b[r] : a[r][j];
+            k.pos[c] = det3(q) / d;
+        }
+    } else {
+        ok = false;
+    }
+    k.valid = ok && k.window_x > 0.0f && k.window_y > 0.0f;
     return k;
 }
 
@@ -229,12 +289,12 @@ void DepthParams(const Camera& k, float* p) {
     p[3] = k.window_y;
 }
 
-/* The player's car in the view's space - its place in the race's block
-   (0x0064E710; player 2's not known) - the centre of its body, when it is
-   in front of the camera as a chase camera has it. */
+/* The view's player's car in the view's space - its place in the race's
+   block (player 1's 0x0064E710, player 2's 0x27D0 on) - the centre of its
+   body, when it is in front of the camera as a chase camera has it. */
 bool CarInView(const Camera& k, int view, float* out) {
-    if (view != 0) return false;
-    const float car[3] = {F32(0x0064E710u) - k.pos[0], F32(0x0064E714u) - k.pos[1], F32(0x0064E718u) - k.pos[2]};
+    const u32 at = 0x0064E710u + 0x27D0u * u32(view & 1);
+    const float car[3] = {F32(at) - k.pos[0], F32(at + 4u) - k.pos[1], F32(at + 8u) - k.pos[2]};
     const float* rows[3] = {k.right, k.up, k.at};
     const float sign[3] = {-1.0f, 1.0f, 1.0f};      // (RenderWare's "right" points left on screen)
     for (int i = 0; i < 3; ++i) out[i] = sign[i] * (rows[i][0] * car[0] + rows[i][1] * car[1] + rows[i][2] * car[2]);
@@ -247,7 +307,7 @@ bool CarInView(const Camera& k, int view, float* out) {
    with the road, the walls' feet. */
 void Occlusion(lifted::Context& c) {
     const View v = CurrentView();
-    const Camera k = ReadCamera(g_cameras[v.index & 1]);
+    const Camera k = ReadCamera(CameraOf(v.index));
     if (!k.valid || !v.zbuf) return;
     float p[22] = {};
     DepthParams(k, p);
@@ -256,7 +316,7 @@ void Occlusion(lifted::Context& c) {
     p[6] = 180.0f;          // gone by this distance
     // SHADOWS MODERN: the sun's shadows through the depth buffer - a sun
     // high in the sky (the world's y up), its direction into the view's.
-    if (Graphics("shadows") == "modern") {
+    if (Graphics("shadows") == "modern" && !Split(v)) {
         float sun[3] = {0.35f, 0.85f, -0.40f};
         const float length = std::sqrt(sun[0] * sun[0] + sun[1] * sun[1] + sun[2] * sun[2]);
         for (float& x : sun) x /= length;
@@ -287,7 +347,7 @@ void CameraBlur(lifted::Context& c, float boost) {
     const int view = int(v.index & 1);
     if (g_blurred[view] == g_pictures[view]) return;    // (the other blur sent it)
     g_blurred[view] = g_pictures[view];
-    const Camera k = ReadCamera(g_cameras[view]);
+    const Camera k = ReadCamera(CameraOf(u32(view)));
     Motion& m = g_motion[view];
     const u64 blank = ps2host::FrameNumber();
     const bool have_last = m.last.valid && m.picture + 1 == g_pictures[view] && blank > m.blank && blank - m.blank < 8;
@@ -394,7 +454,8 @@ void Grade(lifted::Context& c) {
 void BloomRender(lifted::Context& c) {
     const std::string strength = Graphics("bloom");
     // (the glow's switch: OFF draws none, and no grade of the glow's)
-    if (strength == "modern" && generated::ReadU8(kBloomOn)) {
+    // (not in a split view: the game's blur there reads the glow's buffers)
+    if (strength == "modern" && generated::ReadU8(kBloomOn) && !Split(CurrentView())) {
         ModernBloom(c);
         return;
     }
@@ -436,7 +497,7 @@ void RadialBlur(lifted::Context& c) {
     if (blur == "off") return;
     // MODERN in the race (the frontend's radial blurs have no 3D view of
     // their own: the game's, there).
-    if (blur == "modern" && CurrentView().zbuf && generated::ReadU8(kBlurOn)) {
+    if (blur == "modern" && CurrentView().zbuf && !Split(CurrentView()) && generated::ReadU8(kBlurOn)) {
         CameraBlur(c, F32(u32(c.r[4]) + 0x1Cu));
         return;
     }
@@ -446,7 +507,7 @@ void RadialBlur(lifted::Context& c) {
 /* 0x00426C10: the camera's directional blur (the race's, instead of the
    radial one when the camera asks): MODERN's blur in its place. */
 void DirectionalBlur(lifted::Context& c) {
-    if (Graphics("blur") == "modern" && CurrentView().zbuf) {
+    if (Graphics("blur") == "modern" && CurrentView().zbuf && !Split(CurrentView())) {
         CameraBlur(c, 0.0f);
         return;
     }
@@ -454,8 +515,11 @@ void DirectionalBlur(lifted::Context& c) {
 }
 
 /* 0x002419C0: the fog, AO before it. */
+bool g_split = false;            // the views drawn last split (Split)
+
 void Fog(lifted::Context& c) {
     ++g_pictures[CurrentView().index & 1];
+    g_split = Split(CurrentView());
     if (Graphics("ao") == "on" || Graphics("shadows") == "modern") Occlusion(c);
     F_002419C0(c);
 }
@@ -560,7 +624,9 @@ void GraphicsFrame() {
     // from them (FBP 0x16B, 256 wide: TBP 0x2D60 as the paint samples it) -
     // at the internal resolution, and the paint's reflection by a Fresnel
     // term (ps2host::SetGpuDrawTag).
-    const bool modern_reflections = Graphics("reflections") == "modern";
+    // (one player only: a split screen's own buffers lie in the same pages,
+    // its blurs read them at the PS2's size)
+    const bool modern_reflections = Graphics("reflections") == "modern" && !g_split;
     ps2host::SetGpuScaleRule(modern_reflections ? 0x16Bu : 0u, modern_reflections ? 0x1A7u : 0u, modern_reflections ? 4u : 0u);
     ps2host::SetGpuDrawTag(0x2D60u, modern_reflections ? 1u : 0u);
     // debug.switches_off=<offsets, hex, comma-separated> (a scripted run's
