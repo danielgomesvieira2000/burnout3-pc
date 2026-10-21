@@ -89,10 +89,28 @@ bool Is(const char* key, const char* fallback, const char* value) {
 /* The graphics settings' defaults: the PC's look, MODERN, unless the
    "graphics" setting is "original" - the game's own pictures by default
    (the recorded runs' --setting graphics=original). */
+/* An integrated GPU (a laptop's Intel UHD, Iris, an AMD APU's Radeon): the
+   effects that cost it most - AO and the sun's shadows, the camera's blur -
+   off by default there; the glow and the grade stay (MODERN's glow is
+   lighter than the game's). */
+bool IntegratedGpu() {
+    static int known = -1;              // (once the GPU is started)
+    if (known >= 0) return known != 0;
+    const std::string name = ps2host::GpuName();
+    if (name.empty()) return false;
+    known = 0;
+    for (const char* weak : {"UHD", "Iris", "HD Graphics", "Radeon(TM) Graphics", "Radeon Graphics", "Vega"})
+        if (name.find(weak) != std::string::npos) known = 1;
+    return known != 0;
+}
+
 const char* GraphicsDefault(const char* key) {
     static const bool original = ps2host::Setting("graphics", "modern") == "original";
     const std::string k = key;
-    if (k == "ao") return original ? "off" : "on";
+    const bool light = IntegratedGpu();
+    if (k == "ao") return original || light ? "off" : "on";
+    if (light && k == "shadows") return original ? "original" : "soft";
+    if (light && k == "blur") return "original";
     // (TEXTURES: ORIGINAL - the game's own level choice is already sharp;
     // MODERN smooths its bands in motion, at a cost)
     if (k == "bloom" || k == "blur" || k == "shadows" || k == "lighting" || k == "reflections")
