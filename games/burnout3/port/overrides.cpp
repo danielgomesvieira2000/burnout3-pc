@@ -398,7 +398,7 @@ const Option kOptions[] = {
      {"ORIGINAL", "MODERN", "SOFT", "OFF"}, 4},
     {Page::kGraphics, "REFLECTIONS", "THE CARS' PAINT: AS DRAWN, OR SHARP AND LACQUERED", Reflections,
      SetReflections, {"ORIGINAL", "MODERN"}, 2},
-    {Page::kGraphics, "CINEMATIC CAMERAS", "TAKEDOWNS AND CRASHES: AS DRAWN, OR WITH DEPTH OF FIELD", Dof, SetDof,
+    {Page::kGraphics, "CINEMATIC CAMERAS", "TAKEDOWNS: AS DRAWN, OR WITH DEPTH OF FIELD", Dof, SetDof,
      {"ORIGINAL", "MODERN"}, 2},
     {Page::kGraphics, "SMOKE AND FIRE", "AS DRAWN, OR SOFT WHERE THEY MEET THE ROAD AND THE CARS", Smoke,
      SetSmoke, {"ORIGINAL", "MODERN"}, 2},
