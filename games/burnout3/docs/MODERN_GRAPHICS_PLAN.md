@@ -39,8 +39,11 @@ about 0.4-1.1 ms a picture.
   view's.
 
 **Splitscreen.** The graphics manager's block is shared by both views
-(index 0), and the camera is the last view's while effects are written. Split
-views therefore keep the game's blur, bloom and envmap; AO and the grade run.
+(index 0), and the RwCamera is the last view's while effects are written.
+Each view's player comes from its rectangle, and its camera from the
+player's own camera values (a quaternion and a place). Every effect runs
+there, except the envmap's scale rule: a split screen's own buffers share its
+pages.
 
 **Not done.** Particles: the fire and sparks are a CLUT'd 4-bit atlas
 (TBP 0x3B20/0x35E0); a replacement needs its layout. A generated glow
