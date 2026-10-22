@@ -722,9 +722,11 @@ void GraphicsFrame() {
     // from them (FBP 0x16B, 256 wide: TBP 0x2D60 as the paint samples it) -
     // at the internal resolution, and the paint's reflection by a Fresnel
     // term (ps2host::SetGpuDrawTag).
-    // (one player only: a split screen's own buffers lie in the same pages,
-    // its blurs read them at the PS2's size)
-    const bool modern_reflections = Graphics("reflections") == "modern" && !g_split;
+    // (in a split screen only with the blur and the glow MODERN: the game's
+    // own blurs there read buffers in the same pages at the PS2's size - a
+    // washed-out player 2)
+    const bool split_ok = Graphics("blur") == "modern" && Graphics("bloom") == "modern";
+    const bool modern_reflections = Graphics("reflections") == "modern" && (!g_split || split_ok);
     ps2host::SetGpuScaleRule(modern_reflections ? 0x16Bu : 0u, modern_reflections ? 0x1A7u : 0u, modern_reflections ? 4u : 0u);
     ps2host::SetGpuDrawTag(0x2D60u, modern_reflections ? 1u : 0u);
     // TEXTURES MODERN: mipmapped textures filtered as a modern GPU does -
