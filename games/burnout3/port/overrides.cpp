@@ -25,6 +25,8 @@
 #include "controls.h"
 #include "gpu_pipelines.h"
 #include "ps2host/host.h"
+#include "ps2host/iop_vm.h"
+#include "ps2host/memory.h"
 #include "ps2host/mc2.h"
 #include "ps2host/run.h"
 #include "ps2host/settings.h"
@@ -207,6 +209,8 @@ void RwaAnswer(lifted::Context& c) {
     F_002AF340(c);
 }
 
+void SayAudio();
+
 /* 0x003FB0F0(music, 1): the EA Trax player's step - from the frontend's
    load (0x00131480, phase 10, returning to 0x001316D0) until it says the
    music has started. Its stream (RenderWare Audio's) has been seen to wait
@@ -227,10 +231,17 @@ void MusicStart(lifted::Context& c) {
     if (now - waiting_since < 3'000'000'000ull) return;
     waiting_since = 0;
     c.r[2] = 1;
+    std::fprintf(stderr, "[music] the EA Trax stream did not start in 3 s: the load goes on without it.\n");
+    SayAudio();
+}
+
+/* The EA Trax player's state and what RenderWare Audio said last (> its
+   commands, < the IOP's answers), to the log. */
+void SayAudio() {
     const u32 music = 0x01E7A888u, handle = u32(generated::ReadU32(music + 0xC0u));
     const u32 stream = handle ? u32(generated::ReadU32(handle + 0x1CCu)) : 0;
-    std::fprintf(stderr, "[music] the EA Trax stream did not start in 3 s (player %u/%u, stream state %u): the load "
-                 "goes on without it. RenderWare Audio's last commands (>) and answers (<):\n",
+    std::fprintf(stderr, "  EA Trax player %u/%u, its stream's state %u; RenderWare Audio's last commands (>) and "
+                 "answers (<):\n",
                  unsigned(generated::ReadU32(music + 0x170u)), unsigned(generated::ReadU32(music + 0xC8u)),
                  stream ? unsigned(generated::ReadU32(stream + 0x24Cu)) : 0u);
     for (size_t k = 0; k < g_rwa_records.size(); ++k) {
@@ -261,22 +272,56 @@ void WaitsForInterrupt(lifted::Context& c) {
    A race's load 6.3 s -> 2.6 s, the boot's 5.9 s -> 2.4 s (what is left is
    mostly the race's sound streams, which fill as the sound plays).
    PS2HOST_LOAD_SPEED=1: a step a frame, as the console. */
-template <void (*Load)(lifted::Context&)>
+/* A load that has not finished in 20 s (the infinite loading screen, #16,
+   seen again after the EA Trax wait's way out): once, to the log, what the
+   threads and RenderWare Audio are doing, and the EE's and IOP's memories
+   beside it (stuck_ee.bin, stuck_iop.bin) - for finding what it waits on. */
+void StuckLoad(u32 load, u32 caller) {
+    std::fprintf(stderr, "[load] 0x%08X (from 0x%08X) not done after 20 s, frame %llu: the threads, RenderWare Audio "
+                 "and stuck_ee.bin / stuck_iop.bin beside the log\n%s%s",
+                 load, caller, static_cast<unsigned long long>(ps2host::FrameNumber()), ps2host::ThreadReport().c_str(),
+                 ps2host::iop::Report().c_str());
+    SayAudio();
+    ps2host::Memory& m = ps2host::GuestMemory();
+    if (std::FILE* f = std::fopen("stuck_ee.bin", "wb")) {
+        std::fwrite(m.rdram(), 1, ps2host::kRdramSize, f);
+        std::fclose(f);
+    }
+    if (std::FILE* f = std::fopen("stuck_iop.bin", "wb")) {
+        std::fwrite(m.Translate(ps2host::kIopRamBase, ps2host::kIopRamSize), 1, ps2host::kIopRamSize, f);
+        std::fclose(f);
+    }
+    std::fflush(stderr);
+}
+
+template <void (*Load)(lifted::Context&), u32 kAddress>
 void FastLoading(lifted::Context& c) {
     static const bool console = [] {
         const char* speed = std::getenv("PS2HOST_LOAD_SPEED");
         return speed && std::atoi(speed) <= 1;
     }();
+    static u64 waiting_since = 0;
+    static bool said = false;
     constexpr u64 kStepsNs = 8'000'000;         // half a frame
+    const u32 caller = u32(c.r[31]);
     u64 args[32];
     std::memcpy(args, c.r, sizeof args);
     const u64 from = ps2host::ClockNs();
     Load(c);
-    if (console) return;
-    while (!u32(c.r[2]) && !ps2host::BlankDue() && ps2host::ClockNs() - from < kStepsNs &&
-           ps2host::RunIopBetweenSteps()) {
-        std::memcpy(c.r, args, sizeof args);
-        Load(c);
+    if (!console)
+        while (!u32(c.r[2]) && !ps2host::BlankDue() && ps2host::ClockNs() - from < kStepsNs &&
+               ps2host::RunIopBetweenSteps()) {
+            std::memcpy(c.r, args, sizeof args);
+            Load(c);
+        }
+    if (u32(c.r[2])) {
+        waiting_since = 0;
+        said = false;
+    } else if (!waiting_since) {
+        waiting_since = from;
+    } else if (!said && from - waiting_since > 20'000'000'000ull) {
+        said = true;
+        StuckLoad(kAddress, caller);
     }
 }
 
@@ -1332,8 +1377,8 @@ void RegisterGameOverrides() {
     ps2host::Override(0x001156C0u, KernelStore, "kernel-mode store");
     ps2host::Override(0x0010D3E8u, TtyWrite, "TTY write (printf)");
     ps2host::Override(0x001313C0u, SkipMovie, "a movie screen's update: Start skips the movie");
-    ps2host::Override(0x0019A950u, FastLoading<F_0019A950>, "a race's loading: fast-forwarded while it waits");
-    ps2host::Override(0x001322B0u, FastLoading<F_001322B0>, "the game's loading: fast-forwarded while it waits");
+    ps2host::Override(0x0019A950u, FastLoading<F_0019A950, 0x0019A950u>, "a race's loading: fast-forwarded while it waits");
+    ps2host::Override(0x001322B0u, FastLoading<F_001322B0, 0x001322B0u>, "the game's loading: fast-forwarded while it waits");
     ps2host::Override(0x00271A00u, GetString, "the string lookup: PC SETTINGS' words");
     ps2host::Override(0x003181E0u, MainMenuInput, "the main menu's input: PC SETTINGS, QUIT GAME");
     ps2host::Override(0x00318100u, MainMenu, "the main menu: QUIT GAME's message box");
