@@ -24,6 +24,8 @@
  *                   here (see SoftBlob), MODERN it and the sun's
  *   REFLECTIONS     MODERN / ORIGINAL - the paint's environment map sharp
  *                   and by a Fresnel term
+ *   SMOKE AND FIRE  MODERN / ORIGINAL - soft particles, faded where they
+ *                   meet the road and the cars
  *   TEXTURES        ORIGINAL / MODERN - trilinear, anisotropic, the level
  *                   from the screen (ORIGINAL by default)
  *   MODERN by default but TEXTURES (GraphicsDefault).
@@ -113,7 +115,7 @@ const char* GraphicsDefault(const char* key) {
     if (light && k == "blur") return "original";
     // (TEXTURES: ORIGINAL - the game's own level choice is already sharp;
     // MODERN smooths its bands in motion, at a cost)
-    if (k == "bloom" || k == "blur" || k == "shadows" || k == "lighting" || k == "reflections")
+    if (k == "bloom" || k == "blur" || k == "shadows" || k == "lighting" || k == "reflections" || k == "smoke")
         return original ? "original" : "modern";
     return "original";
 }
@@ -132,7 +134,7 @@ std::string Graphics(const char* key) { return ps2host::Setting(key, GraphicsDef
 // the HUD drawn after.
 
 /* gs_renderer.h's GsEffectId. */
-enum class EffectId : u32 { kTint = 0xF0, kOcclusion = 1, kMotionBlur = 2, kBloom = 3, kGrade = 4 };
+enum class EffectId : u32 { kTint = 0xF0, kOcclusion = 1, kMotionBlur = 2, kBloom = 3, kGrade = 4, kSceneDepth = 5 };
 
 /* The view being drawn: the graphics manager's per-view block (0x1C0 each,
    the view's index at 0x00667050), as the fog reads it - FRAME +0x630,
@@ -574,6 +576,17 @@ void Fog(lifted::Context& c) {
     ++g_pictures[PlayerOf(CurrentView())];
     g_split = Split(CurrentView());
     if (Graphics("ao") == "on" || Graphics("shadows") == "modern") Occlusion(c);
+    // SMOKE AND FIRE MODERN: the scene's depth saved for the particles drawn
+    // after the view's effects (soft particles).
+    if (Graphics("smoke") == "modern") {
+        const View v = CurrentView();
+        const Camera k = ViewCamera(v);
+        if (k.valid && v.zbuf) {
+            float p[22] = {};
+            DepthParams(k, p);
+            EmitEffect(c, EffectId::kSceneDepth, v, p, 22);
+        }
+    }
     F_002419C0(c);
 }
 
@@ -685,6 +698,10 @@ void GraphicsFrame() {
     // TEXTURES MODERN: mipmapped textures filtered as a modern GPU does -
     // their detail at the internal resolution, no bands, the road sharp.
     ps2host::SetGpuModernTextures(Graphics("textures") == "modern");
+    // SMOKE AND FIRE MODERN: the race's particle atlases (two upload slots,
+    // a 256x256 4-bit texture each) soft where they meet the scene.
+    static const u32 kParticles[] = {0x3B20u, 0x35E0u};
+    ps2host::SetGpuSoftParticles(kParticles, Graphics("smoke") == "modern" ? 2 : 0);
     // debug.switches_off=<offsets, hex, comma-separated> (a scripted run's
     // --setting, to measure what each effect costs): those switch bytes of
     // the graphics manager 0 - 5F the track, 60 track into the envmap, 62
