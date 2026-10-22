@@ -464,8 +464,8 @@ void CameraBlur(lifted::Context& c, float boost) {
 /* CINEMATIC CAMERAS MODERN: depth of field in the game's takedown cameras
    (a view window of 0.58: 60 degrees) - told from the race's chase camera
    (1.0 and wider, its field of view following the speed) and crash mode's
-   aftermath, which the player steers (0.65), by their narrower window; focused on the
-   player's car where it is in view, else on what the middle shows. Once a view a picture, after
+   aftermath, which the player steers (0.65), by their narrower window;
+   focused on what the middle of the view shows (the victim). Once a view a picture, after
    the blur. */
 u32 g_dofed[2] = {~0u, ~0u};
 
@@ -481,14 +481,7 @@ void CinematicFocus(lifted::Context& c) {
     DepthParams(k, p);
     p[4] = 0.7f;            // aperture
     p[5] = 0.009f;          // the largest circle, a share of the height
-    p[6] = 0.0f;            // focus: the view's middle, or the player's car where it is in view
-    const u32 at = 0x0064E710u + 0x27D0u * u32(view & 1);
-    const float car[3] = {F32(at) - k.pos[0], F32(at + 4u) - k.pos[1], F32(at + 8u) - k.pos[2]};
-    const float x = -(k.right[0] * car[0] + k.right[1] * car[1] + k.right[2] * car[2]);
-    const float y = k.up[0] * car[0] + k.up[1] * car[1] + k.up[2] * car[2];
-    const float z = k.at[0] * car[0] + k.at[1] * car[1] + k.at[2] * car[2];
-    if (z > 1.0f && z < 80.0f && std::fabs(x) < z * k.window_x * 0.8f && std::fabs(y) < z * k.window_y * 0.8f)
-        p[6] = z;
+    p[6] = 0.0f;            // focus: the view's middle (the takedown's victim)
     EmitEffect(c, EffectId::kDepthOfField, v, p, 22);
 }
 
