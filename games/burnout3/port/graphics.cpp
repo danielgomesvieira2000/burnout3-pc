@@ -435,9 +435,9 @@ void CameraBlur(lifted::Context& c, float boost) {
         turn += p[4 + 4 * i + i];
     }
     // A cut (a replay's camera, a crash's): no blur across it. Else the
-    // motion scaled to the shutter: a 100th of a second, a 50th boosting.
+    // motion scaled to the shutter: a 120th of a second, a 60th boosting.
     const float moved = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
-    const double shutter = (1.0 + std::clamp(boost, 0.0f, 1.0f)) / 100.0;
+    const double shutter = (1.0 + std::clamp(boost, 0.0f, 1.0f)) / 120.0;
     const float scale = float(std::min(shutter / std::max(elapsed, 1e-3), 4.0));
     // (the camera's turning at half its share: a chase camera swings, and a
     // whole picture smeared by it reads as a fault, not as speed)
