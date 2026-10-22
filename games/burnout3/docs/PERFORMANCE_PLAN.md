@@ -641,3 +641,65 @@ ms a picture, the GS thread 5.02 and 4.70 - within the runs' noise. Both
 were slower than the same code at the day's start (VU1 4.4 ms, 1-3 late):
 the laptop after three hours of runs back to back. Compare builds only side
 by side.
+
+### The next steps, 1 to 3 (2026-10-22, afternoon)
+
+**The rise into a high rate, measured properly.** The race's start (the
+scripted race, high fps from frame 17,000, 144, 3x, pack, true real time),
+runs alternated:
+
+| rise | late pictures a start | frames' time repeated | dropped |
+| --- | --- | --- | --- |
+| none (`PS2HOST_HIGH_FPS_RAMP=0`), 5 runs | 9-19, 15 on average | 124 in all | 9 |
+| 600 ms fixed, 5 runs | 8-15, 11 on average | 55 | 2 |
+| 1.5 s fixed, 3 + 3 runs | 4-6 | 4-6 each | 0 |
+| in eighths, each only after one without late pictures (95234a5), 3 runs | 3-6 | 3-6 each | 0 |
+
+What is left are single GPU waits of ~17-22 ms (the renderer's ring full)
+in the first half second of the rise: a P5 GPU draws the race's view at
+about 60 a second, whatever the rate asked for. The adaptive rise is kept:
+as good as the slow fixed one, full rate in 0.6 s where the GPU keeps up, and
+it holds back by itself on a slower GPU.
+
+**The other games** on the engine with this morning's changes (aa1257c):
+Mister Mosquito 6/6 and RE Outbreak 12/12 GPU runs as recorded (zombies120:
+high fps in virtual time, no rise there).
+
+**VU programs** recorded again with `--vu-interpret` (crash, race_mods,
+race): nothing more than the five added this morning.
+
+**Benchmarks that repeat.** VU1: `--vu-bench vu_crash.bin` (the explosion,
+20,000 runs; ~1.7 ns a pair, half of the bench's time its own restoring).
+The GS thread: the explosion's capture (frame 20,081) replayed at 1x,
+`PS2HOST_REPLAY_REPEAT=200`: ~6.1-6.3 ms a pass, +-2% run to run (at 3x
+it waits on the GPU and wanders 10-13 ms).
+
+**Tried and dropped:** a cache in front of the bridge's image map
+(`owned.find` / `count`, 4% of the GS thread's samples in the crash):
+6.135 against 6.18 ms a pass - within the noise.
+
+**Step 3, the explosion (crash-breaker, frame ~20,100):** VIF1's worker and
+the GS thread are both full there; what one sheds the other must not take.
+
+- *PATH3's words handed over uncopied* (dd70195, reverted fb3da96): the
+  worker 4% less busy, the GS thread 2-3% more (it reads the textures cold
+  from the worker's copies rather than warm from its ring), and in each of
+  three alternated crash runs more pictures late (20/13/17 against 15/6/12).
+- *VU1, a pair at a time:* the generator already drops the stall checks
+  that cannot stall (`needless_wait`); the clamp is four instructions; a
+  lower write of all four fields as one store and one AVX2 store of its
+  times: 60.6-61.2 against 60.1-60.7 ms a bench pass, the same state hash -
+  no gain, dropped. Trap: an edit to vu_core.h changes every compiled block,
+  which then loses its PGO profile - compare such changes as two `--no-pgo`
+  builds, or refresh the profile for each.
+- *VIF decoding on the EE* (idle half the time): weighed, not done - most
+  of an explosion's unpacking is V4-32 runs, a copy either side, so it would
+  move little; and the game chains its programs with MSCNT (5.9 million
+  against 0.7 million MSCALs), registers carried from run to run, so VU1
+  runs cannot go to two threads exactly.
+
+What would change the explosion: VU1 code with the VU's registers held in
+the host's across a block and its timing worked out ahead (a real
+recompiler, a project of its own), or the GS thread's parsing split from the
+bridge's bookkeeping onto two threads (the parse is ~23% of the thread,
+OnDraw ~30%).
