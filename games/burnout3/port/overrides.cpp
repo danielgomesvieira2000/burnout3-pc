@@ -221,6 +221,20 @@ void RwaAnswer(lifted::Context& c) {
 
 void SayAudio();
 
+/* The EE's 32 MB and the IOP's 2 MB of memory, as they are, to two files
+   beside the log (for looking into a hang afterwards). */
+void SaveMemories(const char* ee, const char* iop) {
+    ps2host::Memory& m = ps2host::GuestMemory();
+    if (std::FILE* f = std::fopen(ee, "wb")) {
+        std::fwrite(m.rdram(), 1, ps2host::kRdramSize, f);
+        std::fclose(f);
+    }
+    if (std::FILE* f = std::fopen(iop, "wb")) {
+        std::fwrite(m.Translate(ps2host::kIopRamBase, ps2host::kIopRamSize), 1, ps2host::kIopRamSize, f);
+        std::fclose(f);
+    }
+}
+
 /* 0x003FB0F0(music, 1): the EA Trax player's step - from the frontend's
    load (0x00131480, phase 10, returning to 0x001316D0) until it says the
    music has started. Its stream (RenderWare Audio's) has been seen to wait
@@ -250,6 +264,15 @@ void MusicStart(lifted::Context& c) {
     std::fprintf(stderr, "[music] the EA Trax stream did not start in 3 s (%s): the load goes on without it.\n",
                  load ? "a race's sound" : "the frontend's load");
     SayAudio();
+    // The first time: the threads and both memories as it gives up
+    // (music_ee.bin, music_iop.bin beside the log) - what the stream waits on.
+    static bool saved = false;
+    if (!saved) {
+        saved = true;
+        std::fprintf(stderr, "%s%s", ps2host::ThreadReport().c_str(), ps2host::iop::Report().c_str());
+        SaveMemories("music_ee.bin", "music_iop.bin");
+    }
+    std::fflush(stderr);
 }
 
 /* The EA Trax player's state and what RenderWare Audio said last (> its
@@ -303,15 +326,7 @@ void StuckLoad(u32 load, u32 caller) {
                  load, caller, static_cast<unsigned long long>(ps2host::FrameNumber()), ps2host::ThreadReport().c_str(),
                  ps2host::iop::Report().c_str());
     SayAudio();
-    ps2host::Memory& m = ps2host::GuestMemory();
-    if (std::FILE* f = std::fopen("stuck_ee.bin", "wb")) {
-        std::fwrite(m.rdram(), 1, ps2host::kRdramSize, f);
-        std::fclose(f);
-    }
-    if (std::FILE* f = std::fopen("stuck_iop.bin", "wb")) {
-        std::fwrite(m.Translate(ps2host::kIopRamBase, ps2host::kIopRamSize), 1, ps2host::kIopRamSize, f);
-        std::fclose(f);
-    }
+    SaveMemories("stuck_ee.bin", "stuck_iop.bin");
     std::fflush(stderr);
 }
 
