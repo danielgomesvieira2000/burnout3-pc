@@ -8,6 +8,7 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
@@ -51,6 +52,8 @@ void F_0019A950(lifted::Context& c);
 void F_001F2408(lifted::Context& c);
 void F_00228040(lifted::Context& c);
 void F_002AF340(lifted::Context& c);
+void F_002AEFC0(lifted::Context& c);
+void F_003FB0F0(lifted::Context& c);
 void F_001322B0(lifted::Context& c);
 // The frontend: its string lookup, the main menu's input, a message box.
 void F_00271A00(lifted::Context& c);
@@ -161,7 +164,38 @@ void PacketWaitTurn(lifted::Context& c) {
    1), in the SIF0 interrupt: each into a ring of 24 (0x01E81C40, 0x30
    bytes each; written gp-0x5A30, read gp-0x5A34) for its receiver thread
    (0x002AF2A0) - one that comes while the ring is full is dropped. */
+/* The last of RenderWare Audio's commands to the IOP and its answers, for
+   the log when the music's start is given up (MusicStart): what led there. */
+struct RwaRecord {
+    u64 frame;
+    bool answer;
+    u32 words[6];
+};
+std::array<RwaRecord, 256> g_rwa_records{};
+size_t g_rwa_next = 0;
+std::map<u32, u64> g_rwa_answer_types;      // answers by type (+0x10), all of them
+
+void Record(bool answer, const u32 (&words)[6]) {
+    RwaRecord& r = g_rwa_records[g_rwa_next++ % g_rwa_records.size()];
+    r.frame = ps2host::FrameNumber();
+    r.answer = answer;
+    std::memcpy(r.words, words, sizeof words);
+}
+
+/* 0x002AEFC0(a0, a1, a2, type, t0..t3): RenderWare Audio's command to the
+   IOP (a record of user command 0). */
+void RwaCommand(lifted::Context& c) {
+    const u32 words[6] = {u32(c.r[7]), u32(c.r[4]), u32(c.r[5]), u32(c.r[6]), u32(c.r[8]), u32(c.r[9])};
+    Record(false, words);
+    F_002AEFC0(c);
+}
+
 void RwaAnswer(lifted::Context& c) {
+    const u32 packet = u32(c.r[4]);
+    u32 words[6];
+    for (int k = 0; k < 6; ++k) words[k] = u32(generated::ReadU32(packet + 0x10u + 4u * u32(k)));
+    // (a kind past its thousandth only counted: the mixer's status comes thousands a second)
+    if (++g_rwa_answer_types[words[0]] < 1000) Record(true, words);
     const u32 gp = u32(c.r[28]);
     const s32 written = s32(generated::ReadS32(gp - 0x5A30u)), read = s32(generated::ReadS32(gp - 0x5A34u));
     if (written - read >= 24) {
@@ -171,6 +205,42 @@ void RwaAnswer(lifted::Context& c) {
                      dropped, static_cast<unsigned long long>(ps2host::FrameNumber()));
     }
     F_002AF340(c);
+}
+
+/* 0x003FB0F0(music, 1): the EA Trax player's step - from the frontend's
+   load (0x00131480, phase 10, returning to 0x001316D0) until it says the
+   music has started. Its stream (RenderWare Audio's) has been seen to wait
+   for ever for the last track's to stop (the IOP's state 4, after a
+   finished race went on to the next event, at 120 pictures a second) - the
+   loading screen with it. Given up after 3 s: the load goes on, without the
+   music for now, and what RenderWare Audio said last goes to the log. */
+void MusicStart(lifted::Context& c) {
+    static u64 waiting_since = 0;
+    const bool from_load = u32(c.r[31]) == 0x001316D0u;
+    F_003FB0F0(c);
+    if (!from_load || u32(c.r[2]) != 0) {
+        if (from_load) waiting_since = 0;
+        return;
+    }
+    const u64 now = ps2host::ClockNs();
+    if (!waiting_since) waiting_since = now;
+    if (now - waiting_since < 3'000'000'000ull) return;
+    waiting_since = 0;
+    c.r[2] = 1;
+    const u32 music = 0x01E7A888u, handle = u32(generated::ReadU32(music + 0xC0u));
+    const u32 stream = handle ? u32(generated::ReadU32(handle + 0x1CCu)) : 0;
+    std::fprintf(stderr, "[music] the EA Trax stream did not start in 3 s (player %u/%u, stream state %u): the load "
+                 "goes on without it. RenderWare Audio's last commands (>) and answers (<):\n",
+                 unsigned(generated::ReadU32(music + 0x170u)), unsigned(generated::ReadU32(music + 0xC8u)),
+                 stream ? unsigned(generated::ReadU32(stream + 0x24Cu)) : 0u);
+    for (size_t k = 0; k < g_rwa_records.size(); ++k) {
+        const RwaRecord& r = g_rwa_records[(g_rwa_next + k) % g_rwa_records.size()];
+        if (!r.frame) continue;
+        std::fprintf(stderr, "  %8llu %c %08X %08X %08X %08X %08X %08X\n", static_cast<unsigned long long>(r.frame),
+                     r.answer ? '<' : '>', r.words[0], r.words[1], r.words[2], r.words[3], r.words[4], r.words[5]);
+    }
+    for (const auto& [type, count] : g_rwa_answer_types)
+        std::fprintf(stderr, "  answers of type %08X: %llu\n", type, static_cast<unsigned long long>(count));
 }
 
 template <void (*Wait)(lifted::Context&)>
@@ -1255,7 +1325,9 @@ void RegisterGameOverrides() {
     // menus, a core spun while it waited for its next picture's blank.
     ps2host::AddIdleLoop(0x001F24E0u);
     ps2host::Override(0x001F2408u, WaitsForInterrupt<F_001F2408>, "RenderWare's packet wait: asleep in real time");
-    ps2host::Override(0x002AF340u, RwaAnswer, "RenderWare Audio's answers: a dropped one said");
+    ps2host::Override(0x002AF340u, RwaAnswer, "RenderWare Audio's answers: a dropped one said, the last kept");
+    ps2host::Override(0x002AEFC0u, RwaCommand, "RenderWare Audio's commands: the last kept");
+    ps2host::Override(0x003FB0F0u, MusicStart, "the EA Trax player's step: a load's wait for its start given up after 3 s");
     ps2host::Override(0x00228040u, PacketWaitTurn, "the packet wait's turn: asleep until an event in real time");
     ps2host::Override(0x001156C0u, KernelStore, "kernel-mode store");
     ps2host::Override(0x0010D3E8u, TtyWrite, "TTY write (printf)");
