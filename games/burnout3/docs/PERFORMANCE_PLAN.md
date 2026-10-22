@@ -552,3 +552,85 @@ and its profile shows idle loops spinning.
   between, only the ~850 known transforms): 0.30 ms a step before.
 - **The modern effects at 144** (MODERN_GRAPHICS_PLAN.md): the GPU is 60-65%
   busy, against 49-53% for ORIGINAL. Both hold 144.
+
+## High frame rates with the modern graphics and a texture pack (2026-10-22, day)
+
+The case: 144 pictures a second, 3x, every GRAPHICS option MODERN (the
+default), the user's texture pack (7,859 DDS files) on, windowed, frame
+pacing on; the race and the crash run in true real time (`hf.sh` in the
+session's scratchpad: the run's .args without `--virtual-time`,
+`PS2HOST_FRAME_RATE=144`, `PS2HOST_TEXTURE_PACK`, profiled from 17,900).
+RTX 4070 Laptop, i7-13620H.
+
+Where it stands (engine 1cdae45's pin):
+
+| run | late | longest | VIF1 worker | GS thread | GPU |
+| --- | --- | --- | --- | --- | --- |
+| race, pack | 2 of 2,600 | 15.2 ms | 70% | 71% | ~55% |
+| crash, pack | 3 of 3,100 | 20.2 ms | 70% | 66% | 54-66% |
+| crash, no pack | 1 of 3,100 | 13.6 ms | 70% | 65% | |
+
+Per picture (crash, pack): VU1 4.4 ms on average, 6.3 at the 95th
+percentile, 7.1-7.4 at the 99th - over the 6.94 ms a picture has at 144. The
+GS thread's work is 4.5 ms (its bookkeeping 2.3), the EE idle 3.5 ms of
+each picture. The pack costs nearly nothing once its files are read (one
+9.7 ms spike of GS bookkeeping in the crash run). **VU1 is the bound.**
+
+The plan, in order:
+
+1. **The profiler's own stalls.** A lane's events were one vector: its growth
+   copied the GS thread's ~100 MB at once - 7-16 ms stalls, the profile's
+   worst "late pictures". Chunked (done first: the crash run's longest
+   interval 20.2 -> 11.1 ms).
+2. **VU1 at 144.** Sample the VIF1 worker in a real-time crash run
+   (`--sample-vif1`, hotspots.py): which programs and blocks, and what of
+   the worker's time is not VU1 (unpacks, XGKICK's hand-over to the GS
+   thread, the 650-770 MB a second copied for the worker).
+3. **The vertical blank timer** takes 16-23% of a core at 144: its wait, a
+   laptop's power and heat shared with the busy threads.
+4. **The texture pack's upload** drains the renderer thread's whole queue
+   and breaks the GS thread's batch (`UploadReplacement`: `Drain` +
+   `Flush`): queued instead, a spike where new textures come into view.
+5. **The GPU** at 54-66%: the modern effects' passes at 144 (lower when
+   the CPU side is done).
+
+Every change: the GPU regressions (race, race_training, car_select, crash),
+then the benchmark pair alternated with the build before.
+
+What was done (engine f57a0c6..aa1257c):
+
+- **The profiler** (f57a0c6): chunked lanes. The crash run's longest
+  interval 20.2 -> 11.1 ms; the 16 ms "GPU and memory in step" was the
+  profile's own vector growth.
+- **The race's start** (3cca51a): the hitch was the GPU, not the pack - with
+  the pack off it was the same (10-12 late). nvidia-smi: through the 60-a-
+  second screens the RTX 4070 Laptop idles at P5 (600-900 MHz, memory 810
+  MHz); at 144 at once it ran 99% busy at 600 MHz and took ~0.5 s to reach
+  P0 (2,460 MHz). Into a rate above 60 the rate now rises over 600 ms
+  (`PS2HOST_HIGH_FPS_RAMP`, real time only): the race's start 10-13 late
+  -> 2-4, those left the 60-a-second intro's own (IOP streaming) and one
+  GPU wait of ~20 ms as the GPU leaves P5 (its memory clock's change).
+- **VIF** (cbd58b8): microcode (MPG; Burnout 3 re-sends its programs every
+  frame, 415,000 a run) compared and copied a run at a time, not a word at
+  a time through Word; masked and added (STMOD 1/2) UNPACKs on the one-loop
+  path. `VifStream::Words` was 13% of the VIF1 worker's busy time; the gain
+  is within the real-time runs' noise (~4%).
+- **VU programs** never recorded: five (0x40, 0x7F8, 0x15C0, 0x15D0, a short
+  0x0) ran in the interpreter in the crash and mods runs (3.4 million pairs
+  a crash run); added to build/vu_programs.txt (game-derived, not in git:
+  re-record with `--vu-record` if build/ is lost).
+- **The texture pack's uploads**: 224 at the race's start, 0.3 ms at most,
+  31 ms in all - not a hitch's cause (on the timeline now:
+  "pack: a replacement uploaded").
+
+Tried and dropped: the vertical blank timer's spin (`PS2HOST_SPIN=0`):
+the presents' jitter 0.055 -> 0.24 ms and the median interval 6.94 ->
+7.00 ms; its "20% of a core" is the CPU accounting's (two runs of one build
+read 23% and 0.3%).
+
+What is left: the crash-breaker's explosion (frame ~20,100) - VU1 8-16 ms
+for a picture's worth (programs 66/88, entry 0x6A0, 22% of VU1 there,
+~1.7 ns a pair; snapshot `--vu-snapshot vu_crash.bin 20060 20000`), and the
+GS thread saturated with it (7-9 ms a picture: OnDraw, Gs::Words). Both need
+structural work: VU1 faster per pair, or the GS thread's parsing and the
+bridge's per-primitive work split.
