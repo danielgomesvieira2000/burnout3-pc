@@ -152,12 +152,13 @@ float F32(u32 address) {
     return f;
 }
 
-/* A view of a split screen (two players): the camera RenderWare has while
-   its effects are written is the one the last view was drawn with, and the
-   graphics manager's block is one for both (its index 0) - so what needs
-   the camera's place (the camera's blur, the sun's direction) is left to the
-   game's own there. */
+/* A view of a split screen (two players): the graphics manager's block is
+   one for both (its index 0), and the camera RenderWare has while a view's
+   effects are written is the one the last view was drawn with. The view's
+   player is told by its rectangle (player 2's below or right of player 1's),
+   its camera by the player's own values (CameraValues). */
 bool Split(const View& v) { return v.h < 400 || v.w < 600; }
+int PlayerOf(const View& v) { return v.x > 0 || v.y > 0 ? 1 : 0; }
 
 View CurrentView() {
     View v;
@@ -260,6 +261,37 @@ Camera ReadCamera(u32 camera) {
     return k;
 }
 
+/* A player's camera from the values the game builds its view from (player
+   1's at 0x00517030, player 2's 0xBB0 on): its orientation a quaternion
+   (+0x20: x, y, z, w; its rotation's columns RenderWare's right, up and at),
+   its place +0x30 - the view's to within a degree and a few centimetres. The
+   window and depth's mapping are the RwCamera's (`k`). */
+Camera CameraValues(const Camera& k, int player) {
+    Camera v = k;
+    const u32 base = 0x00517030u + 0xBB0u * u32(player & 1);
+    const float x = F32(base + 0x20u), y = F32(base + 0x24u), z = F32(base + 0x28u), w = F32(base + 0x2Cu);
+    v.right[0] = 1 - 2 * (y * y + z * z);
+    v.right[1] = 2 * (x * y + z * w);
+    v.right[2] = 2 * (x * z - y * w);
+    v.up[0] = 2 * (x * y - z * w);
+    v.up[1] = 1 - 2 * (x * x + z * z);
+    v.up[2] = 2 * (y * z + x * w);
+    v.at[0] = 2 * (x * z + y * w);
+    v.at[1] = 2 * (y * z - x * w);
+    v.at[2] = 1 - 2 * (x * x + y * y);
+    for (int i = 0; i < 3; ++i) v.pos[i] = F32(base + 0x30u + 4u * i);
+    const float n = x * x + y * y + z * z + w * w;
+    v.valid = k.valid && n > 0.9f && n < 1.1f;
+    return v;
+}
+
+/* The camera a view is drawn with: the RwCamera's view matrix, or in a
+   split screen its player's values. */
+Camera ViewCamera(const View& v) {
+    const Camera k = ReadCamera(CameraOf(0));
+    return Split(v) ? CameraValues(k, PlayerOf(v)) : k;
+}
+
 /* Writes an effect into the game's packets: the room for a GIF tag and 15
    A+D writes taken as the glow takes its own (0x001F3080: the packets'
    cursor at gp-0x5EB0), then the 14 parameters (0x70-0x7D) and the run
@@ -329,7 +361,7 @@ bool CarInView(const Camera& k, int view, float* out) {
    with the road, the walls' feet. */
 void Occlusion(lifted::Context& c) {
     const View v = CurrentView();
-    const Camera k = ReadCamera(CameraOf(v.index));
+    const Camera k = ViewCamera(v);
     if (!k.valid || !v.zbuf) return;
     float p[22] = {};
     DepthParams(k, p);
@@ -338,7 +370,7 @@ void Occlusion(lifted::Context& c) {
     p[6] = 180.0f;          // gone by this distance
     // SHADOWS MODERN: the sun's shadows through the depth buffer - a sun
     // high in the sky (the world's y up), its direction into the view's.
-    if (Graphics("shadows") == "modern" && !Split(v)) {
+    if (Graphics("shadows") == "modern") {
         float sun[3] = {0.35f, 0.85f, -0.40f};
         const float length = std::sqrt(sun[0] * sun[0] + sun[1] * sun[1] + sun[2] * sun[2]);
         for (float& x : sun) x /= length;
@@ -351,7 +383,7 @@ void Occlusion(lifted::Context& c) {
     // The player's car (p12-15: its centre, view space, and size): no sun's
     // shadow of its own on it, and less occlusion - its paint keeps its
     // gloss; what it casts on the road stays.
-    if (CarInView(k, int(v.index & 1), &p[12])) p[15] = 2.6f;
+    if (CarInView(k, PlayerOf(v), &p[12])) p[15] = 2.6f;
     EmitEffect(c, EffectId::kOcclusion, v, p, 22);
 }
 
@@ -366,10 +398,10 @@ Motion g_motion[2];
 
 void CameraBlur(lifted::Context& c, float boost) {
     const View v = CurrentView();
-    const int view = int(v.index & 1);
+    const int view = PlayerOf(v);
     if (g_blurred[view] == g_pictures[view]) return;    // (the other blur sent it)
     g_blurred[view] = g_pictures[view];
-    const Camera k = ReadCamera(CameraOf(u32(view)));
+    const Camera k = ViewCamera(v);
     Motion& m = g_motion[view];
     const u64 blank = ps2host::FrameNumber();
     const bool have_last = m.last.valid && m.picture + 1 == g_pictures[view] && blank > m.blank && blank - m.blank < 8;
@@ -476,8 +508,7 @@ void Grade(lifted::Context& c) {
 void BloomRender(lifted::Context& c) {
     const std::string strength = Graphics("bloom");
     // (the glow's switch: OFF draws none, and no grade of the glow's)
-    // (not in a split view: the game's blur there reads the glow's buffers)
-    if (strength == "modern" && generated::ReadU8(kBloomOn) && !Split(CurrentView())) {
+    if (strength == "modern" && generated::ReadU8(kBloomOn)) {
         ModernBloom(c);
         return;
     }
@@ -519,7 +550,7 @@ void RadialBlur(lifted::Context& c) {
     if (blur == "off") return;
     // MODERN in the race (the frontend's radial blurs have no 3D view of
     // their own: the game's, there).
-    if (blur == "modern" && CurrentView().zbuf && !Split(CurrentView()) && generated::ReadU8(kBlurOn)) {
+    if (blur == "modern" && CurrentView().zbuf && generated::ReadU8(kBlurOn)) {
         CameraBlur(c, F32(u32(c.r[4]) + 0x1Cu));
         return;
     }
@@ -529,7 +560,7 @@ void RadialBlur(lifted::Context& c) {
 /* 0x00426C10: the camera's directional blur (the race's, instead of the
    radial one when the camera asks): MODERN's blur in its place. */
 void DirectionalBlur(lifted::Context& c) {
-    if (Graphics("blur") == "modern" && CurrentView().zbuf && !Split(CurrentView())) {
+    if (Graphics("blur") == "modern" && CurrentView().zbuf) {
         CameraBlur(c, 0.0f);
         return;
     }
@@ -540,7 +571,7 @@ void DirectionalBlur(lifted::Context& c) {
 bool g_split = false;            // the views drawn last split (Split)
 
 void Fog(lifted::Context& c) {
-    ++g_pictures[CurrentView().index & 1];
+    ++g_pictures[PlayerOf(CurrentView())];
     g_split = Split(CurrentView());
     if (Graphics("ao") == "on" || Graphics("shadows") == "modern") Occlusion(c);
     F_002419C0(c);
