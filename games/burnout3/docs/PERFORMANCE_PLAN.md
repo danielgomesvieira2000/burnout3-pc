@@ -634,3 +634,10 @@ for a picture's worth (programs 66/88, entry 0x6A0, 22% of VU1 there,
 GS thread saturated with it (7-9 ms a picture: OnDraw, Gs::Words). Both need
 structural work: VU1 faster per pair, or the GS thread's parsing and the
 bridge's per-primitive work split.
+
+The day's end, the crash run back to back (the build before the PGO refresh
+and the VU programs, then the final one): late 8 and 11, VU1 4.80 and 4.65
+ms a picture, the GS thread 5.02 and 4.70 - within the runs' noise. Both
+were slower than the same code at the day's start (VU1 4.4 ms, 1-3 late):
+the laptop after three hours of runs back to back. Compare builds only side
+by side.
