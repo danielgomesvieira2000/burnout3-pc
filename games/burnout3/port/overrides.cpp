@@ -173,7 +173,7 @@ struct RwaRecord {
     bool answer;
     u32 words[6];
 };
-std::array<RwaRecord, 256> g_rwa_records{};
+std::array<RwaRecord, 1024> g_rwa_records{};
 size_t g_rwa_next = 0;
 std::map<u32, u64> g_rwa_answer_types;      // answers by type (+0x10), all of them
 
@@ -206,8 +206,10 @@ void RwaAnswer(lifted::Context& c) {
     const u32 packet = u32(c.r[4]);
     u32 words[6];
     for (int k = 0; k < 6; ++k) words[k] = u32(generated::ReadU32(packet + 0x10u + 4u * u32(k)));
-    // (a kind past its thousandth only counted: the mixer's status comes thousands a second)
-    if (++g_rwa_answer_types[words[0]] < 1000) Record(true, words);
+    // Every one (the same again is counted, not kept: Record) - a stream's
+    // asking for data (0x47) among them.
+    ++g_rwa_answer_types[words[0]];
+    Record(true, words);
     const u32 gp = u32(c.r[28]);
     const s32 written = s32(generated::ReadS32(gp - 0x5A30u)), read = s32(generated::ReadS32(gp - 0x5A34u));
     if (written - read >= 24) {
@@ -247,22 +249,31 @@ void MusicStart(lifted::Context& c) {
     // race's - its world (0x0019A950, phase 4) waits for the game's sound
     // manager (0x00289EE0, 0x01E77540, state 24), which waits for this
     // (seen 2026-10-22: the infinite loading screen again, from here).
-    static u64 waiting_since[2] = {};
+    // Any other caller too (the screen after a race, a car unlocked, waited
+    // so as well), while the stream is stuck stopping (state 4).
+    static std::map<u32, u64> waiting_since;
     const u32 from = u32(c.r[31]);
-    const int load = from == 0x001316D0u ? 0 : from == 0x00289FE4u ? 1 : -1;
+    const u32 music = u32(c.r[4]);
     F_003FB0F0(c);
-    if (load < 0) return;
     if (u32(c.r[2]) != 0) {
-        waiting_since[load] = 0;
+        waiting_since.erase(from);
+        return;
+    }
+    const u32 handle = u32(generated::ReadU32(music + 0xC0u));
+    const u32 stream = handle ? u32(generated::ReadU32(handle + 0x1CCu)) : 0;
+    const bool stuck = stream && generated::ReadU32(stream + 0x24Cu) == 4;
+    if (from != 0x001316D0u && from != 0x00289FE4u && !stuck) {
+        waiting_since.erase(from);
         return;
     }
     const u64 now = ps2host::ClockNs();
-    if (!waiting_since[load]) waiting_since[load] = now;
-    if (now - waiting_since[load] < 3'000'000'000ull) return;
-    waiting_since[load] = 0;
+    u64& since = waiting_since[from];
+    if (!since) since = now;
+    if (now - since < 3'000'000'000ull) return;
+    since = 0;
     c.r[2] = 1;
-    std::fprintf(stderr, "[music] the EA Trax stream did not start in 3 s (%s): the load goes on without it.\n",
-                 load ? "a race's sound" : "the frontend's load");
+    std::fprintf(stderr, "[music] the EA Trax stream did not start in 3 s (waited from 0x%08X): the game goes on "
+                 "without it.\n", from);
     SayAudio();
     // The first time: the threads and both memories as it gives up
     // (music_ee.bin, music_iop.bin beside the log) - what the stream waits on.
@@ -296,6 +307,7 @@ void SayAudio() {
     }
     for (const auto& [type, count] : g_rwa_answer_types)
         std::fprintf(stderr, "  answers of type %08X: %llu\n", type, static_cast<unsigned long long>(count));
+    std::fprintf(stderr, "%s", ps2host::iop::SoundIrqTrace().c_str());
 }
 
 template <void (*Wait)(lifted::Context&)>
@@ -328,6 +340,17 @@ void StuckLoad(u32 load, u32 caller) {
     SayAudio();
     SaveMemories("stuck_ee.bin", "stuck_iop.bin");
     std::fflush(stderr);
+}
+
+/* F12 (a capture): also the threads, RenderWare Audio's last words, the
+   SPU2's interrupts (report.txt) and both memories (ee.bin, iop.bin) in its
+   folder - any hang looked into from the moment the player saw it. */
+void CaptureHang(const std::string& dir) {
+    std::fprintf(stderr, "[capture] the threads, the sound and both memories too\n%s%s",
+                 ps2host::ThreadReport().c_str(), ps2host::iop::Report().c_str());
+    SayAudio();
+    std::fflush(stderr);
+    SaveMemories((dir + "/ee.bin").c_str(), (dir + "/iop.bin").c_str());
 }
 
 template <void (*Load)(lifted::Context&), u32 kAddress>
@@ -1365,6 +1388,7 @@ void RegisterGameOverrides() {
     // VU does (regress.py --vu-fast), for ~15% less of VIF1's worker - the
     // busiest thread on a slow machine.
     ps2host::SetVuFastDefault(true);
+    ps2host::SetCaptureHook(CaptureHang);
     // Frame pacing off (no PC SETTINGS row): the least delay; frame_pacing=on
     // in the settings file still turns it on.
     ps2host::SetFramePacingDefault(false);
