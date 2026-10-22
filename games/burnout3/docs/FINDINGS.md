@@ -2412,10 +2412,22 @@ white from 0.5 up.
 - Per picture on the UHD at 2x: AO with sun shadows 0.8 ms, the blur 0.8,
   the glow with the grade 0.5.
 
-**A press to the screen.** In the race a press reaches the game's tick in
-the blank after it is filled (look back, L1 at 18200: the camera turned in
-blank 18200). The game draws before it updates, as on the console, so the
-turn is in the next picture.
+**The particles and the cinematic cameras.**
+
+- The race's particles (the atlas in upload slots 0x3B20/0x35E0, ALPHA
+  0x44, Z tested and written) are drawn after every effect of their view,
+  just before the HUD. A depth saved by an effect pass is ready for them,
+  and they are not in it.
+- The takedown camera has a view window of 0.58. Crash mode's aftermath
+  camera (which the player steers) has 0.65. The chase camera's is 1.0 and
+  wider.
+
+**A press to the screen.** A frame of the race runs the pads (0x001D3A60),
+the world's tick (0x0019A550), the draw (the race object's 0x00134A20), then
+the camera (0x00227360, three times). A press therefore moves the car in the
+very next picture. The camera, built after the draw, follows one picture
+later: look back (L1 at 18200) turned the camera values in blank 18200 and
+showed in the picture after. That is the game's own order.
 
 ## Open questions
 

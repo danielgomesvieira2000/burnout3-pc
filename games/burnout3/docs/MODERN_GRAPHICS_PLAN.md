@@ -7,7 +7,7 @@ is a race that looks like a later Xbox 360 game. This plan builds on
 GRAPHICS_PLAN.md (the game's render order, its switches and the effect
 parameters measured there), which it does not repeat.
 
-## Status (2026-10-22, 01:30)
+## Status (2026-10-22, 04:00)
 
 Done, and MODERN by default (`graphics=original` restores the game's look;
 the recorded runs pin it, all as recorded):
@@ -20,6 +20,9 @@ the recorded runs pin it, all as recorded):
 | Glow | BLOOM MODERN | 6-level soft-knee chain at the internal resolution |
 | Grade | LIGHTING MODERN | Shoulder, contrast 1.04, saturation 1.08, vignette, warmth |
 | Reflections | REFLECTIONS MODERN | The envmap at the internal resolution (a scale rule); the paint's reflection scaled by a Fresnel term from its sphere-map radius |
+| Soft particles | SMOKE AND FIRE MODERN | The scene's depth saved by an effect pass; the particle atlases (upload slots 0x3B20/0x35E0) fade near it |
+| Depth of field | CINEMATIC CAMERAS MODERN | Takedown cameras only (view window under 0.62), focused on the middle of the view |
+| Texture filtering | TEXTURES (ORIGINAL by default) | The level from the screen, trilinear, anisotropic |
 
 **Measured.** At 3x on the RTX 4070 Laptop the race holds 60 pictures a
 second with the GPU 37-38% busy, the same as ORIGINAL. The effects cost
@@ -45,7 +48,8 @@ player's own camera values (a quaternion and a place). Every effect runs
 there, except the envmap's scale rule: a split screen's own buffers share its
 pages.
 
-**Not done.** Particles: the fire and sparks are a CLUT'd 4-bit atlas
+**Particles.** Soft particles are done (see the table). Not done: the fire
+and sparks are a CLUT'd 4-bit atlas
 (TBP 0x3B20/0x35E0); a replacement needs its layout. A generated glow
 sprite for the 32x32 gradient was tried and dropped, because that gradient
 is also the cars' glints, which washed out. Also not done: soft particles,
