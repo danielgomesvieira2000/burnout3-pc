@@ -528,3 +528,27 @@ splitscreen goes two (FINDINGS "Splitscreen's 30 pictures a second"); now two
 ticks follow a picture of two blanks: the Intel UHD's splitscreen 45 pictures
 and 58 ticks a second (it was 45 and 45: 75% speed). Benchmarks of a game
 running below 60 should read the VIF1 transfers, not the dropped pictures.
+
+## High frame rates and the EE's waits (2026-10-22, night)
+
+Measured at 144 pictures a second, 3x, RTX 4070 Laptop, the race in **true
+real time**. A `--real-time-from` run is no guide here: its loop budget stays
+finite, so the real-time idle path (`LoopHead`'s `realtime_idle`) never runs,
+and its profile shows idle loops spinning.
+
+- **RenderWare's packet wait spun.** The loop at 0x001F24E0 calls a function
+  each turn (0x00228040, which keeps the largest room seen). The loop is an
+  idle loop, but it is put to sleep only at the timer's next millisecond
+  look. At 144 its turns took about a third of the EE's time (812 million
+  calls to 0x00228040 in a run): the dispatcher 15%, the call stack's push
+  6%, the loop 8% and its function 5% of all samples. Now that function
+  sleeps first while the loop still waits (`ps2host::WaitForGuestEvent`).
+  The EE was idle 26% of the time and is now idle 55-63%; the wait went from
+  ~34% of the samples to ~2%; 144 holds, with nothing late.
+- **Dispatch.** The call is counted only in a scripted run (the count's
+  increment missed the cache each call), and the watch list is a flag.
+- **The high-frame-rate take-down.** Its 2 MB transform scan tests each
+  candidate in place, and reads the regions whole only every 4th step (in
+  between, only the ~850 known transforms): 0.30 ms a step before.
+- **The modern effects at 144** (MODERN_GRAPHICS_PLAN.md): the GPU is 60-65%
+  busy, against 49-53% for ORIGINAL. Both hold 144.
