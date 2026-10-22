@@ -169,7 +169,7 @@ void PacketWaitTurn(lifted::Context& c) {
 /* The last of RenderWare Audio's commands to the IOP and its answers, for
    the log when the music's start is given up (MusicStart): what led there. */
 struct RwaRecord {
-    u64 frame;
+    u64 frame, last = 0, repeats = 0;   // the same again since, to `last` (a poll a frame kept the ring full)
     bool answer;
     u32 words[6];
 };
@@ -178,8 +178,18 @@ size_t g_rwa_next = 0;
 std::map<u32, u64> g_rwa_answer_types;      // answers by type (+0x10), all of them
 
 void Record(bool answer, const u32 (&words)[6]) {
+    if (g_rwa_next) {
+        RwaRecord& last = g_rwa_records[(g_rwa_next - 1) % g_rwa_records.size()];
+        if (last.answer == answer && std::memcmp(last.words, words, sizeof words) == 0) {
+            ++last.repeats;
+            last.last = ps2host::FrameNumber();
+            return;
+        }
+    }
     RwaRecord& r = g_rwa_records[g_rwa_next++ % g_rwa_records.size()];
     r.frame = ps2host::FrameNumber();
+    r.last = 0;
+    r.repeats = 0;
     r.answer = answer;
     std::memcpy(r.words, words, sizeof words);
 }
@@ -219,19 +229,26 @@ void SayAudio();
    loading screen with it. Given up after 3 s: the load goes on, without the
    music for now, and what RenderWare Audio said last goes to the log. */
 void MusicStart(lifted::Context& c) {
-    static u64 waiting_since = 0;
-    const bool from_load = u32(c.r[31]) == 0x001316D0u;
+    // The loads that wait for it: the frontend's (0x00131480, phase 10) and a
+    // race's - its world (0x0019A950, phase 4) waits for the game's sound
+    // manager (0x00289EE0, 0x01E77540, state 24), which waits for this
+    // (seen 2026-10-22: the infinite loading screen again, from here).
+    static u64 waiting_since[2] = {};
+    const u32 from = u32(c.r[31]);
+    const int load = from == 0x001316D0u ? 0 : from == 0x00289FE4u ? 1 : -1;
     F_003FB0F0(c);
-    if (!from_load || u32(c.r[2]) != 0) {
-        if (from_load) waiting_since = 0;
+    if (load < 0) return;
+    if (u32(c.r[2]) != 0) {
+        waiting_since[load] = 0;
         return;
     }
     const u64 now = ps2host::ClockNs();
-    if (!waiting_since) waiting_since = now;
-    if (now - waiting_since < 3'000'000'000ull) return;
-    waiting_since = 0;
+    if (!waiting_since[load]) waiting_since[load] = now;
+    if (now - waiting_since[load] < 3'000'000'000ull) return;
+    waiting_since[load] = 0;
     c.r[2] = 1;
-    std::fprintf(stderr, "[music] the EA Trax stream did not start in 3 s: the load goes on without it.\n");
+    std::fprintf(stderr, "[music] the EA Trax stream did not start in 3 s (%s): the load goes on without it.\n",
+                 load ? "a race's sound" : "the frontend's load");
     SayAudio();
 }
 
@@ -247,8 +264,12 @@ void SayAudio() {
     for (size_t k = 0; k < g_rwa_records.size(); ++k) {
         const RwaRecord& r = g_rwa_records[(g_rwa_next + k) % g_rwa_records.size()];
         if (!r.frame) continue;
-        std::fprintf(stderr, "  %8llu %c %08X %08X %08X %08X %08X %08X\n", static_cast<unsigned long long>(r.frame),
+        std::fprintf(stderr, "  %8llu %c %08X %08X %08X %08X %08X %08X", static_cast<unsigned long long>(r.frame),
                      r.answer ? '<' : '>', r.words[0], r.words[1], r.words[2], r.words[3], r.words[4], r.words[5]);
+        if (r.repeats)
+            std::fprintf(stderr, "  (and %llu times more, to frame %llu)", static_cast<unsigned long long>(r.repeats),
+                         static_cast<unsigned long long>(r.last));
+        std::fprintf(stderr, "\n");
     }
     for (const auto& [type, count] : g_rwa_answer_types)
         std::fprintf(stderr, "  answers of type %08X: %llu\n", type, static_cast<unsigned long long>(count));
