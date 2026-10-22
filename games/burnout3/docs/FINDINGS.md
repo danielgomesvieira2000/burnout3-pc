@@ -2329,6 +2329,94 @@ its strip buffer (FBP 0xD2, FBW 2: 128 wide, rows to 480), ten a frame.
   it kept four images over that memory and brought them up to date through
   it about 110 times a frame.
 
+## Modern graphics: the PC's effects in the game's frame
+
+These effects were added on 2026-10-21/22 (docs/MODERN_GRAPHICS_PLAN.md):
+AO, sun shadows, a camera's motion blur, a glow, a grade, lacquered
+reflections, and modern texture filtering. All are PC SETTINGS, MODERN by
+default; `graphics=original` gives the game's own picture. What they rest
+on:
+
+**Where they run.** Each effect is written into the game's own GS packets
+at the point of the frame it belongs to, as A+D writes to GS registers no
+GS has: 0x70-0x7D are its parameters, and 0x7E runs it (graphics.cpp
+`EmitEffect`). Room for the writes is taken the way the glow takes its own:
+0x001F3080(0x80000000, n), the cursor at gp-0x5EB0, as 0x00264920 writes a
+GIF tag and its A+D. The console and PCSX2 ignore the writes; the engine
+runs a compute pass on the target and its depth buffer there (GsEffect).
+
+**The view.**
+
+- The graphics manager's per-view block is 0x00665EC0 + index * 0x1C0, with
+  the index at 0x00667050:
+  - FRAME +0x630, ZBUF +0x640;
+  - the view's rectangle as floats: width +0x688, height +0x68C, x +0x690,
+    y +0x694.
+- In splitscreen one block serves both views (index 0), rewritten for each.
+  A view's player is told by its rectangle.
+- The race draws into FBP 0x46 (640 wide) with its Z at 0xD2 (Z24).
+
+**The depth.**
+
+- The race's RwCamera has view window 1.0 x 0.75, near 0.3 and far 10,000.
+  Its zScale is 5.03e6 and its zShift 1175, so Z = zScale / w + zShift
+  (2^24 at the near plane). The units are metres: 69 m/s is 154 mph.
+- The camera's place comes from its view matrix (+0x20, rows of a 3x3,
+  translation at +0x50): screen right and down scaled, and "at". Its frame's
+  matrix holds the last view placed.
+- In splitscreen the one RwCamera holds the last view drawn while every
+  view's effects are written. Each player's camera values are read instead:
+  0x00517030, player 2's 0xBB0 on. A quaternion at +0x20 (x, y, z, w) gives
+  right, up and at as its rotation's columns, within a degree of the view;
+  the place is at +0x30.
+
+**The picture's white.** The 3D is drawn at half intensity. The frame's copy
+to the displayed buffer (CT16S) doubles it, so the target's 0.5 is white.
+The glow and the grade work in that scale. A debug view of a buffer shows
+white from 0.5 up.
+
+**The cars.**
+
+- Player 1's car is at 0x0064E710; player 2's is 0x27D0 on. That is about
+  6 m ahead of the chase camera.
+- The paint's reflection is a context-2 pass over the body: TEX0 TBP 0x2D60,
+  the 256x256 sphere map warped each frame from three 128x128 faces (FBP
+  0x18B/0x193/0x19B, their Z at 0x16B-0x17B). It is blended as
+  Cd + (Cs - Cd) * Ad, by the paint's own alpha.
+  - The blender has always had Ad over 255, half the GS's share.
+  - Scaling that share needs the target in the shader, with a copy of it for
+    each of the pass's thousands of triangles: the race fell to 25 pictures
+    a second at 3x. So the Fresnel term scales the reflection's colour, from
+    the texel's radius in the sphere map (N.V = sqrt(1 - r^2)).
+- At the internal resolution, the envmap's pages (FBP 0x16B-0x1A7) are shared
+  in splitscreen by buffers its blurs read at the PS2's size. The scale rule
+  is one player's only.
+
+**Textures.**
+
+- The 32x32 radial gradient "7db0034de6a1de70-00001540" is the cars' glints
+  as well as lights. A finer, hotter replacement washed the car's back out.
+- The fire and sparks are a CLUT'd 4-bit atlas (TBP 0x3B20/0x35E0, alpha
+  blended).
+- Most of the world's textures are mipmapped (TEX1 MXL 5, MMIN 4: the
+  nearest level, by the GS's depth and K about -5). The game's level choice
+  is sharp already; MODERN filtering, with derivatives, trilinear and up to
+  eight taps, mainly calms the bands.
+
+**Cost.**
+
+- RTX 4070 Laptop at 3x: the race holds 60 with the GPU 37-38% busy, as
+  ORIGINAL.
+- Intel UHD at 2x: ORIGINAL 59%; the light defaults (AO, sun shadows and
+  camera blur off on an integrated GPU) 64%; everything 76-79%. All held 60.
+- Per picture on the UHD at 2x: AO with sun shadows 0.8 ms, the blur 0.8,
+  the glow with the grade 0.5.
+
+**A press to the screen.** In the race a press reaches the game's tick in
+the blank after it is filled (look back, L1 at 18200: the camera turned in
+blank 18200). The game draws before it updates, as on the console, so the
+turn is in the next picture.
+
 ## Open questions
 
 * Which compiler and flags produced this binary? Unresolved, and it blocks all
