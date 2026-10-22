@@ -49,6 +49,7 @@ void F_001313C0(lifted::Context& c);
 void F_0019A950(lifted::Context& c);
 // RenderWare's wait for its packet buffers to flip (see AddIdleLoop below).
 void F_001F2408(lifted::Context& c);
+void F_00228040(lifted::Context& c);
 void F_001322B0(lifted::Context& c);
 // The frontend: its string lookup, the main menu's input, a message box.
 void F_00271A00(lifted::Context& c);
@@ -144,6 +145,17 @@ void SkipMovie(lifted::Context& c) {
 
 /* A function that may wait in an idle loop: in real time the wait sleeps
    (ps2host::InterruptWait). */
+/* 0x00228040(waiting, room): the function RenderWare's packet wait (the
+   loop at 0x001F24E0) calls each turn - it keeps the largest room seen
+   (0x006662E0). Each turn still waiting sleeps until an event first
+   (ps2host::WaitForGuestEvent): at 144 pictures a second the loop's turns,
+   each a call through the dispatcher, were a third of the EE's time, its
+   idle wait only taking over at the next millisecond's look. */
+void PacketWaitTurn(lifted::Context& c) {
+    if (u32(c.r[4]) != 0) ps2host::WaitForGuestEvent();
+    F_00228040(c);
+}
+
 template <void (*Wait)(lifted::Context&)>
 void WaitsForInterrupt(lifted::Context& c) {
     ps2host::InterruptWait waiting;
@@ -1226,6 +1238,7 @@ void RegisterGameOverrides() {
     // menus, a core spun while it waited for its next picture's blank.
     ps2host::AddIdleLoop(0x001F24E0u);
     ps2host::Override(0x001F2408u, WaitsForInterrupt<F_001F2408>, "RenderWare's packet wait: asleep in real time");
+    ps2host::Override(0x00228040u, PacketWaitTurn, "the packet wait's turn: asleep until an event in real time");
     ps2host::Override(0x001156C0u, KernelStore, "kernel-mode store");
     ps2host::Override(0x0010D3E8u, TtyWrite, "TTY write (printf)");
     ps2host::Override(0x001313C0u, SkipMovie, "a movie screen's update: Start skips the movie");
