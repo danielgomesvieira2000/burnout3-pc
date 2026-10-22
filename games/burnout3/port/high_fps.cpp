@@ -44,6 +44,7 @@ ps2host::HighFpsGame Burnout() {
     game.transforms = {{0x00500000u, 0x00700000u}, {0x01ED0000u, 0x01EE0000u}};
     game.cameras = {{0x00517030u, 16, 12, 8}, {0x00517030u + 0xBB0u, 16, 12, 8}};
     game.cut = 50.0f;
+    game.subjects = {0x0064E710u, 0x0064E710u + 0x27D0u};     // the players' cars (the trace's)
     return game;
 }
 

@@ -50,6 +50,7 @@ void F_0019A950(lifted::Context& c);
 // RenderWare's wait for its packet buffers to flip (see AddIdleLoop below).
 void F_001F2408(lifted::Context& c);
 void F_00228040(lifted::Context& c);
+void F_002AF340(lifted::Context& c);
 void F_001322B0(lifted::Context& c);
 // The frontend: its string lookup, the main menu's input, a message box.
 void F_00271A00(lifted::Context& c);
@@ -154,6 +155,22 @@ void SkipMovie(lifted::Context& c) {
 void PacketWaitTurn(lifted::Context& c) {
     if (u32(c.r[4]) != 0) ps2host::WaitForGuestEvent();
     F_00228040(c);
+}
+
+/* 0x002AF340: RenderWare Audio's answers from the IOP (SIF user command
+   1), in the SIF0 interrupt: each into a ring of 24 (0x01E81C40, 0x30
+   bytes each; written gp-0x5A30, read gp-0x5A34) for its receiver thread
+   (0x002AF2A0) - one that comes while the ring is full is dropped. */
+void RwaAnswer(lifted::Context& c) {
+    const u32 gp = u32(c.r[28]);
+    const s32 written = s32(generated::ReadS32(gp - 0x5A30u)), read = s32(generated::ReadS32(gp - 0x5A34u));
+    if (written - read >= 24) {
+        static unsigned dropped = 0;
+        ++dropped;
+        std::fprintf(stderr, "[rwa] an answer from the IOP dropped (the ring of 24 full): %u so far, frame %llu\n",
+                     dropped, static_cast<unsigned long long>(ps2host::FrameNumber()));
+    }
+    F_002AF340(c);
 }
 
 template <void (*Wait)(lifted::Context&)>
@@ -1238,6 +1255,7 @@ void RegisterGameOverrides() {
     // menus, a core spun while it waited for its next picture's blank.
     ps2host::AddIdleLoop(0x001F24E0u);
     ps2host::Override(0x001F2408u, WaitsForInterrupt<F_001F2408>, "RenderWare's packet wait: asleep in real time");
+    ps2host::Override(0x002AF340u, RwaAnswer, "RenderWare Audio's answers: a dropped one said");
     ps2host::Override(0x00228040u, PacketWaitTurn, "the packet wait's turn: asleep until an event in real time");
     ps2host::Override(0x001156C0u, KernelStore, "kernel-mode store");
     ps2host::Override(0x0010D3E8u, TtyWrite, "TTY write (printf)");
