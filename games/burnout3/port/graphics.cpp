@@ -24,6 +24,8 @@
  *                   here (see SoftBlob), MODERN it and the sun's
  *   REFLECTIONS     MODERN / ORIGINAL - the paint's environment map sharp
  *                   and by a Fresnel term
+ *   CINEMATIC CAMERAS  MODERN / ORIGINAL - depth of field in the takedown
+ *                   and crash cameras (CinematicFocus)
  *   SMOKE AND FIRE  MODERN / ORIGINAL - soft particles, faded where they
  *                   meet the road and the cars
  *   TEXTURES        ORIGINAL / MODERN - trilinear, anisotropic, the level
@@ -115,7 +117,8 @@ const char* GraphicsDefault(const char* key) {
     if (light && k == "blur") return "original";
     // (TEXTURES: ORIGINAL - the game's own level choice is already sharp;
     // MODERN smooths its bands in motion, at a cost)
-    if (k == "bloom" || k == "blur" || k == "shadows" || k == "lighting" || k == "reflections" || k == "smoke")
+    if (k == "bloom" || k == "blur" || k == "shadows" || k == "lighting" || k == "reflections" || k == "smoke" ||
+        k == "dof")
         return original ? "original" : "modern";
     return "original";
 }
@@ -134,7 +137,8 @@ std::string Graphics(const char* key) { return ps2host::Setting(key, GraphicsDef
 // the HUD drawn after.
 
 /* gs_renderer.h's GsEffectId. */
-enum class EffectId : u32 { kTint = 0xF0, kOcclusion = 1, kMotionBlur = 2, kBloom = 3, kGrade = 4, kSceneDepth = 5 };
+enum class EffectId : u32 { kTint = 0xF0, kOcclusion = 1, kMotionBlur = 2, kBloom = 3, kGrade = 4, kSceneDepth = 5,
+                            kDepthOfField = 6 };
 
 /* The view being drawn: the graphics manager's per-view block (0x1C0 each,
    the view's index at 0x00667050), as the fog reads it - FRAME +0x630,
@@ -457,6 +461,30 @@ void CameraBlur(lifted::Context& c, float boost) {
     EmitEffect(c, EffectId::kMotionBlur, v, p, 22);
 }
 
+/* CINEMATIC CAMERAS MODERN: depth of field in the game's own cinematic
+   cameras - a takedown's (a view window of 0.58: 60 degrees), a crash's
+   (0.65) - told from the race's chase camera (1.0 and wider, its field of
+   view following the speed) by their narrower window; focused on what the
+   middle of the view shows (the crashing car). Once a view a picture, after
+   the blur. */
+u32 g_dofed[2] = {~0u, ~0u};
+
+void CinematicFocus(lifted::Context& c) {
+    const View v = CurrentView();
+    if (!v.zbuf || Split(v) || Graphics("dof") != "modern") return;
+    const int view = PlayerOf(v);
+    if (g_dofed[view] == g_pictures[view]) return;
+    g_dofed[view] = g_pictures[view];
+    const Camera k = ViewCamera(v);
+    if (!k.valid || k.window_x > 0.72f) return;
+    float p[22] = {};
+    DepthParams(k, p);
+    p[4] = 0.9f;            // aperture
+    p[5] = 0.012f;          // the largest circle, a share of the height
+    p[6] = 0.0f;            // focus: the view's middle
+    EmitEffect(c, EffectId::kDepthOfField, v, p, 22);
+}
+
 /* LIGHTING MODERN's grade, the parameters 12-16 of the glow and the grade. */
 void GradeParams(float* p) {
     p[9] = 0.5f;            // the picture's white: its colours are halved (the frame's copy doubles them)
@@ -554,9 +582,11 @@ void RadialBlur(lifted::Context& c) {
     // their own: the game's, there).
     if (blur == "modern" && CurrentView().zbuf && generated::ReadU8(kBlurOn)) {
         CameraBlur(c, F32(u32(c.r[4]) + 0x1Cu));
+        CinematicFocus(c);
         return;
     }
     F_002FA9A0(c);
+    CinematicFocus(c);
 }
 
 /* 0x00426C10: the camera's directional blur (the race's, instead of the
@@ -564,9 +594,11 @@ void RadialBlur(lifted::Context& c) {
 void DirectionalBlur(lifted::Context& c) {
     if (Graphics("blur") == "modern" && CurrentView().zbuf) {
         CameraBlur(c, 0.0f);
+        CinematicFocus(c);
         return;
     }
     F_00426C10(c);
+    CinematicFocus(c);
 }
 
 /* 0x002419C0: the fog, AO before it. */
