@@ -703,3 +703,31 @@ the host's across a block and its timing worked out ahead (a real
 recompiler, a project of its own), or the GS thread's parsing split from the
 bridge's bookkeeping onto two threads (the parse is ~23% of the thread,
 OnDraw ~30%).
+
+### The VU1 clamps and the GS thread split (2026-10-23)
+
+**VU1's clamps** (engine a58fe2a): blocks start knowing which fields are
+clean from every known way into them (engine/docs/VU_RECOMPILER.md, step
+8). The explosion's VU bench 43.5 -> 42.4 ms, the same hashes. The clamps
+left are mostly of registers a run starts with, left by the runs before.
+
+**VU1's flags**, weighed and not done: of 339 million pairs the bench runs,
+7.1% still work out MAC (each one read later, so needed), 2.5% read it. The
+hand-over between blocks (the queue) is all that could go: 2-3% at best,
+for the most delicate timing of all. A run without flags was no measure -
+the loops branch on MAC.
+
+**The GS thread split** (PS2HOST_GS_SPLIT=1, off by default): the GIF's
+decoding (tags, PACKED, the vertices; engine host/src/gs_decode.h) on a
+thread of its own in front of the GS thread, a second ring between them.
+Exact: the explosion's replay gives the same local memory, trace and GPU
+pictures, and the GPU runs draw as recorded with it. The replay (1x, 200
+passes, a sync each pass) 7.04 -> 6.16 ms a pass (-12%).
+
+In true real time (the crash run, 144, 3x, the pack, two runs each, alter-
+nated): the GS thread 74.5-74.8% -> 69.9-70.4% busy; late pictures 4, 4 ->
+3, 5; dropped 5, 2 -> 10, 7. In the explosion's late pictures the decoding
+waits on the GS thread 15-19 ms: the GS thread is still full there - with
+the bridge's work per primitive (OnDraw 23% of it, Drew, the texture
+cache), not the decoding. So it stays off; the bridge's per-primitive path
+is the GS thread's next lever (~98,000 primitives a picture there).
