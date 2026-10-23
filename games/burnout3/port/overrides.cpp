@@ -470,7 +470,7 @@ constexpr u32 kMultiplayerEntry = 2, kPcSettingsEntry = 3, kQuitEntry = 5;
    set up with them; a seventh shifts the main menu up): a page with more
    scrolls, Up past the top row or Down past the bottom one bringing the
    next into view. */
-enum class Page { kMainMenu, kPcSettings, kVideo, kGraphics, kControls, kMods, kBindings, kMultiplayer, kPlayers };
+enum class Page { kMainMenu, kPcSettings, kVideo, kGraphics, kControls, kMods, kOnline, kBindings, kMultiplayer, kPlayers };
 struct PageInfo {
     Page page;
     const char* name;
@@ -481,6 +481,7 @@ const PageInfo kPages[] = {
     {Page::kGraphics, "GRAPHICS", "THE GAME'S OWN EFFECTS"},
     {Page::kControls, "CONTROLS", "YOUR KEYS AND BUTTONS, AND THE BUTTONS SHOWN"},
     {Page::kMods, "MODS", "NEHALEM'S MODS: KM/H, THE HORN, MIRROR MODE AND MORE"},
+    {Page::kOnline, "ONLINE", "WHAT YOUR DISCORD PROFILE SHOWS OF THE GAME"},
 };
 constexpr u32 kPageCount = sizeof kPages / sizeof kPages[0];
 
@@ -578,6 +579,9 @@ void SetButtonPrompts(int which) { ps2host::SetSetting("button_prompts", kPrompt
 const char* const kTriggerEffects[] = {"off", "light", "on"};
 int TriggerEffects() { return Among("trigger_effects", kTriggerEffects, 2); }
 void SetTriggerEffects(int which) { ps2host::SetSetting("trigger_effects", kTriggerEffects[which]); }
+// DISCORD STATUS (presence.cpp): on unless the player turns it off.
+int Discord() { return ps2host::SettingOn("discord", true) ? 1 : 0; }
+void SetDiscord(int on) { ps2host::SetSettingOn("discord", on != 0); }
 // MODS (mods.cpp): each a setting, off unless the player turns it on.
 template <const char* kKey>
 int Mod() { return ps2host::SettingOn(kKey, false) ? 1 : 0; }
@@ -642,6 +646,8 @@ const Option kOptions[] = {
      SetButtonPrompts, {"AUTO", "PLAYSTATION", "XBOX"}, 3},
     {Page::kControls, "TRIGGER EFFECTS", "DUALSENSE: THE TRIGGERS FEEL THE ENGINE, THE BRAKES AND THE GRIP",
      TriggerEffects, SetTriggerEffects, {"OFF", "LIGHT", "ON"}, 3},
+    {Page::kOnline, "DISCORD STATUS", "YOUR PROFILE SAYS WHAT YOU PLAY: THE EVENT, THE TRACK, THE TIME",
+     Discord, SetDiscord, {"OFF", "ON"}, 2},
 };
 constexpr u32 kOptionCount = sizeof kOptions / sizeof kOptions[0];
 

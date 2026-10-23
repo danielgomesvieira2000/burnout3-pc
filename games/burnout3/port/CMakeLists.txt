@@ -57,6 +57,7 @@ ps2_add_port(burnout3
             ${CMAKE_CURRENT_LIST_DIR}/graphics.cpp
             ${CMAKE_CURRENT_LIST_DIR}/custom_songs.cpp
             ${CMAKE_CURRENT_LIST_DIR}/extras.cpp
+            ${CMAKE_CURRENT_LIST_DIR}/presence.cpp
             ${CMAKE_CURRENT_LIST_DIR}/lan.cpp
             ${CMAKE_CURRENT_LIST_DIR}/lan_libnet.cpp
             ${CMAKE_CURRENT_LIST_DIR}/lan_lobby.cpp

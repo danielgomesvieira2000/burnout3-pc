@@ -616,6 +616,10 @@ unsigned Generation() { return g_state.generation; }
 
 }  // namespace controls
 
+namespace presence {
+void Tick(bool racing);   // presence.cpp
+}
+
 /* Once a pad read (mouse.cpp's MouseTick, after the keyboard and the
    controller are read): whether the racing bindings hold, a binding's time
    running out, and the triggers' push. */
@@ -646,6 +650,8 @@ void ControlsTick() {
     if (brake_on == kL2) left = brake;
     if (brake_on == kR2) right = brake;
     ps2host::HostTriggerEffects(left, right);
+    // Discord's status (presence.cpp): racing, or in the menus.
+    presence::Tick(racing);
 }
 
 void RegisterControls() {
