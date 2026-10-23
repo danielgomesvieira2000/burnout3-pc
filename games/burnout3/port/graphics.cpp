@@ -15,9 +15,9 @@
  *
  *   AMBIENT OCCLUSION  ON / OFF - shade where things meet (Occlusion)
  *   LIGHTING        MODERN / ORIGINAL - a grade of the picture (Grade)
- *   BLOOM           ORIGINAL / MODERN / HIGH / OFF (LOW, a setting's still)
- *                   - MODERN the PC's glow (ModernBloom), HIGH and LOW the
- *                   glow's threshold, intensity and trails changed
+ *   BLOOM           ORIGINAL / OFF / MODERN HIGH / MODERN LOW - the PC's
+ *                   glow (ModernBloom), LOW's fainter and from brighter
+ *                   lights ("modern", "modern_low")
  *   MOTION BLUR     ORIGINAL / MODERN / OFF (the key "blur", as it was
  *                   saved) - MODERN the camera's own (CameraBlur)
  *   SHADOWS         ORIGINAL / MODERN / SOFT / OFF - SOFT the blob drawn
@@ -505,8 +505,9 @@ void NeutralGrade(float* p) {
 }
 
 /* BLOOM MODERN: the glow of the PC's, from the track's threshold and
-   intensity (bloom a0: +0, +4), at the internal resolution. */
-void ModernBloom(lifted::Context& c) {
+   intensity (bloom a0: +0, +4), at the internal resolution. MODERN LOW: from
+   brighter lights, at half the strength. */
+void ModernBloom(lifted::Context& c, bool low) {
     const View v = CurrentView();
     const u32 bloom = u32(c.r[4]);
     const float threshold = F32(bloom), intensity = F32(bloom + 4u);
@@ -516,6 +517,10 @@ void ModernBloom(lifted::Context& c) {
     p[0] = std::clamp(2.0f * threshold - 0.9f, 0.45f, 1.6f);
     p[1] = 0.55f * std::clamp(intensity, 0.0f, 2.0f);
     p[2] = 0.35f;
+    if (low) {
+        p[0] = std::min(p[0] + 0.15f, 1.75f);
+        p[1] *= 0.5f;
+    }
     if (ModernLighting()) GradeParams(p);
     else NeutralGrade(p);
     EmitEffect(c, EffectId::kBloom, v, p, 22);
@@ -533,42 +538,16 @@ void Grade(lifted::Context& c) {
    0x0030A9D0 from the track's tweaks - threshold +0 (0.75: the bright pass
    takes what is above 0xBF), intensity +4 (1.0: the glow's grey as it is
    added back) and persistence +8 (0.5, up to 0.9 boosting: the share of the
-   frame before kept, the glow's trails). BLOOM HIGH and LOW scale them for
-   this draw, the game's own values back after it. */
+   frame before kept, the glow's trails). BLOOM MODERN HIGH and LOW draw the
+   PC's glow from them instead. */
 void BloomRender(lifted::Context& c) {
     const std::string strength = Graphics("bloom");
     // (the glow's switch: OFF draws none, and no grade of the glow's)
-    if (strength == "modern" && generated::ReadU8(kBloomOn)) {
-        ModernBloom(c);
+    if ((strength == "modern" || strength == "modern_low") && generated::ReadU8(kBloomOn)) {
+        ModernBloom(c, strength == "modern_low");
         return;
-    }
-    if (strength != "low" && strength != "high") {
-        F_002659C0(c);
-        if (ModernLighting()) Grade(c);
-        return;
-    }
-    const u32 bloom = u32(c.r[4]);
-    u32 saved[3];
-    float value[3];
-    for (int i = 0; i < 3; ++i) {
-        saved[i] = generated::ReadU32(bloom + 4u * i);
-        std::memcpy(&value[i], &saved[i], 4);
-    }
-    if (strength == "low") {
-        value[0] = std::min(value[0] + 0.05f, 0.99f);
-        value[1] *= 0.55f;
-        value[2] *= 0.6f;
-    } else {   // high
-        value[0] = std::max(value[0] - 0.2f, 0.0f);
-        value[1] *= 1.5f;
-    }
-    for (int i = 0; i < 3; ++i) {
-        u32 bits;
-        std::memcpy(&bits, &value[i], 4);
-        generated::Write32(bloom + 4u * i, bits);
     }
     F_002659C0(c);
-    for (int i = 0; i < 3; ++i) generated::Write32(bloom + 4u * i, saved[i]);
     if (ModernLighting()) Grade(c);
 }
 
@@ -687,17 +666,15 @@ std::string g_shadows_now;
 /* At the display's frame step (mods.cpp), a few times a frame. */
 void GraphicsFrame() {
     ++g_frames;
-    // BLOOM's HIGH and LOW were BLOOM STRENGTH's (a playtest build's): its
-    // value, with BLOOM ORIGINAL, is BLOOM's - once, the settings all read.
+    // BLOOM's old HIGH and LOW (the game's glow scaled; and BLOOM STRENGTH's
+    // before them, a playtest build's) are gone: ORIGINAL - once, the
+    // settings all read.
     static bool migrated = false;
     if (!migrated) {
         migrated = true;
-        const std::string strength = ps2host::Setting("bloom_strength", "");
-        if (!strength.empty()) {
-            if ((strength == "low" || strength == "high") && Is("bloom", "original", "original"))
-                ps2host::SetSetting("bloom", strength);
-            ps2host::SetSetting("bloom_strength", "");
-        }
+        if (!ps2host::Setting("bloom_strength", "").empty()) ps2host::SetSetting("bloom_strength", "");
+        const std::string bloom = ps2host::Setting("bloom", "");
+        if (bloom == "high" || bloom == "low") ps2host::SetSetting("bloom", "original");
     }
     g_bloom.Set(Graphics("bloom") == "off");
     g_blur.Set(Graphics("blur") == "off");
@@ -725,7 +702,8 @@ void GraphicsFrame() {
     // (in a split screen only with the blur and the glow MODERN: the game's
     // own blurs there read buffers in the same pages at the PS2's size - a
     // washed-out player 2)
-    const bool split_ok = Graphics("blur") == "modern" && Graphics("bloom") == "modern";
+    const bool split_ok = Graphics("blur") == "modern" &&
+                          (Graphics("bloom") == "modern" || Graphics("bloom") == "modern_low");
     const bool modern_reflections = Graphics("reflections") == "modern" && (!g_split || split_ok);
     ps2host::SetGpuScaleRule(modern_reflections ? 0x16Bu : 0u, modern_reflections ? 0x1A7u : 0u, modern_reflections ? 4u : 0u);
     ps2host::SetGpuDrawTag(0x2D60u, modern_reflections ? 1u : 0u);
@@ -750,7 +728,7 @@ void GraphicsFrame() {
 }
 
 void RegisterGraphics() {
-    ps2host::Override(0x002659C0u, BloomRender, "the glow: BLOOM HIGH and LOW (PC SETTINGS)");
+    ps2host::Override(0x002659C0u, BloomRender, "the glow: BLOOM MODERN HIGH and LOW (PC SETTINGS)");
     ps2host::Override(0x002FA9A0u, RadialBlur, "the radial blur: MOTION BLUR (PC SETTINGS)");
     ps2host::Override(0x00426C10u, DirectionalBlur, "the directional blur: MOTION BLUR MODERN (PC SETTINGS)");
     ps2host::Override(0x002419C0u, Fog, "the fog: AO before it (PC SETTINGS)");

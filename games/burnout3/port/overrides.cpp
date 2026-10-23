@@ -527,7 +527,7 @@ int AmongGraphics(const char* key, const char* const (&values)[N]) {
         if (now == values[i]) return int(i);
     return 0;
 }
-const char* const kBlooms[] = {"original", "modern", "high", "off"};
+const char* const kBlooms[] = {"original", "off", "modern", "modern_low"};
 int Bloom() { return AmongGraphics("bloom", kBlooms); }
 void SetBloom(int which) { ps2host::SetSetting("bloom", kBlooms[which]); }
 const char* const kBlurs[] = {"original", "modern", "off"};
@@ -601,8 +601,8 @@ const Option kOptions[] = {
      SetLighting, {"ORIGINAL", "MODERN"}, 2},
     {Page::kGraphics, "AMBIENT OCCLUSION", "SHADE WHERE THINGS MEET: CARS AND ROAD, CORNERS", Occlusion,
      SetOcclusion, {"OFF", "ON"}, 2},
-    {Page::kGraphics, "BLOOM", "THE GLOW AROUND LIGHTS: AS DRAWN, MODERN, STRONGER, OR NONE", Bloom, SetBloom,
-     {"ORIGINAL", "MODERN", "HIGH", "OFF"}, 4},
+    {Page::kGraphics, "BLOOM", "THE GLOW AROUND LIGHTS: AS DRAWN, NONE, OR MODERN - FULL OR SOFTER", Bloom,
+     SetBloom, {"ORIGINAL", "OFF", "MODERN HIGH", "MODERN LOW"}, 4},
     {Page::kGraphics, "MOTION BLUR", "THE SPEED'S BLUR: AS DRAWN, THE CAMERA'S OWN, OR NONE", Blur, SetBlur,
      {"ORIGINAL", "MODERN", "OFF"}, 3},
     {Page::kGraphics, "SHADOWS", "THE CARS' SHADOWS: AS DRAWN, THE SUN'S, SOFTER, OR NONE", Shadows, SetShadows,
