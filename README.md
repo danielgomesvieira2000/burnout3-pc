@@ -1,9 +1,10 @@
 # Burnout 3: Takedown - PC port
 
 **Burnout 3: Takedown, native on Windows.** The PS2 game's program translated
-to C++ and compiled for the PC - not emulated: 60 frames a second at up to 4x
-the PS2's resolution, widescreen with the HUD kept in place, PC settings in the
-game's own menu, a mouse in the menus, controllers with rumble.
+to C++ and compiled for the PC - not emulated: 60 frames a second or your
+screen's own rate, up to 4x the PS2's resolution, modern graphics, widescreen
+with the HUD kept in place, PC settings in the game's own menu, a mouse in the
+menus, controllers with rumble and DualSense adaptive triggers.
 
 > **Unofficial and fan-made.** Not affiliated with, endorsed or sponsored by
 > Electronic Arts or Criterion Games. You need your own copy of the game: a
@@ -34,6 +35,14 @@ wrong, press **F12** at that moment and attach the folder it writes to
 - **A GPU renderer (Vulkan)**: the PS2's graphics drawn on your graphics
   card, at the PS2's resolution, twice it, or as sharp as your screen (up to
   4x).
+- **Modern graphics** (PC SETTINGS > GRAPHICS, MODERN by default, each one
+  on its own): a lighting grade, ambient occlusion, a modern glow (MODERN
+  HIGH or LOW), the camera's own motion blur, the sun's shadows, lacquered
+  reflections on the cars' paint, depth of field in the takedown cameras,
+  soft smoke and fire - drawn inside the game's own frame, the HUD on top.
+- **Texture filtering of your choice**: ORIGINAL, MODERN, NEAREST,
+  BILINEAR, TRILINEAR or ANISOTROPIC 4X/8X/16X - on the game's textures and
+  a texture pack's alike.
 - **Widescreen**: 4:3, 16:9 or the window's own shape, with the HUD kept in
   place - and a HUD editor (**F10**) to anchor each HUD element left, right,
   centred or stretched.
@@ -46,7 +55,9 @@ wrong, press **F12** at that moment and attach the folder it writes to
   controller), all drawn by the port.
 - **PC settings** in the game's own main menu (where ONLINE used to be), in
   pages: VIDEO (fullscreen, vertical sync, the frame rate, resolution, the aspect ratio,
-  anti-aliasing: FXAA, SMAA or SSAA 2x), GRAPHICS (bloom high, low or off, motion blur, soft shadows, LOD, more particles),
+  anti-aliasing: FXAA, SMAA or SSAA 2x), GRAPHICS (lighting, ambient
+  occlusion, bloom, motion blur, shadows, reflections, cinematic cameras,
+  smoke and fire, texture filtering, LOD, more particles),
   CONTROLS (the keyboard's and the controller's bindings, racing and menus;
   button prompts; DualSense trigger effects), MODS (Nehalem's game patches:
   km/h, the horn, mirror mode, no traffic, Crash Breaker in every mode (the Crash Breaker Expansion),
@@ -61,14 +72,21 @@ wrong, press **F12** at that moment and attach the folder it writes to
   DISPLAY (your screen's own rate, 144, 165, up to 240) in races, crashes,
   splitscreen and the menus. The game still runs at its own 60 steps a
   second - nothing plays faster - and the pictures between are drawn
-  between them: the cars, the traffic, the cameras, the garage's car. Where
-  the PC cannot keep up, a race steps down to 120 or 60 by itself.
+  between them: the cars, the traffic, the cameras, the garage's car - a
+  camera's cuts and a wrecked car put back on the road shown as they happen,
+  not slid between. Where the PC cannot keep up, a race steps down to 120 or
+  60 by itself.
 - **Smooth frames**: at 60, 120 Hz in fullscreen on a 144 Hz screen so that
   60 frames a second show evenly (frame pacing off by default:
   `frame_pacing=on` in `pc_settings.ini` turns it on).
 - **Controls**: any controller SDL knows (Xbox, PlayStation, ...) as a
   DualShock 2, with **rumble**; the keyboard; the **mouse in the menus**
   (point, click, right-click to go back, wheel).
+- **DualSense adaptive triggers** from the car's physics: the accelerator
+  free through its play, then a spring that firms with the engine's pull
+  and a step at full throttle, light when the rear lets go; the brake firming
+  with the speed and giving way past the grip's limit; a hit felt in both.
+  TRIGGER EFFECTS: OFF, LIGHT or ON.
 - **Texture packs**: PCSX2 texture packs for the game work as they are
   (below); **Tab** turns one off and on.
 - **Saves** on a memory card folder beside the executable; the disc image
@@ -132,8 +150,11 @@ here too:
    kept in `pc_settings.ini`).
 
 A texture is replaced the first time it is drawn, a moment after it first
-appears (its file is read in the background). Texture packs are made by
-their authors from the game's textures: none is included or linked here.
+appears (its file is read in the background). A pack's textures follow
+TEXTURE FILTERING too, filtered by the graphics card itself; a texture saved
+without mipmap levels (most packs' are) gets them made as it is read, so it
+does not shimmer in the distance. Texture packs are made by their authors
+from the game's textures: none is included or linked here.
 
 ## AI usage
 
@@ -149,9 +170,14 @@ workflow it follows is in the engine's skills (`engine/.claude/skills`).
 ## To do
 
 - More playtesting: whole careers, every event type, every track.
-- Steering wheel support, with force feedback.
-- Graphical mods and options (beyond texture packs).
+- The heaviest moments at high frame rates (a Crash Breaker's explosion at
+  144 a second): the GPU bridge's work per primitive, the VU1 code.
 - Better performance on slower machines.
+- The ambience skipping in Impact Time's slow motion, now and then (#20).
+- SPLITSCREEN side by side: parts of the race's HUD in the wrong place.
+- The World Tour map: pointing with the mouse.
+- The other releases of the game (PAL, NTSC-J).
+- Steering wheel support, with force feedback.
 - Linux, macOS and Android ports.
 
 ## Building it
