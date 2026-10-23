@@ -571,8 +571,10 @@ void SetAntiAliasing(int which) { ps2host::SetWindowAntiAliasing(kAntiAliasings[
 const char* const kPromptStyles[] = {"auto", "playstation", "xbox"};
 int ButtonPrompts() { return Among("button_prompts", kPromptStyles); }
 void SetButtonPrompts(int which) { ps2host::SetSetting("button_prompts", kPromptStyles[which]); }
-int TriggerEffects() { return ps2host::SettingOn("trigger_effects", true) ? 1 : 0; }
-void SetTriggerEffects(int on) { ps2host::SetSettingOn("trigger_effects", on != 0); }
+// TRIGGER EFFECTS (triggers.cpp): "on" the full strength, as before.
+const char* const kTriggerEffects[] = {"off", "light", "on"};
+int TriggerEffects() { return Among("trigger_effects", kTriggerEffects, 2); }
+void SetTriggerEffects(int which) { ps2host::SetSetting("trigger_effects", kTriggerEffects[which]); }
 // MODS (mods.cpp): each a setting, off unless the player turns it on.
 template <const char* kKey>
 int Mod() { return ps2host::SettingOn(kKey, false) ? 1 : 0; }
@@ -634,8 +636,8 @@ const Option kOptions[] = {
      SetMod<kModVerticalSplit>, {"HORIZONTAL", "VERTICAL"}, 2},   // (VERTICAL: parts of the HUD still wrong, FINDINGS)
     {Page::kControls, "BUTTON PROMPTS", "THE BUTTONS SHOWN: YOUR CONTROLLER'S, PLAYSTATION OR XBOX", ButtonPrompts,
      SetButtonPrompts, {"AUTO", "PLAYSTATION", "XBOX"}, 3},
-    {Page::kControls, "TRIGGER EFFECTS", "DUALSENSE: THE TRIGGERS PUSH BACK WHEN THEY DRIVE", TriggerEffects,
-     SetTriggerEffects, {"OFF", "ON"}, 2},
+    {Page::kControls, "TRIGGER EFFECTS", "DUALSENSE: THE TRIGGERS FEEL THE ENGINE, THE BRAKES AND THE GRIP",
+     TriggerEffects, SetTriggerEffects, {"OFF", "LIGHT", "ON"}, 3},
 };
 constexpr u32 kOptionCount = sizeof kOptions / sizeof kOptions[0];
 

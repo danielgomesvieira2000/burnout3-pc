@@ -49,6 +49,7 @@ ps2_add_port(burnout3
             ${CMAKE_CURRENT_LIST_DIR}/mouse.cpp
             ${CMAKE_CURRENT_LIST_DIR}/prompts.cpp
             ${CMAKE_CURRENT_LIST_DIR}/controls.cpp
+            ${CMAKE_CURRENT_LIST_DIR}/triggers.cpp
             ${CMAKE_CURRENT_LIST_DIR}/sixty_fps.cpp
             ${CMAKE_CURRENT_LIST_DIR}/high_fps.cpp
             ${CMAKE_CURRENT_LIST_DIR}/dev_menu.cpp

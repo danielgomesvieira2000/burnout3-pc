@@ -2379,6 +2379,16 @@ white from 0.5 up.
 
 - Player 1's car is at 0x0064E710; player 2's is 0x27D0 on. That is about
   6 m ahead of the chase camera.
+- Its RwMatrix is at 0x0064D3B0 (right, up, at, then the same position at
+  +0x30). The race clock (0x0064E47C, seconds) slows with the game's slow
+  motion, so two positions over its step give the car's own speed (the HUD's
+  within 1-3 mph; a step of the pictures does not). In the car's axes: slip
+  0-1 degree driving or braking straight, 6-8 sliding into a turn at 28 mph;
+  the engine's pull 6 m/s^2 at 60 mph flat out, 2 at 105; the brakes to
+  about 22 m/s^2 from 80 mph; the first race's shunt 112 to 89 mph within a
+  step. A wreck's car is put back on the road in one step, under 20 m away.
+  (Found with a scripted drive and the car's block dumped each step; the
+  adaptive triggers read them, port/triggers.cpp.)
 - The paint's reflection is a context-2 pass over the body: TEX0 TBP 0x2D60,
   the 256x256 sphere map warped each frame from three 128x128 faces (FBP
   0x18B/0x193/0x19B, their Z at 0x16B-0x17B). It is blended as

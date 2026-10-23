@@ -31,8 +31,7 @@
  * that band, so the whole pull is the throttle, not its first fifth.
  *
  * With TRIGGER EFFECTS, a DualSense's triggers push back while racing, when
- * they accelerate and brake: the accelerator lightly, the brake harder from
- * a little way in.
+ * they accelerate and brake, as the car does (triggers.cpp).
  *
  * Binding: the row's input waits for the next key or button pressed on its
  * device - once whatever was held is let go - and takes it; an action that
@@ -52,6 +51,7 @@
 #include <string>
 
 #include "controls.h"
+#include "triggers.h"
 #include "ps2host/host.h"
 #include "ps2host/run.h"
 #include "ps2host/settings.h"
@@ -237,6 +237,7 @@ void Bind(Device device, Context context, int input, int physical) {
 // ------------------------------------------------------------ racing
 
 bool g_racing = false;          // ControlsTick's: the racing bindings hold
+u8 g_travel[2] = {};            // L2's and R2's travel, the most any controller had since the last tick
 u64 g_tick = 0;                 // pad reads
 u64 g_controller_seen = 0;      // the last pad read a controller was there in
 ps2host::ControllerFamily g_family = ps2host::ControllerFamily::kOther;
@@ -350,6 +351,8 @@ void Controller(ps2host::HostPadState* pad) {
         *pad = ps2host::HostPadState{};
         return;
     }
+    g_travel[0] = std::max(g_travel[0], pad->l2);
+    g_travel[1] = std::max(g_travel[1], pad->r2);
     const bool racing = g_racing;
     const Bindings& b = Of(Device::kController, Now());
     const u16 held = pad->buttons;
@@ -614,21 +617,21 @@ void ControlsTick() {
     // device is player 1's as before.
     ps2host::SetPortsSplit(racing);
     if (g_capture.active && g_tick >= g_capture.until) EndCapture(CaptureState::kCancelled);
-    // The triggers' push, while racing with them (a DualSense's).
-    ps2host::HostTriggerEffect left, right;
-    if (racing && ps2host::SettingOn("trigger_effects", true)) {
-        const Bindings& b = Of(Device::kController, Context::kRacing);
-        auto push = [&](int input, u8 start, u8 force) {
-            const int p = b.physical[input];
-            if (p != kL2 && p != kR2) return;
-            ps2host::HostTriggerEffect& e = p == kL2 ? left : right;
-            e.kind = ps2host::HostTriggerEffect::kResistance;
-            e.start = start;
-            e.force = force;
-        };
-        push(kCross, 0, 40);            // the accelerator, lightly
-        push(kSquare, 50, 170);         // the brake, harder from a little way in
-    }
+    // The triggers' push, while racing (a DualSense's): the car's physics
+    // shaping the accelerator's and the brake's (triggers.cpp), each on the
+    // trigger it is bound to.
+    const Bindings& b = Of(Device::kController, Context::kRacing);
+    const int accel_on = b.physical[kCross], brake_on = b.physical[kSquare];
+    auto travel = [](int p) {
+        return p == kL2 ? g_travel[0] / 255.0f : p == kR2 ? g_travel[1] / 255.0f : 0.0f;
+    };
+    ps2host::HostTriggerEffect accel, brake, left, right;
+    triggers::Tick(racing, travel(accel_on), travel(brake_on), &accel, &brake);
+    g_travel[0] = g_travel[1] = 0;
+    if (accel_on == kL2) left = accel;
+    if (accel_on == kR2) right = accel;
+    if (brake_on == kL2) left = brake;
+    if (brake_on == kR2) right = brake;
     ps2host::HostTriggerEffects(left, right);
 }
 
