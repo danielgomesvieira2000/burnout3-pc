@@ -24,7 +24,7 @@
  *   L2 (how far)   brake, reverse    Square    look back
  *   L1             next song         Triangle  camera
  *
- * - or the player's own. The race reads how far Cross and Square are
+ * - or the player's own. Both honk on L3 (the HORN mod's Circle). The race reads how far Cross and Square are
  * pressed, in a narrow band of the DualShock 2's pressure (measured with
  * --press cross@...:PRESSURE): 30 of 255 coasts, 38 holds about 58 mph, 44
  * about 68, 50 and more is full throttle. A trigger's travel is spread over
@@ -161,10 +161,19 @@ struct Bindings {
 constexpr Bindings kKeyboardDefaults = {{VK_BACK, 0, 0, VK_RETURN, VK_UP, VK_RIGHT, VK_DOWN, VK_LEFT, '1', '3', 'Q',
                                          'E', 'V', 'C', 'X', 'Z'}};
 constexpr Bindings kControllerAsGame = {{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}};
+// Racing, both layouts honk on L3 (the left stick pressed: the HORN mod's
+// Circle, which the race itself does not use; the race's L3, nothing seen,
+// on Circle).
+// CLASSIC: the game's own.
+constexpr Bindings kControllerClassic = {{0, kCircle, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, kL3, 14, 15}};
 // MODERN: accelerate R2, brake L2, boost Cross, look back Square, next song
 // L1 - and R1 (on the race's R2, which does nothing).
-constexpr Bindings kControllerModern = {{kSelect, kL3, kR3, kStart, kUp, kRight, kDown, kLeft, kL1, kR1, kSquare,
-                                         kCross, kTriangle, kCircle, kR2, kL2}};
+constexpr Bindings kControllerModern = {{kSelect, kCircle, kR3, kStart, kUp, kRight, kDown, kLeft, kL1, kR1, kSquare,
+                                         kCross, kTriangle, kL3, kR2, kL2}};
+// The layouts before the horn moved (0.6 and before): a racing layout saved
+// as one of them is that layout still.
+constexpr Bindings kControllerModernBefore = {{kSelect, kL3, kR3, kStart, kUp, kRight, kDown, kLeft, kL1, kR1,
+                                               kSquare, kCross, kTriangle, kCircle, kR2, kL2}};
 
 bool Same(const Bindings& a, const Bindings& b) { return std::memcmp(a.physical, b.physical, sizeof a.physical) == 0; }
 
@@ -188,7 +197,7 @@ Bindings Defaults(Device device, Context context) {
     if (device == Device::kKeyboard) return kKeyboardDefaults;
     if (context == Context::kRacing && (kForcedModern || ps2host::SettingOn("modern_controls", false)))
         return kControllerModern;           // the MODERN CONTROLS setting of 0.3.0 and on
-    return kControllerAsGame;
+    return context == Context::kRacing ? kControllerClassic : kControllerAsGame;
 }
 
 /* The settings' bindings, each context's on its defaults - what a setting
@@ -210,6 +219,10 @@ void Load() {
                 else continue;
                 if (kLog) std::fprintf(stderr, "[controls] %s %s %s: %s (the settings')\n", DeviceKey(device),
                                        ContextKey(context), kInputKeys[i], value.c_str());
+            }
+            if (device == Device::kController && context == Context::kRacing) {
+                if (Same(b, kControllerAsGame)) b = kControllerClassic;
+                else if (Same(b, kControllerModernBefore)) b = kControllerModern;
             }
             Of(device, context) = b;
         }
@@ -506,13 +519,13 @@ void ResetDefaults(Device device, Context context) {
 Layout RacingLayout() {
     Load();
     const Bindings& b = Of(Device::kController, Context::kRacing);
-    return Same(b, kControllerAsGame) ? Layout::kClassic : Same(b, kControllerModern) ? Layout::kModern : Layout::kCustom;
+    return Same(b, kControllerClassic) ? Layout::kClassic : Same(b, kControllerModern) ? Layout::kModern : Layout::kCustom;
 }
 
 void SetRacingLayout(Layout layout) {
     Load();
     if (layout == Layout::kCustom) return;
-    Of(Device::kController, Context::kRacing) = layout == Layout::kModern ? kControllerModern : kControllerAsGame;
+    Of(Device::kController, Context::kRacing) = layout == Layout::kModern ? kControllerModern : kControllerClassic;
     Save(Device::kController, Context::kRacing);
     // The bindings say it now; the old setting with them, for a downgrade.
     ps2host::SetSettingOn("modern_controls", layout == Layout::kModern);
