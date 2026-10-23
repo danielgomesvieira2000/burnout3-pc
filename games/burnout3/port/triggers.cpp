@@ -28,17 +28,15 @@
  *   is really accelerating, lighter as it nears its top speed); a firmer
  *   step at full throttle, the stop where the engine has nothing more - not
  *   a wall, it is pressed through. When the rear lets go - sliding with the
- *   throttle on, or spinning up from a standstill - the spring goes light
- *   and loose, fluttering: the traction gone.
+ *   throttle on, or spinning up from a standstill - the spring goes light:
+ *   the traction gone.
  *
  *   BRAKE - free until the pads touch, then a slope that steepens with the
  *   speed (there is more to stop), firmest in the band's top where the
- *   brakes do their work. As the car nears the grip's limit - the brakes'
- *   deceleration near the most the car has, or the car's slip and cornering
- *   load growing while braking - the brake starts to pulse, as ABS does,
- *   gently at first; past it (sliding) the pulse slows to a judder and the
- *   top softens: the wheels have let go. At a crawl, backing up, the brake
- *   is the reverse: light and even.
+ *   brakes do their work. Past the grip's limit - the brakes' deceleration
+ *   at the most the car has, or the car's slip and cornering load beyond it
+ *   while braking - the top softens: the wheels have let go. At a crawl,
+ *   backing up, the brake is the reverse: light and even.
  *
  *   A hit buzzes both triggers for a moment, by how hard; a wrecked car (on
  *   its side or spinning) leaves them free - it is not the player's to
@@ -160,7 +158,7 @@ void ReadCar(float real_dt) {
 }
 
 /* A trigger's zones as they are felt: each eases towards its target - up in
-   ~40 ms, back down in ~120 ms - before any pulse is laid on. */
+   ~40 ms, back down in ~120 ms. */
 struct Shape {
     float level[10] = {};
     void Ease(const float* target, float dt) {
@@ -171,7 +169,6 @@ struct Shape {
 };
 Shape g_accel, g_brake;
 float g_hit = 0.0f;             // the hit's buzz left, 0-1
-float g_phase = 0.0f;           // the pulses' clock (s)
 
 // The band of the travel the race reads (controls.cpp's): coasting below
 // zone 2, all of it from zone 8.
@@ -254,7 +251,6 @@ void Tick(bool racing, float throttle, float brake, ps2host::HostTriggerEffect* 
     }
     ReadCar(real_dt);
     const Car& c = g_car;
-    g_phase += real_dt;
     if (!c.valid) {
         // Not the race's car (another mode's): the shape alone, no state.
         Car still;
@@ -297,11 +293,7 @@ void Tick(bool racing, float throttle, float brake, ps2host::HostTriggerEffect* 
     float accel[10];
     std::copy(std::begin(g_accel.level), std::end(g_accel.level), accel);
     const float lost = TractionLost(c, throttle);
-    if (lost > 0.0f) {
-        const bool flutter = std::fmod(g_phase * 10.0f, 1.0f) < 0.5f;      // 10 Hz
-        for (int i = kBandFirst; i < 10; ++i)
-            accel[i] = std::max(0.0f, accel[i] * (1.0f - 0.5f * lost) - (flutter ? 2.0f * lost : 0.0f));
-    }
+    for (int i = kBandFirst; i < 10; ++i) accel[i] *= 1.0f - 0.5f * lost;
 
     float zb[10];
     Brake(c, zb);
@@ -309,19 +301,9 @@ void Tick(bool racing, float throttle, float brake, ps2host::HostTriggerEffect* 
     float brake_zones[10];
     std::copy(std::begin(g_brake.level), std::end(g_brake.level), brake_zones);
     const float used = brake > 0.25f && c.forward > 5.0f ? GripUsed(c) : 0.0f;
-    const float nearing = Clamp01((used - 0.7f) / 0.3f), past = Clamp01((used - 1.0f) / 0.5f);
-    if (nearing > 0.0f) {
-        // ABS: from where the brake is held on, a pulse - 14 Hz near the
-        // limit, slowing to 8 Hz past it, the top softening as the wheels go.
-        const float hz = 14.0f - 6.0f * past;
-        const bool off = std::fmod(g_phase * hz, 1.0f) < 0.5f;
-        const int from = std::max(kBandFirst, int(brake * 10.0f) - 1);
-        for (int i = from; i < 10; ++i) {
-            if (off) brake_zones[i] -= 1.0f + 2.0f * nearing + 1.0f * past;
-            if (i >= 8) brake_zones[i] -= 1.5f * past;
-            brake_zones[i] = std::max(1.0f, brake_zones[i]);
-        }
-    }
+    // Past the grip's limit (sliding) the top softens: the wheels have let go.
+    const float past = Clamp01((used - 1.0f) / 0.5f);
+    for (int i = 8; i < 10; ++i) brake_zones[i] = std::max(1.0f, brake_zones[i] - 1.5f * past);
     ToZones(accel, scale * slow, accel_out);
     ToZones(brake_zones, scale * slow, brake_out);
 
