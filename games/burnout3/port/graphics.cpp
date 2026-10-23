@@ -28,8 +28,13 @@
  *                   and crash cameras (CinematicFocus)
  *   SMOKE AND FIRE  MODERN / ORIGINAL - soft particles, faded where they
  *                   meet the road and the cars
- *   TEXTURES        ORIGINAL / MODERN - trilinear, anisotropic, the level
- *                   from the screen (ORIGINAL by default)
+ *   TEXTURE FILTERING  ORIGINAL / MODERN / NEAREST / BILINEAR / TRILINEAR /
+ *                   ANISOTROPIC 4X, 8X, 16X (the key "textures"; ORIGINAL by
+ *                   default) - MODERN the game's own filters with mipmapped
+ *                   textures trilinear and anisotropic by the screen; the
+ *                   rest the player's filter forced on the 3D (not on
+ *                   sprites - the HUD, text, the picture's own copies - nor
+ *                   on a texture drawn into: ps2host::SetGpuTextureFilter)
  *   MODERN by default but TEXTURES (GraphicsDefault).
  *   LOD             ORIGINAL / HIGH - the cars' and the traffic's detailed
  *                   models out to longer distances (see the LOD distances)
@@ -707,9 +712,18 @@ void GraphicsFrame() {
     const bool modern_reflections = Graphics("reflections") == "modern" && (!g_split || split_ok);
     ps2host::SetGpuScaleRule(modern_reflections ? 0x16Bu : 0u, modern_reflections ? 0x1A7u : 0u, modern_reflections ? 4u : 0u);
     ps2host::SetGpuDrawTag(0x2D60u, modern_reflections ? 1u : 0u);
-    // TEXTURES MODERN: mipmapped textures filtered as a modern GPU does -
-    // their detail at the internal resolution, no bands, the road sharp.
-    ps2host::SetGpuModernTextures(Graphics("textures") == "modern");
+    // TEXTURE FILTERING: MODERN, mipmapped textures filtered as a modern
+    // GPU does - their detail at the internal resolution, no bands, the road
+    // sharp; or the player's filter, forced on the 3D.
+    const std::string textures = Graphics("textures");
+    ps2host::SetGpuModernTextures(textures == "modern");
+    if (textures == "nearest") ps2host::SetGpuTextureFilter(1);
+    else if (textures == "bilinear") ps2host::SetGpuTextureFilter(2);
+    else if (textures == "trilinear") ps2host::SetGpuTextureFilter(3);
+    else if (textures == "aniso4") ps2host::SetGpuTextureFilter(4, 4);
+    else if (textures == "aniso8") ps2host::SetGpuTextureFilter(4, 8);
+    else if (textures == "aniso16") ps2host::SetGpuTextureFilter(4, 16);
+    else ps2host::SetGpuTextureFilter(0);
     // SMOKE AND FIRE MODERN: the race's particle atlases (two upload slots,
     // a 256x256 4-bit texture each) soft where they meet the scene.
     static const u32 kParticles[] = {0x3B20u, 0x35E0u};

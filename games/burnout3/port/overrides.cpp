@@ -490,7 +490,7 @@ struct Option {
     const char* help;
     int (*now)();                           // the value's index
     void (*set)(int);
-    const char* values[4];
+    const char* values[8];
     int count;
 };
 int Fullscreen() { return ps2host::WindowFullscreen() ? 1 : 0; }
@@ -543,12 +543,15 @@ const char* const kModerns[] = {"original", "modern"};
 int Lighting() { return AmongGraphics("lighting", kModerns); }
 void SetLighting(int which) { ps2host::SetSetting("lighting", kModerns[which]); }
 int Reflections() { return AmongGraphics("reflections", kModerns); }
-int Textures() { return AmongGraphics("textures", kModerns); }
+// TEXTURE FILTERING (graphics.cpp): the game's, MODERN, or the player's filter.
+const char* const kTextureFilters[] = {"original", "modern", "nearest", "bilinear",
+                                       "trilinear", "aniso4", "aniso8", "aniso16"};
+int Textures() { return AmongGraphics("textures", kTextureFilters); }
 int Smoke() { return AmongGraphics("smoke", kModerns); }
 int Dof() { return AmongGraphics("dof", kModerns); }
 void SetDof(int which) { ps2host::SetSetting("dof", kModerns[which]); }
 void SetSmoke(int which) { ps2host::SetSetting("smoke", kModerns[which]); }
-void SetTextures(int which) { ps2host::SetSetting("textures", kModerns[which]); }
+void SetTextures(int which) { ps2host::SetSetting("textures", kTextureFilters[which]); }
 void SetReflections(int which) { ps2host::SetSetting("reflections", kModerns[which]); }
 const char* const kLods[] = {"original", "high"};
 int Lod() { return Among("lod", kLods); }
@@ -613,8 +616,9 @@ const Option kOptions[] = {
      {"ORIGINAL", "MODERN"}, 2},
     {Page::kGraphics, "SMOKE AND FIRE", "AS DRAWN, OR SOFT WHERE THEY MEET THE ROAD AND THE CARS", Smoke,
      SetSmoke, {"ORIGINAL", "MODERN"}, 2},
-    {Page::kGraphics, "TEXTURES", "THE ROAD AND WALLS: AS DRAWN, OR SHARP INTO THE DISTANCE", Textures,
-     SetTextures, {"ORIGINAL", "MODERN"}, 2},
+    {Page::kGraphics, "TEXTURE FILTERING", "HOW TEXTURES ARE SMOOTHED: AS DRAWN, OR YOUR CHOICE", Textures,
+     SetTextures, {"ORIGINAL", "MODERN", "NEAREST", "BILINEAR", "TRILINEAR", "ANISOTROPIC 4X", "ANISOTROPIC 8X",
+                   "ANISOTROPIC 16X"}, 8},
     {Page::kGraphics, "LOD", "THE CARS' DETAILED MODELS FARTHER AWAY", Lod, SetLod, {"ORIGINAL", "HIGH"}, 2},
     {Page::kGraphics, "PARTICLES", "SMOKE AND SPARKS WHILE DRIVING: AS DRAWN, MORE, OR THE MOST", Particles,
      SetParticles, {"ORIGINAL", "MORE", "MOST"}, 3},
