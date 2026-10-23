@@ -176,6 +176,7 @@ struct RwaRecord {
 std::array<RwaRecord, 1024> g_rwa_records{};
 size_t g_rwa_next = 0;
 std::map<u32, u64> g_rwa_answer_types;      // answers by type (+0x10), all of them
+std::map<u32, u64> g_rwa_command_types;     // commands by type, all of them
 
 void Record(bool answer, const u32 (&words)[6]) {
     if (g_rwa_next) {
@@ -198,7 +199,10 @@ void Record(bool answer, const u32 (&words)[6]) {
    IOP (a record of user command 0). */
 void RwaCommand(lifted::Context& c) {
     const u32 words[6] = {u32(c.r[7]), u32(c.r[4]), u32(c.r[5]), u32(c.r[6]), u32(c.r[8]), u32(c.r[9])};
-    Record(false, words);
+    // The status poll (0x14, every frame, its answer between) only counted:
+    // kept, it and its answer filled the ring in eight seconds.
+    ++g_rwa_command_types[words[0]];
+    if (words[0] != 0x14) Record(false, words);
     F_002AEFC0(c);
 }
 
@@ -209,7 +213,7 @@ void RwaAnswer(lifted::Context& c) {
     // Every one (the same again is counted, not kept: Record) - a stream's
     // asking for data (0x47) among them.
     ++g_rwa_answer_types[words[0]];
-    Record(true, words);
+    if (words[0] != 0x14 && words[0] != 0x0D) Record(true, words);  // (the poll's and the mixer's: counted)
     const u32 gp = u32(c.r[28]);
     const s32 written = s32(generated::ReadS32(gp - 0x5A30u)), read = s32(generated::ReadS32(gp - 0x5A34u));
     if (written - read >= 24) {
@@ -307,6 +311,8 @@ void SayAudio() {
     }
     for (const auto& [type, count] : g_rwa_answer_types)
         std::fprintf(stderr, "  answers of type %08X: %llu\n", type, static_cast<unsigned long long>(count));
+    for (const auto& [type, count] : g_rwa_command_types)
+        std::fprintf(stderr, "  commands of type %08X: %llu\n", type, static_cast<unsigned long long>(count));
     std::fprintf(stderr, "%s", ps2host::iop::SoundIrqTrace().c_str());
 }
 
