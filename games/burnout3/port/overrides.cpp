@@ -986,11 +986,17 @@ void RefreshList(lifted::Context& c) {
         GuestCall(c, 0x0031FE40u, {kList, row, generated::ReadU8(g_main.entries + 8 * row + 4) ? 0u : 1u});
 }
 
+}  // namespace
+void ExtrasListMade(lifted::Context& c);     // extras.cpp
+namespace {
+
 /* 0x00321470(list, &index, entries): the main menu's list (0x00318340 sets
    it up from 0x00318460, the index and the count at menu+0x14, its five
    entries - a string pointer and a disabled byte each - at menu+0x18). It
-   gets six: the game's five and QUIT GAME, in an array of the port's. */
+   gets six: the game's five and QUIT GAME, in an array of the port's.
+   DRIVER DETAILS > EXTRAS's goes without the NFS demo's row (extras.cpp). */
 void MenuList(lifted::Context& c) {
+    ExtrasListMade(c);
     if (u32(c.r[31]) == 0x00318464u) {
         MakeTexts(c);
         if (g_main.made) {

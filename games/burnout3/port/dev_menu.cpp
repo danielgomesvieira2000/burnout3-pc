@@ -24,6 +24,7 @@
 void F_002176D0(lifted::Context& c);
 void F_00456900(lifted::Context& c);
 void F_00425330(lifted::Context& c);
+void ExtrasPage(lifted::Context& c);     // extras.cpp: the game's EXTRAS without the NFS demo's row
 
 namespace {
 
@@ -96,7 +97,7 @@ void Message(lifted::Context& c) {
 void Extras(lifted::Context& c) {
     const u32 screen = u32(c.r[4]), event = u32(c.r[5]), a3 = u32(c.r[7]);
     if (screen != kExtras) {
-        F_00456900(c);
+        ExtrasPage(c);
         return;
     }
     if (event == 3) {
@@ -104,7 +105,7 @@ void Extras(lifted::Context& c) {
         if (!g_dev.showing) g_dev.from = 0;
     }
     if (!g_dev.showing) {
-        F_00456900(c);
+        ExtrasPage(c);
         return;
     }
     if (event == 5 && g_dev.from) {
