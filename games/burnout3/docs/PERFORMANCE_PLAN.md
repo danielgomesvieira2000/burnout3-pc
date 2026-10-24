@@ -880,3 +880,69 @@ What is left in OnDraw after the bounds (~6.5 ms a pass): the hand-over
 (1.9), Drew (1.5), and ~3 ms spread thin - every primitive goes the fast
 path's cheap way (DrawTrianglesAgain), so no one part: the records' ~27 MB
 a pass written for the renderer, and its thread running beside it.
+
+## The day's list, and the engine's share (2026-10-24, day)
+
+**The macro code's rounding** (engine 465d0c2): each COP2 macro
+instruction switched MXCSR to the VU's rounding and back. The lifter now
+puts a run of them - only moves to and from the VU's registers between, no
+label - in one scope that switches it once (lifted::MacroRun, the run's
+instructions Cop2Run): 232 runs, 848 instructions. Exact (every GPU run as
+recorded). Alone, before the profile was made again: the race in virtual
+time -0.3% and -0.2% (bench.py, three each, twice) - inside the spread.
+
+**Training what players run** (game 5765af7): no PGO run had the modern
+graphics, a high frame rate or a texture pack, and what no run reaches is
+laid out cold. race_modern - the race with the modern graphics, 120
+pictures a second from frame 11,500 (`--setting high_fps_from`, so the
+presses land as at 60) and 2x - is deterministic and recorded, and a
+training run, with this PC's pack (game.json's pgo_env). The profile made
+again, against the build before it (bench.py, three each after a warm-up):
+
+| | before | after |
+| --- | --- | --- |
+| the race, virtual time | 46.74 s | 46.09 s (-1.4%) |
+| race_modern, virtual time | 45.82 s | 45.30 s (-1.1%) |
+| VU bench (the crash) | 42.6 ms | 40.8 ms (-4.2%) |
+| the pile-up's replay: GS thread / renderer | 14.69 / 8.59 ms | 14.53 / 7.97 ms |
+| the explosion's replay: GS thread / renderer | 5.31 / 2.66 ms | 5.00 / 2.97 ms (the renderer's spread 2.5-3.3) |
+
+In true real time - the crash at 144 pictures a second, 3x, the modern
+graphics and the pack, the old profile and the new alternated, twice:
+
+| | late / dropped | 99.9% interval | GS thread busy | VIF1 worker busy |
+| --- | --- | --- | --- | --- |
+| old profile | 0/0, 1/0 (18.5 ms) | 10.15, 9.57 ms | 58.2%, 59.2% | 54.8%, 54.8% |
+| new profile | 0/0, 1/1 (10.7 ms) | 9.59, 9.64 ms | 57.4%, 57.6% | 54.0%, 54.2% |
+| new, GS split | 0/2, 1/2 | 10.34, 10.44 ms | 64.0%, 64.2% | 56.4%, 56.2% |
+
+The crash's 1,700 pictures at 144 a second with the pack now come with one
+late picture or none either way; the new profile's threads a little less
+busy.
+
+**The GS split** (PS2HOST_GS_SPLIT=1) again, now the decoding and OnDraw
+are lighter: in true real time (the table above) the GS thread is busier
+with it (64% against 57%) and two pictures were dropped in each run - the
+hand-over between the two threads costs more than the decoding it moves.
+It stays off.
+
+**bench.py** (engine 6cf7567): the deterministic benchmark - GS replays
+(the GS thread's and the renderer's CPU a pass), VU snapshots, virtual-time
+runs; medians and spread, --json and --compare.
+
+**Not done, and why.**
+- *The final GPU vertices built on the GS thread*: GsVertex and the GPU's
+  PackedVertex are both 32 bytes - the records would be no smaller, and the
+  renderer's copy (its thread has room) would move onto the GS thread, the
+  one that limits.
+- *The call dispatch*: a direct-mapped cache, one indirect call and the
+  guest call stack's push and pop (widescreen.cpp reads it) - nothing
+  worth its risk.
+- *Drew* (~1.5 ms of the pile-up's GS thread): its common path is a few
+  compares a primitive; putting it off across a run of primitives would
+  need every reader of the targets' bookkeeping to catch it up first.
+- *VU1 superblocks, VF registers held across blocks*: the blocks are short
+  and branchy, and the ceilings measured on 2026-10-24 (all clamps gone
+  -7.5%, no timing at all -7%, both inexact) bound what they could win - a
+  project of days for a few percent of one thread.
+- *An integrated GPU at 2x*: needs the iGPU chosen by hand; not measured.
