@@ -52,6 +52,7 @@
 
 #include "controls.h"
 #include "triggers.h"
+#include "ps2host/bindings.h"
 #include "ps2host/host.h"
 #include "ps2host/run.h"
 #include "ps2host/settings.h"
@@ -63,14 +64,27 @@ void F_001A0790(lifted::Context& c);        // the race's HUD
 namespace controls {
 namespace {
 
-// DualShock 2 inputs (libpad's order).
-constexpr int kSelect = 0, kL3 = 1, kR3 = 2, kStart = 3, kUp = 4, kRight = 5, kDown = 6, kLeft = 7, kL2 = 8,
-              kR2 = 9, kL1 = 10, kR1 = 11, kTriangle = 12, kCircle = 13, kCross = 14, kSquare = 15;
-constexpr int kInputs = 16;
-constexpr u16 Bit(int input) { return u16(1u << input); }
-// The settings' names for them.
-const char* const kInputKeys[kInputs] = {"select", "l3", "r3", "start", "up", "right", "down", "left",
-                                         "l2", "r2", "l1", "r1", "triangle", "circle", "cross", "square"};
+// DualShock 2 inputs (libpad's order), and the bindings' tables, keys and
+// buttons: the engine's (bindings.h).
+namespace bindings = ps2host::bindings;
+using bindings::Bit;
+using bindings::kInputs;
+using bindings::kSelect;
+using bindings::kL3;
+using bindings::kR3;
+using bindings::kStart;
+using bindings::kUp;
+using bindings::kRight;
+using bindings::kDown;
+using bindings::kLeft;
+using bindings::kL2;
+using bindings::kR2;
+using bindings::kL1;
+using bindings::kR1;
+using bindings::kTriangle;
+using bindings::kCircle;
+using bindings::kCross;
+using bindings::kSquare;
 
 // A trigger counts from this far in (of 255): its rest, and a little play.
 constexpr u8 kTriggerDeadZone = 12;
@@ -90,71 +104,16 @@ const bool kLog = std::getenv("PS2HOST_CONTROLS_LOG") != nullptr;
 const bool kForcedModern = std::getenv("PS2HOST_MODERN_CONTROLS") != nullptr;
 
 // ------------------------------------------------------------ the keys
-
-/* The keys a binding may use, by virtual key: the name a row shows (the
-   game's font has no '-' or '/': words for them). F1, F9, F10, F12 and Tab
-   are the port's own (the FPS counter, the PC settings panel, the HUD
-   editor, a capture, the texture pack), Escape cancels a binding, Alt+Enter
-   is fullscreen - none can be bound. */
-struct Key {
-    int vk;
-    const char* name;
-};
-const Key kKeys[] = {
-    {'A', "A"}, {'B', "B"}, {'C', "C"}, {'D', "D"}, {'E', "E"}, {'F', "F"}, {'G', "G"}, {'H', "H"}, {'I', "I"},
-    {'J', "J"}, {'K', "K"}, {'L', "L"}, {'M', "M"}, {'N', "N"}, {'O', "O"}, {'P', "P"}, {'Q', "Q"}, {'R', "R"},
-    {'S', "S"}, {'T', "T"}, {'U', "U"}, {'V', "V"}, {'W', "W"}, {'X', "X"}, {'Y', "Y"}, {'Z', "Z"},
-    {'0', "0"}, {'1', "1"}, {'2', "2"}, {'3', "3"}, {'4', "4"}, {'5', "5"}, {'6', "6"}, {'7', "7"}, {'8', "8"},
-    {'9', "9"},
-    {VK_UP, "UP ARROW"}, {VK_DOWN, "DOWN ARROW"}, {VK_LEFT, "LEFT ARROW"}, {VK_RIGHT, "RIGHT ARROW"},
-    {VK_SPACE, "SPACE"}, {VK_RETURN, "ENTER"}, {VK_BACK, "BACKSPACE"},
-    {VK_LSHIFT, "LEFT SHIFT"}, {VK_RSHIFT, "RIGHT SHIFT"}, {VK_LCONTROL, "LEFT CTRL"}, {VK_RCONTROL, "RIGHT CTRL"},
-    {VK_LMENU, "LEFT ALT"}, {VK_RMENU, "RIGHT ALT"}, {VK_CAPITAL, "CAPS LOCK"},
-    {VK_INSERT, "INSERT"}, {VK_DELETE, "DELETE"}, {VK_HOME, "HOME"}, {VK_END, "END"}, {VK_PRIOR, "PAGE UP"},
-    {VK_NEXT, "PAGE DOWN"},
-    {VK_F2, "F2"}, {VK_F3, "F3"}, {VK_F4, "F4"}, {VK_F5, "F5"}, {VK_F6, "F6"}, {VK_F7, "F7"}, {VK_F8, "F8"},
-    {VK_F11, "F11"},
-    {VK_NUMPAD0, "NUM 0"}, {VK_NUMPAD1, "NUM 1"}, {VK_NUMPAD2, "NUM 2"}, {VK_NUMPAD3, "NUM 3"},
-    {VK_NUMPAD4, "NUM 4"}, {VK_NUMPAD5, "NUM 5"}, {VK_NUMPAD6, "NUM 6"}, {VK_NUMPAD7, "NUM 7"},
-    {VK_NUMPAD8, "NUM 8"}, {VK_NUMPAD9, "NUM 9"}, {VK_DECIMAL, "NUM POINT"}, {VK_ADD, "NUM PLUS"},
-    {VK_SUBTRACT, "NUM MINUS"}, {VK_MULTIPLY, "NUM TIMES"}, {VK_DIVIDE, "NUM DIVIDE"},
-    {VK_OEM_1, "SEMICOLON"}, {VK_OEM_PLUS, "EQUALS"}, {VK_OEM_COMMA, "COMMA"}, {VK_OEM_MINUS, "MINUS"},
-    {VK_OEM_PERIOD, "PERIOD"}, {VK_OEM_2, "SLASH"}, {VK_OEM_3, "BACKQUOTE"}, {VK_OEM_4, "LEFT BRACKET"},
-    {VK_OEM_5, "BACKSLASH"}, {VK_OEM_6, "RIGHT BRACKET"}, {VK_OEM_7, "APOSTROPHE"},
-};
-
-const char* KeyName(int vk) {
-    for (const Key& k : kKeys)
-        if (k.vk == vk) return k.name;
-    return nullptr;
-}
-
-int KeyByName(const std::string& name) {
-    for (const Key& k : kKeys)
-        if (name == k.name) return k.vk;
-    return 0;
-}
-
-// The controller's buttons by their DualShock 2 place, by style.
-const char* const kPlayStationNames[kInputs] = {"SELECT", "L3", "R3", "START", "DPAD UP", "DPAD RIGHT",
-                                                 "DPAD DOWN", "DPAD LEFT", "L2", "R2", "L1", "R1",
-                                                 "TRIANGLE", "CIRCLE", "CROSS", "SQUARE"};
-const char* const kXboxNames[kInputs] = {"VIEW", "LS", "RS", "MENU", "DPAD UP", "DPAD RIGHT", "DPAD DOWN",
-                                         "DPAD LEFT", "LT", "RT", "LB", "RB", "Y", "B", "A", "X"};
-
-int ButtonByName(const std::string& name) {
-    for (int i = 0; i < kInputs; ++i)
-        if (name == kPlayStationNames[i]) return i;
-    return -1;
-}
+//
+// The keys a binding may use (F1, F9, F10, F12 and Tab are the port's own,
+// Escape cancels a binding, Alt+Enter is fullscreen - none can be bound) and
+// the controller's buttons' names, by style: the engine's (bindings.h).
 
 // ------------------------------------------------------------ the bindings
 
 /* One context's bindings: for each DualShock 2 input, what holds it - a
    virtual key (0 none) or a controller button by its place (-1 none). */
-struct Bindings {
-    int physical[kInputs];
-};
+using Bindings = bindings::Table;
 
 // The keyboard's defaults, racing and in the menus: the port's keys since
 // its first release.
@@ -175,8 +134,6 @@ constexpr Bindings kControllerModern = {{kSelect, kCircle, kR3, kStart, kUp, kRi
 constexpr Bindings kControllerModernBefore = {{kSelect, kL3, kR3, kStart, kUp, kRight, kDown, kLeft, kL1, kR1,
                                                kSquare, kCross, kTriangle, kCircle, kR2, kL2}};
 
-bool Same(const Bindings& a, const Bindings& b) { return std::memcmp(a.physical, b.physical, sizeof a.physical) == 0; }
-
 struct State {
     bool loaded = false;
     Bindings bindings[2][2];        // [Device][Context]
@@ -188,9 +145,8 @@ Bindings& Of(Device device, Context context) { return g_state.bindings[int(devic
 
 const char* DeviceKey(Device device) { return device == Device::kKeyboard ? "keyboard" : "controller"; }
 const char* ContextKey(Context context) { return context == Context::kRacing ? "racing" : "menus"; }
-
-std::string SettingKey(Device device, Context context, int input) {
-    return std::string("bind.") + DeviceKey(device) + "." + ContextKey(context) + "." + kInputKeys[input];
+bindings::Device Engine(Device device) {
+    return device == Device::kKeyboard ? bindings::Device::kKeyboard : bindings::Device::kController;
 }
 
 Bindings Defaults(Device device, Context context) {
@@ -209,17 +165,7 @@ void Load() {
         for (Context context : {Context::kRacing, Context::kMenus}) {
             Bindings b = Defaults(device, context);
             const bool forced = kForcedModern && device == Device::kController && context == Context::kRacing;
-            for (int i = 0; i < kInputs && !forced; ++i) {
-                const std::string value = ps2host::Setting(SettingKey(device, context, i));
-                if (value.empty()) continue;
-                if (value == "NONE") b.physical[i] = device == Device::kKeyboard ? 0 : -1;
-                else if (device == Device::kKeyboard && KeyByName(value)) b.physical[i] = KeyByName(value);
-                else if (device == Device::kController && ButtonByName(value) >= 0)
-                    b.physical[i] = ButtonByName(value);
-                else continue;
-                if (kLog) std::fprintf(stderr, "[controls] %s %s %s: %s (the settings')\n", DeviceKey(device),
-                                       ContextKey(context), kInputKeys[i], value.c_str());
-            }
+            if (!forced) b = bindings::Load(Engine(device), ContextKey(context), b, kLog);
             if (device == Device::kController && context == Context::kRacing) {
                 if (Same(b, kControllerAsGame)) b = kControllerClassic;
                 else if (Same(b, kControllerModernBefore)) b = kControllerModern;
@@ -229,21 +175,13 @@ void Load() {
 }
 
 void Save(Device device, Context context) {
-    const Bindings& b = Of(device, context);
-    for (int i = 0; i < kInputs; ++i) {
-        const int p = b.physical[i];
-        const char* name = device == Device::kKeyboard ? (p ? KeyName(p) : nullptr) : (p >= 0 ? kPlayStationNames[p] : nullptr);
-        ps2host::SetSetting(SettingKey(device, context, i), name ? name : "NONE");
-    }
+    bindings::Save(Engine(device), ContextKey(context), Of(device, context));
     ++g_state.generation;
 }
 
 /* `input` bound to `physical`: an input that had it gets `input`'s old one. */
 void Bind(Device device, Context context, int input, int physical) {
-    Bindings& b = Of(device, context);
-    for (int i = 0; i < kInputs; ++i)
-        if (i != input && b.physical[i] == physical) b.physical[i] = b.physical[input];
-    b.physical[input] = physical;
+    bindings::Bind(Of(device, context), input, physical);
     Save(device, context);
 }
 
@@ -301,12 +239,6 @@ void EndCapture(CaptureState how) {
     g_draining[0] = g_draining[1] = true;
 }
 
-bool AnyKeyDown() {
-    for (const Key& k : kKeys)
-        if (ps2host::HostKeyDown(k.vk)) return true;
-    return ps2host::HostKeyDown(VK_ESCAPE);
-}
-
 bool Focused() { return ps2host::WindowFocused() || ps2host::KeysScripted(); }
 
 /* The keyboard's DualShock 2, each pad read (the host's keyboard mapper). */
@@ -315,15 +247,15 @@ u16 Keyboard() {
     if (!Focused()) return 0;
     if (g_capture.active) {
         if (!g_capture.armed[0]) {
-            g_capture.armed[0] = !AnyKeyDown();
+            g_capture.armed[0] = !bindings::AnyKeyDown();
         } else if (ps2host::HostKeyDown(VK_ESCAPE)) {
             EndCapture(CaptureState::kCancelled);
         } else if (g_capture.device == Device::kKeyboard) {
-            for (const Key& k : kKeys)
-                if (ps2host::HostKeyDown(k.vk)) {
+            for (int vk : bindings::BindableKeys())
+                if (ps2host::HostKeyDown(vk)) {
                     if (kLog) std::fprintf(stderr, "[controls] %s %s: %s\n", DeviceKey(g_capture.device),
-                                           kInputKeys[g_capture.input], k.name);
-                    Bind(g_capture.device, g_capture.context, g_capture.input, k.vk);
+                                           bindings::InputKey(g_capture.input), bindings::KeyName(vk));
+                    Bind(g_capture.device, g_capture.context, g_capture.input, vk);
                     EndCapture(CaptureState::kBound);
                     break;
                 }
@@ -356,8 +288,8 @@ void Controller(ps2host::HostPadState* pad) {
         } else if (g_capture.device == Device::kController && held) {
             int button = 0;
             while (!(held & Bit(button))) ++button;
-            if (kLog) std::fprintf(stderr, "[controls] controller %s: %s\n", kInputKeys[g_capture.input],
-                                   kPlayStationNames[button]);
+            if (kLog) std::fprintf(stderr, "[controls] controller %s: %s\n", bindings::InputKey(g_capture.input),
+                                   bindings::ButtonName(button, bindings::Style::kPlayStation));
             Bind(g_capture.device, g_capture.context, g_capture.input, button);
             EndCapture(CaptureState::kBound);
         }
@@ -472,8 +404,8 @@ const Action* Rows(Device device, Context context, int* count) {
 }
 
 const char* ButtonName(int button) {
-    if (button < 0 || button >= kInputs) return "NONE";
-    return PromptStyle() == Style::kXbox ? kXboxNames[button] : kPlayStationNames[button];
+    return bindings::ButtonName(button, PromptStyle() == Style::kXbox ? bindings::Style::kXbox
+                                                                        : bindings::Style::kPlayStation);
 }
 
 }  // namespace
@@ -500,7 +432,7 @@ std::string BoundName(Device device, Context context, int input) {
     Load();
     const int p = Of(device, context).physical[input];
     if (device == Device::kKeyboard) {
-        const char* name = p ? KeyName(p) : nullptr;
+        const char* name = p ? bindings::KeyName(p) : nullptr;
         return name ? name : "NONE";
     }
     return ButtonName(p);
@@ -539,7 +471,7 @@ void BeginCapture(Device device, Context context, int input) {
     g_capture.context = context;
     g_capture.input = input;
     g_capture.until = g_tick + kCaptureReads;
-    if (kLog) std::fprintf(stderr, "[controls] binding %s %s %s\n", DeviceKey(device), ContextKey(context), kInputKeys[input]);
+    if (kLog) std::fprintf(stderr, "[controls] binding %s %s %s\n", DeviceKey(device), ContextKey(context), bindings::InputKey(input));
 }
 
 CaptureState Capture(int* seconds) {
