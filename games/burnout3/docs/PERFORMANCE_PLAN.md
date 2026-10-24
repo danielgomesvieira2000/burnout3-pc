@@ -815,3 +815,47 @@ with registers held in the host's across a block and its timing worked out
 ahead (a project of its own), and the GS side's ~80 ns a primitive (decode,
 Kick, OnDraw) - per-primitive trimming did not show; batching whole strips
 through the bridge would.
+
+## The GS thread and the renderer by taking parts away (2026-10-24)
+
+The sampler misleads on these threads (and on compiled VU code at the
+instruction level: two "hot" instructions that a change to them showed were
+nothing). So: measured by switching a part off (a measure only, never
+kept) and reading each thread's own CPU from the pile-up's replay
+(`--gs-replay`, now with the GS thread's and the renderer's CPU a pass;
+`PS2HOST_REPLAY_SAMPLE=renderer` samples the renderer's thread).
+
+The crash's pile-up (frame 18860, two frames, ~245,000 primitives), the GS
+thread 19.9 ms a pass without the profile: GIF decoding 6.8, vertices and
+Kick 1.5, Draw and the GPU bridge 11.0 - of it OnDraw 9.3 (Drew 1.5, the
+hand-over to the renderer 1.9), the replay's own 0.65. The renderer's
+thread: 11.6 ms, 8 of them the primitives one by one.
+
+**Done.**
+- *GPU vertices 32 bytes, not 64* (engine bb742b0): a sprite's range in a
+  stream of its own, read only on a target drawn larger. Half the bytes
+  built, copied and fetched. Exact (pictures and memory at 1x and 3x).
+- *Runs of primitives handed over as one* (engine 4029077): consecutive
+  primitives of the last state one record; the renderer's thread one
+  DrawTriangleRun, taken at once where nothing is done a primitive at a time
+  (no feedback, shader blend, two-pass alpha test, sprite or flat-quad range
+  on a larger target). The pile-up's renderer 12.1 -> 9.5 ms a pass (-21%),
+  the explosion's 4.0 -> 3.05 (-24%); exact; eight GPU runs as recorded.
+- *OnDraw without gathering registers where none was written*: Gs::Apply
+  counts its writes; the GS thread 19.48 -> 19.19 ms.
+
+With the profile refreshed, against the day's first build (both profile-
+guided): the pile-up's GS thread 16.0 -> 15.3 ms a pass; in real time on
+two cores (the crash run, three each, alternated) late pictures 42/38/50
+-> 25/31/23.
+
+**Tried, dropped.**
+- *VU1: clamp-free block bodies behind a dirty-register mask* (one test a
+  block, the mask kept at loads and exits): exact (hash, host tests), but
+  the fast bench 42.2 -> 47.2 ms - twice the code costs more than the
+  clamps. With every register assumed clean (inexact, the ceiling) it was
+  -7.5%; without any timing bookkeeping (inexact) -7%. The bench itself
+  is about half its own snapshot restoring.
+- *`discarded_` not stored* for a compare into VF0 whose flags come from
+  the result: no change. `__restrict` on the blocks' Vu and run state:
+  within noise (kept).
