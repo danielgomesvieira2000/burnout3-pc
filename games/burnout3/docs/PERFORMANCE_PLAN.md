@@ -859,3 +859,24 @@ two cores (the crash run, three each, alternated) late pictures 42/38/50
 - *`discarded_` not stored* for a compare into VF0 whose flags come from
   the result: no change. `__restrict` on the blocks' Vu and run state:
   within noise (kept).
+
+### The GIF decoding (2026-10-24, later)
+
+Taken apart the same way (the pile-up's replay, --no-pgo): with nothing
+decoded the GS thread is 0.65 ms a pass (the replay's own); IMAGE's
+transfers ~1 ms; building the vertices ~0.4; the decoding of the rest -
+tags, PACKED's registers, their writes - ~5.2 ms for ~1.4 million
+quadwords, ~3.7 ns each.
+
+**PackedRun** (engine 319101b): where no trace wants each quadword's
+source, a PACKED tag's whole quadwords in a loop of their own - each
+register's descriptor taken from the tag once, the place in the loop in
+locals, no source address noted a quadword. The GS thread 18.9 -> 17.2 ms a
+pass (-9%); the same pictures and memory at 1x and 3x, and through the GS
+split; eight GPU runs as recorded. With the day's work the pile-up's GS
+thread is 19.9 -> 17.2 ms (-14%) without the profile.
+
+What is left in OnDraw after the bounds (~6.5 ms a pass): the hand-over
+(1.9), Drew (1.5), and ~3 ms spread thin - every primitive goes the fast
+path's cheap way (DrawTrianglesAgain), so no one part: the records' ~27 MB
+a pass written for the renderer, and its thread running beside it.
