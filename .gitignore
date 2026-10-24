@@ -34,3 +34,6 @@ games/*/include/*/
 replacements/
 texture pack/
 texture_pack/
+
+# Third-party PCSX2 mods (the player's own, read at build time; never committed)
+b3 mod pnachs/
