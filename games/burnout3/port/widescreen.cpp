@@ -11,18 +11,17 @@
  */
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iterator>
-#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "ps2host/host.h"
+#include "ps2host/hud.h"
 #include "ps2host/run.h"
 #include "ps2host/settings.h"
 
@@ -89,34 +88,22 @@ void SetViewWindow(lifted::Context& c) {
 
 // ------------------------------------------------------------ elements and anchors
 //
-// An element is what one piece of the game's code draws in one part of the
-// screen: the object (the function whose call drew it), what called that
-// (its context: the race's HUD, a frontend screen), and the cell of a 3x3
-// grid over the 4:3 picture its middle lies in (the race's POS and LAP are
-// the same object, top left and top right). The same in every run.
+// An element (ps2host/hud.h) is what one piece of the game's code draws in
+// one part of the screen: the object (the function whose call drew it), what
+// called that (its context: the race's HUD, a frontend screen), and the cell
+// of a 3x3 grid over the 4:3 picture its middle lies in (the race's POS and
+// LAP are the same object, top left and top right). The anchors and the HUD
+// editor (F10) are the engine's; P in the editor holds the race still
+// (RaceWorld).
 
-enum class Anchor { kCentre, kLeft, kRight, kStretch };
-
-struct ElementId {
-    u32 context = 0, object = 0;
-    char cell[3] = {'?', '?', 0};        // row T M B, column L C R
-    bool operator<(const ElementId& o) const {
-        // Rows top to bottom, each left to right.
-        if (cell[0] != o.cell[0]) return std::string("TMB").find(cell[0]) < std::string("TMB").find(o.cell[0]);
-        if (cell[1] != o.cell[1]) return std::string("LCR").find(cell[1]) < std::string("LCR").find(o.cell[1]);
-        if (object != o.object) return object < o.object;
-        return context < o.context;
-    }
-    bool operator==(const ElementId& o) const {
-        return context == o.context && object == o.object && cell[0] == o.cell[0] && cell[1] == o.cell[1];
-    }
-    bool known() const { return object != 0; }
-    std::string Key() const {
-        char key[48];
-        std::snprintf(key, sizeof key, "hud.%06X.%06X.%s", unsigned(context), unsigned(object), cell);
-        return key;
-    }
-};
+using ps2host::hud::Anchor;
+using ps2host::hud::AnchorOf;
+using ps2host::hud::CellOf;
+using ps2host::hud::ElementId;
+using ps2host::hud::Hidden;
+using ps2host::hud::Place;
+using ps2host::hud::Seen;
+using ps2host::hud::Squeeze;
 
 /* The port's own anchors (the HUD editor's settings take precedence). */
 const std::pair<const char*, Anchor> kDefaultAnchors[] = {
@@ -150,52 +137,15 @@ const std::pair<const char*, Anchor> kDefaultAnchors[] = {
     {"hud.30D6E0.3D7B40.BR", Anchor::kRight},
 };
 
-const char* AnchorName(Anchor a) {
-    switch (a) {
-        case Anchor::kLeft: return "left";
-        case Anchor::kRight: return "right";
-        case Anchor::kStretch: return "stretch";
-        default: return "centre";
+/* What the race's HUD elements are (the editor's panel names them). */
+const char* ElementName(const ElementId& id) {
+    switch (id.object) {
+        case 0x003CD920: return "panel";
+        case 0x00381AB0: return id.cell[1] == 'L' ? "position" : id.cell[1] == 'R' ? "lap" : "counter";
+        case 0x00381030: return "speed";
+        case 0x001A8180: return "boost bar";
+        default: return "";
     }
-}
-
-/* An element's anchor: its setting, else the port's default, else centred;
-   remembered until the editor changes one. */
-std::map<std::string, Anchor> g_anchors;
-Anchor AnchorOf(const ElementId& id) {
-    if (!id.known()) return Anchor::kCentre;
-    const std::string key = id.Key();
-    auto found = g_anchors.find(key);
-    if (found != g_anchors.end()) return found->second;
-    Anchor anchor = Anchor::kCentre;
-    for (const auto& [name, value] : kDefaultAnchors)
-        if (key == name) anchor = value;
-    const std::string set = ps2host::Setting(key, "");
-    if (set == "left") anchor = Anchor::kLeft;
-    else if (set == "right") anchor = Anchor::kRight;
-    else if (set == "centre") anchor = Anchor::kCentre;
-    else if (set == "stretch") anchor = Anchor::kStretch;
-    g_anchors[key] = anchor;
-    return anchor;
-}
-
-/* 4:3 over the picture's shape: 1 for a 4:3 picture. */
-float Squeeze() { return std::min(1.0f, (4.0f / 3.0f) / ps2host::PictureAspect()); }
-
-/* x (about `centre`, `half` its distance to the picture's edges) brought in
-   by k towards the middle, or the edge it is anchored to; stretched, as the
-   game drew it - across the wider picture. */
-float Place(float x, float centre, float half, float k, Anchor anchor) {
-    if (anchor == Anchor::kStretch) return x;
-    const float a = anchor == Anchor::kLeft ? centre - half : anchor == Anchor::kRight ? centre + half : centre;
-    return a + (x - a) * k;
-}
-
-/* The cell of a point of the 4:3 picture, (0, 0) its top left, 640 x 448. */
-void CellOf(float x, float y, char cell[3]) {
-    cell[0] = y < 448.0f / 3 ? 'T' : y < 896.0f / 3 ? 'M' : 'B';
-    cell[1] = x < 640.0f / 3 ? 'L' : x < 1280.0f / 3 ? 'C' : 'R';
-    cell[2] = 0;
 }
 
 /* Who drew: the object (the caller of the function drawing) and its
@@ -208,145 +158,6 @@ void Caller(ElementId* id) {
     const std::size_t n = calls.size();
     id->object = n >= 2 ? calls[n - 2] : 0;
     id->context = n >= 4 ? calls[n - 4] : 0;
-}
-
-// ------------------------------------------------------------ the HUD editor
-//
-// F10 in a wider picture: a panel over the picture lists the elements on
-// screen and their anchors; Page Up and Page Down choose one (it blinks),
-// Home or numpad 4 anchors it left, Insert or numpad 5 in the middle, End or
-// numpad 6 right, Delete or numpad 8 stretches it across the picture.
-// P holds the race still (the world not moved on, its picture and HUD
-// drawn every frame) - till P again or the editor closes - saved at once.
-
-struct Editor {
-    bool on = false;
-    ElementId chosen;
-    std::map<ElementId, std::chrono::steady_clock::time_point> seen;   // drawn lately
-    bool keys[8] = {};
-    std::size_t shown = ~std::size_t(0);   // how many the panel lists
-    bool paused = false;                    // the race held still (P)
-};
-Editor g_editor;
-
-/* What the race's HUD elements are (the panel names them). */
-const char* ElementName(const ElementId& id) {
-    switch (id.object) {
-        case 0x003CD920: return "panel";
-        case 0x00381AB0: return id.cell[1] == 'L' ? "position" : id.cell[1] == 'R' ? "lap" : "counter";
-        case 0x00381030: return "speed";
-        case 0x001A8180: return "boost bar";
-        default: return "";
-    }
-}
-
-const char* CellName(const char cell[3]) {
-    static const char* const kRows[] = {"top", "middle", "bottom"};
-    static const char* const kColumns[] = {"left", "centre", "right"};
-    static char name[24];
-    const std::size_t row = std::string("TMB").find(cell[0]), column = std::string("LCR").find(cell[1]);
-    std::snprintf(name, sizeof name, "%s %s", row < 3 ? kRows[row] : "?", column < 3 ? kColumns[column] : "?");
-    return name;
-}
-
-/* An element was drawn (the editor lists what is on screen). */
-void Seen(const ElementId& id) {
-    if (g_editor.on && id.known()) g_editor.seen[id] = std::chrono::steady_clock::now();
-}
-
-/* Whether it is hidden now: the chosen one blinks. */
-bool Hidden(const ElementId& id) {
-    if (!g_editor.on || !(id == g_editor.chosen)) return false;
-    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                        std::chrono::steady_clock::now().time_since_epoch()).count();
-    return (ms / 250) % 2 == 1;
-}
-
-/* The panel: what is on screen, the one chosen, the keys. */
-void ShowStatus() {
-    if (!g_editor.on) {
-        ps2host::SetWindowOverlay({});
-        ps2host::SetWindowStatus("");
-        return;
-    }
-    std::vector<std::string> lines = {g_editor.paused ? "HUD EDITOR  (F10 closes)   - PAUSED (P resumes)"
-                                                      : "HUD EDITOR  (F10 closes)   P pauses the race",
-                                      "PgUp/PgDn choose   Home left   Insert centre   End right   Delete stretch", ""};
-    std::size_t index = 0, count = 0;
-    for (const auto& [id, when] : g_editor.seen) {
-        ++count;
-        const bool chosen = id == g_editor.chosen;
-        if (chosen) index = count;
-        char text[160];
-        std::snprintf(text, sizeof text, "%s %-13s %-10s %06X/%06X   %s", chosen ? ">" : " ", CellName(id.cell),
-                      ElementName(id), unsigned(id.object), unsigned(id.context), AnchorName(AnchorOf(id)));
-        lines.push_back(text);
-    }
-    if (!count) lines.push_back("  (no HUD drawn)");
-    g_editor.shown = count;
-    char title[96];
-    std::snprintf(title, sizeof title, "HUD EDIT %zu/%zu", index, count);
-    ps2host::SetWindowStatus(title);
-    ps2host::SetWindowOverlay(lines);
-}
-
-/* A key's press (down now, up before). */
-bool Press(int slot, int vk, int vk2 = 0) {
-    const bool down = ps2host::WindowFocused() && (ps2host::HostKeyDown(vk) || (vk2 && ps2host::HostKeyDown(vk2)));
-    const bool pressed = down && !g_editor.keys[slot];
-    g_editor.keys[slot] = down;
-    return pressed;
-}
-
-/* The editor's keys, read as the 2D is drawn. */
-void EditorInput() {
-    constexpr int kF10 = 0x79, kPageUp = 0x21, kPageDown = 0x22, kHome = 0x24, kEnd = 0x23, kInsert = 0x2D;
-    constexpr int kPad4 = 0x64, kPad5 = 0x65, kPad6 = 0x66, kDelete = 0x2E, kPad8 = 0x68, kP = 'P';
-    if (Press(0, kF10)) {
-        g_editor.on = !g_editor.on && Squeeze() < 1.0f;
-        g_editor.paused = false;
-        g_editor.seen.clear();
-        g_editor.chosen = ElementId{};
-        g_editor.shown = ~std::size_t(0);
-        std::fprintf(stderr, "[hud] editor %s\n", g_editor.on ? "on" : Squeeze() < 1.0f ? "off" : "off (a 4:3 picture)");
-        ShowStatus();
-    }
-    if (!g_editor.on) return;
-    // What has not been drawn for a while is off the screen; the panel
-    // follows what is.
-    const auto now = std::chrono::steady_clock::now();
-    for (auto it = g_editor.seen.begin(); it != g_editor.seen.end();)
-        it = now - it->second > std::chrono::milliseconds(500) ? g_editor.seen.erase(it) : std::next(it);
-    if (g_editor.seen.size() != g_editor.shown) ShowStatus();
-    std::vector<ElementId> list;
-    for (const auto& [id, when] : g_editor.seen) list.push_back(id);
-    const bool next = Press(1, kPageDown), previous = Press(2, kPageUp);
-    if ((next || previous) && !list.empty()) {
-        std::size_t at = list.size();
-        for (std::size_t i = 0; i < list.size(); ++i)
-            if (list[i] == g_editor.chosen) at = i;
-        if (at == list.size()) at = next ? list.size() - 1 : 0;
-        g_editor.chosen = list[(at + (next ? 1 : list.size() - 1)) % list.size()];
-        ShowStatus();
-    }
-    Anchor set = Anchor::kCentre;
-    bool setting = false;
-    if (Press(3, kHome, kPad4)) setting = true, set = Anchor::kLeft;
-    if (Press(4, kInsert, kPad5)) setting = true, set = Anchor::kCentre;
-    if (Press(5, kEnd, kPad6)) setting = true, set = Anchor::kRight;
-    if (Press(6, kDelete, kPad8)) setting = true, set = Anchor::kStretch;
-    if (Press(7, kP)) {
-        g_editor.paused = !g_editor.paused;
-        std::fprintf(stderr, "[hud] race %s\n", g_editor.paused ? "paused" : "resumed");
-        ShowStatus();
-    }
-    if (setting && g_editor.chosen.known()) {
-        const std::string key = g_editor.chosen.Key();
-        ps2host::SetSetting(key, AnchorName(set));
-        g_anchors[key] = set;
-        std::fprintf(stderr, "[hud] %s anchored %s\n", key.c_str(), AnchorName(set));
-        ShowStatus();
-    }
 }
 
 // ------------------------------------------------------------ the 2D batch
@@ -559,7 +370,7 @@ void PlaceVertices(const std::vector<Vertex2D>& vertices, float k) {
 
 /* 0x0021A4F0: the batch placed, then flushed. */
 void Flush2D(lifted::Context& c) {
-    EditorInput();
+    ps2host::hud::EditorInput();
     const u32 gp = u32(c.r[28]);
     u32 at = generated::ReadU32(gp - 0x6D20u);
     const u32 end = generated::ReadU32(gp - 0x5D98u);
@@ -644,7 +455,7 @@ unsigned long long g_race_world_calls = 0;
 
 void RaceWorld(lifted::Context& c) {
     ++g_race_world_calls;
-    if (g_editor.on && g_editor.paused) return;
+    if (ps2host::hud::Paused()) return;
     F_0019A550(c);
 }
 
@@ -669,6 +480,13 @@ float FrontendPlace(u32 object, float x, float cx, float cy) {
 unsigned long long RaceWorldCalls() { return g_race_world_calls; }
 
 void RegisterWidescreen() {
+    ps2host::hud::Game game;
+    game.defaults = kDefaultAnchors;
+    game.default_count = std::size(kDefaultAnchors);
+    game.name = ElementName;
+    game.can_pause = true;
+    game.paused_what = "the race";
+    ps2host::hud::SetGame(game);
     ps2host::Override(0x0019A550u, RaceWorld, "the race's world each frame: held still by the HUD editor (P)");
     ps2host::Override(0x001E2110u, SetViewWindow, "RwCameraSetViewWindow: wider for ASPECT RATIO (PC SETTINGS)");
     ps2host::Override(0x0021A4F0u, Flush2D, "a 2D batch's flush: the HUD placed in a wider picture");

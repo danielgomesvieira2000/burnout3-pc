@@ -558,7 +558,7 @@ const char* const kLods[] = {"original", "high"};
 int Lod() { return Among("lod", kLods); }
 void SetLod(int which) { ps2host::SetSetting("lod", kLods[which]); }
 // PARTICLES: Nehalem's patch, partial (MORE) or full (MOST): two mods'
-// switches (port/tools/lift_mods.py).
+// switches (port/tools/mods_spec.py).
 int Particles() {
     return ps2host::SettingOn("mod.particles_most", false) ? 2 : ps2host::SettingOn("mod.particles_more", false) ? 1 : 0;
 }

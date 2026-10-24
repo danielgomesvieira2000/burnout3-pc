@@ -29,14 +29,17 @@ endif()
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../engine/host ${CMAKE_BINARY_DIR}/ps2host)
 
 # PC SETTINGS' MODS: the functions the mods change, lifted with them
-# (tools/lift_mods.py) from the player's executable - the game's code, so
-# made here rather than kept in the repository.
+# (the engine's tools/lift_mods.py, the mods in tools/mods_spec.py) from the
+# player's executable - the game's code, so made here rather than kept in
+# the repository.
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(MODS_LIFTED ${CMAKE_BINARY_DIR}/mods_lifted.cpp)
+set(LIFT_MODS ${CMAKE_CURRENT_LIST_DIR}/../../../engine/tools/lift_mods.py)
 add_custom_command(OUTPUT ${MODS_LIFTED}
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/tools/lift_mods.py
-            --game ${CMAKE_CURRENT_LIST_DIR}/.. --out ${MODS_LIFTED}
-    DEPENDS ${CMAKE_CURRENT_LIST_DIR}/tools/lift_mods.py
+    COMMAND ${Python3_EXECUTABLE} ${LIFT_MODS}
+            --game ${CMAKE_CURRENT_LIST_DIR}/.. --spec ${CMAKE_CURRENT_LIST_DIR}/tools/mods_spec.py
+            --out ${MODS_LIFTED}
+    DEPENDS ${LIFT_MODS} ${CMAKE_CURRENT_LIST_DIR}/tools/mods_spec.py
     COMMENT "Lifting the mods' functions")
 
 ps2_add_port(burnout3

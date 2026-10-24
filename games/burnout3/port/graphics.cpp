@@ -39,7 +39,7 @@
  *   LOD             ORIGINAL / HIGH - the cars' and the traffic's detailed
  *                   models out to longer distances (see the LOD distances)
  *   PARTICLES       ORIGINAL / MORE / MOST - Nehalem's patch, lifted with the
- *                   MODS' (port/tools/lift_mods.py)
+ *                   MODS' (port/tools/mods_spec.py)
  */
 
 #include <algorithm>

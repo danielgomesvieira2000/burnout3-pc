@@ -2206,7 +2206,7 @@ sharp as player 1 at 2x.
 **No music.** The EA Trax update each frame (0x003F8C30, the player object
 0x01E7A888) stops the music (0x003FC470, `a1` 5) when the number of players
 (0x0064D3A0) is 2 or more: `slti $at, $v0, 2` at 0x003F8C54. The port's
-lift_mods.py has it 3 (always): two players hear the music, the song's banner
+mods_spec.py has it 3 (always): two players hear the music, the song's banner
 at the race's start included; three or more (PARTY CRASH) as before.
 
 **Speed.** The game asks for a picture every blank in splitscreen too
@@ -2271,7 +2271,7 @@ over the run. In real time (i7-13620H): all cores at 2x, 0 late either way
 -> 125 of 2,800 pictures late.
 
 **Particles.** Nehalem's "Render extra particles while driving" (lifted with
-the MODS, port/tools/lift_mods.py): the particles' update (0x00261E00) asks
+the MODS, port/tools/mods_spec.py): the particles' update (0x00261E00) asks
 0x00254A50 for its extra ones always (0x00261EB8 li a0,1: MORE, "partial"),
 and also sets its four extra emitters (+0x20F0) going always (0x00261E6C li
 s2,1, a race's flag: MOST, "full"). In the scripted race they show at

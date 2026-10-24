@@ -4,7 +4,7 @@
  * Expansion, SLUS-21050), each a setting.
  *
  * Most change the game's code: those functions are lifted again with the
- * mods' words written in (port/tools/lift_mods.py, at build time) and run
+ * mods' words written in (port/tools/mods_spec.py, at build time) and run
  * instead of the originals as the settings say - a change takes effect the
  * next time the function runs. The rest are words of the game's memory the
  * patch writes every frame, written here at 0x001F43B0 (the display's frame
@@ -52,7 +52,7 @@ u8 g_heavyweights_was = 0;
 bool On(const char* key) { return !g_all_off && ps2host::SettingOn(key, false); }
 
 /* CRASH BREAKER in every mode, Nehalem's Crash Breaker Expansion (its code:
-   lift_mods.py). Its pointer: an entry of a table of the game's at
+   tools/mods_spec.py). Its pointer: an entry of a table of the game's at
    0x004DDE34 (0x001507D0) made its own code's (0x000B3E20: the game's, then
    its own) - written every frame while the mod is on, the game's back once
    it is turned off. */
