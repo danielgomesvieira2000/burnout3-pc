@@ -13,6 +13,7 @@
     "stack_top": "0x01F00000",
     "stack_size": "0x10000"
   },
-  "pgo_runs": ["race", "splitscreen", "car_select", "crash", "road_rage"],
+  "pgo_runs": ["race", "splitscreen", "car_select", "crash", "road_rage", "race_modern"],
+  "pgo_env": {"race_modern": {"PS2HOST_TEXTURE_PACK": "{game}/../../replacements"}},
   "lto": true
 }
