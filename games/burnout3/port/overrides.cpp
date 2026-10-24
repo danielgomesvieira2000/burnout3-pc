@@ -1393,6 +1393,25 @@ void MainMenu(lifted::Context& c) {
     }
 }
 
+/* PC SETTINGS' pages but VIDEO (the panel's own first rows) in the engine's
+   panel too (F9, ps2host::AddPortOptions): the same rows, reached in a race. */
+void AddPanelPages() {
+    std::vector<ps2host::PortOption> options;
+    for (const Option& o : kOptions) {
+        if (o.page == Page::kVideo) continue;
+        ps2host::PortOption p;
+        for (const PageInfo& info : kPages)
+            if (info.page == o.page) p.page = info.name;
+        p.name = o.name;
+        p.help = o.help;
+        p.values.assign(o.values, o.values + o.count);
+        p.now = o.now;
+        p.set = o.set;
+        options.push_back(p);
+    }
+    ps2host::AddPortOptions(options);
+}
+
 }  // namespace
 
 void RegisterGameIopServers();     // iop_servers.cpp
@@ -1428,6 +1447,7 @@ void RegisterGameOverrides() {
     // start: none made in the middle of a player's first race (up to 0.7 s
     // each on an integrated GPU's cold driver).
     ps2host::SetGpuPipelineHints(kGpuPipelineHints, sizeof kGpuPipelineHints / sizeof kGpuPipelineHints[0]);
+    AddPanelPages();
     RegisterGameIopServers();
     RegisterWidescreen();
     RegisterMouse();
