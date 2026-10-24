@@ -764,16 +764,19 @@ game's own code 19%, VU0 macro instructions 7.4% (+ microprograms 2.2%),
 VIF 6%, copies 6%, the IOP 3%.
 
 **Done.**
-- *The EE in the VU's rounding throughout* (engine 8f8cb74): macro mode set
-  the SSE control word toward zero and back for every COP2 instruction - a
-  fifth of MacroFmac. The EE thread's fibers (and the host fiber, where
-  interrupt handlers run) now run toward zero with denormals flushed, and
-  macro mode writes nothing. The pile-up in virtual time 9.49-9.68 -> 9.23 s
-  (-3.5%). The FPU helpers' double arithmetic rounds toward zero too: their
-  result is the exactly truncated one where the double's rounding to
-  nearest used to cross a single's boundary (about one operation in 2^29,
-  every few seconds of a race) - races drift from the recorded runs (the
-  same scene, a mile an hour apart), their pictures recorded again.
+- *The EE in the VU's rounding throughout* - done and undone (engine
+  8f8cb74, 6202b4e): macro mode sets the SSE control word toward zero and
+  back for every COP2 instruction, a fifth of MacroFmac. The EE thread's
+  fibers run in it throughout instead: the pile-up in virtual time 9.49-9.68
+  -> 9.23 s (-3.5%). But the FPU helpers' double arithmetic then rounds
+  toward zero too (their result exactly truncated where the double's
+  rounding to nearest crossed a single's boundary, about one operation in
+  2^29), so every race's trajectory drifts from the recorded runs, and on
+  two cores the pile-up showed more late pictures with it (45/57/56 against
+  21/17/33 in the same build with PS2RT_EE_ROUND_NEAREST, 43/45/36 before) -
+  each a different pile-up, no clean measure. Undone; to try again, keep
+  the helpers' results bit for bit (switch the control word around them,
+  or only where the lifted code runs COP2 instructions back to back).
 - *Tools*: `--sample-renderer` (the renderer's thread sampled), the thread
   named "GPU renderer" in the CPU per thread, `--gs-replay` printing its
   thread's own CPU per pass, `PS2HOST_CAPTURE_FRAME` used for a capture of
