@@ -29,9 +29,9 @@ Thumbs.db
 games/*/src/
 games/*/include/*/
 
-# Pictures made from a game's models (the EXTRA SERIES' car select pictures,
-# games/burnout3/port/extra_pictures/): the game's, never committed.
-games/*/port/extra_pictures/
+# Pictures made from a game's models (renders of the EXTRA SERIES' cars, kept
+# beside port/extra_pictures/'s own drawings): the game's, never committed.
+games/*/port/extra_pictures_local/
 !games/*/include/ps2/
 
 # Texture packs (PCSX2 replacements: third-party art made from the game's textures): never committed.

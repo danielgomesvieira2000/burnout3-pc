@@ -2514,7 +2514,9 @@ The EXTRA SERIES (port/extra_series.cpp) is class 7: its cars `TRAFCARn`,
 their files and picture laid over the disc as it opens (the engine's
 `Disc::AddFile`, made from the disc's own files), added to vlist.bin, their
 names ours, their settings other cars' by caller, the rivals in the series
-all its cars. Its picture is a render of the car in the garage: a capture
+all its cars. Its picture is our own drawing (a silhouette and a question
+mark, tools/make_silhouette.py). A render of the car, kept out of the
+repository, is made from a garage capture
 (`PS2HOST_CAPTURE_FRAME`) replayed to just before the car is drawn and to
 just after (`PS2HOST_REPLAY_STOP_PRIM`), the car's pixels where the Z
 buffer changed between the two.

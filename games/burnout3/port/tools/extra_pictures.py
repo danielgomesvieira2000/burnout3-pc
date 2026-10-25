@@ -5,7 +5,8 @@ picture of 8-bit indices and eight palettes of 256 colours (one per paint
 colour), each sent to the GS as a 64 x 32 32-bit image - its words as the GS
 lays out an 8-bit texture, the palettes as 16 x 16 tiles (CSM1). The port
 lays the records over the disc (extra_series.cpp); this makes their two
-images from port/extra_pictures/<ID>.png (128 x 64 RGBA) at build time.
+images from port/extra_pictures/<ID>.png (128 x 64 RGBA, our own drawings:
+make_silhouette.py's) at build time.
 
     python extra_pictures.py --pictures port/extra_pictures --out build/extra_pictures.cpp
 

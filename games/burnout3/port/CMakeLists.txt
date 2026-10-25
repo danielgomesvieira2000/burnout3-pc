@@ -43,9 +43,8 @@ add_custom_command(OUTPUT ${MODS_LIFTED}
     COMMENT "Lifting the mods' functions")
 
 # The EXTRA SERIES' cars' pictures for the car select (extra_series.cpp):
-# port/extra_pictures/<ID>.png made into the game's own images. They are
-# pictures of the game's models, so never in the repository (.gitignore):
-# none there, an empty list.
+# port/extra_pictures/<ID>.png - our own drawings (tools/make_silhouette.py),
+# never renders of the game's models - made into the game's own images.
 set(EXTRA_PICTURES ${CMAKE_BINARY_DIR}/extra_pictures.cpp)
 set(MAKE_EXTRA_PICTURES ${CMAKE_CURRENT_LIST_DIR}/tools/extra_pictures.py)
 file(GLOB EXTRA_PICTURE_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/extra_pictures/*.png)
