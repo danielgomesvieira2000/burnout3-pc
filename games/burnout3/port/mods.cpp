@@ -122,50 +122,73 @@ void WriteSized(u32 address, u32 value, u8 size) {
     else generated::Write32(address, value);
 }
 
+/* Each mod's words: their range in kModWrites (it lists them mod by mod),
+   and those it writes every frame (place 1 and 2) apart. */
+struct ModWords {
+    int begin = 0, end = 0;
+    std::vector<int> every_frame;
+};
+std::vector<ModWords>& Words() {
+    static std::vector<ModWords> words = [] {
+        std::vector<ModWords> w(kMaxMods);
+        for (int k = 0; k < kModWriteCount; ++k) {
+            const ModWrite& x = kModWrites[k];
+            if (x.mod >= kMaxMods) continue;
+            ModWords& m = w[x.mod];
+            if (m.end == 0) m.begin = k;
+            m.end = k + 1;
+            if (x.place == 1 || x.place == 2) m.every_frame.push_back(k);
+        }
+        return w;
+    }();
+    return words;
+}
+
 void ModMemory() {
+    std::vector<ModWords>& words = Words();
     // While a pnach mod is on, a read of no memory finds 0 and a write to
     // none goes nowhere, as on PCSX2 (Demo Crashes reads through a pointer
     // of the demo's build): not the run stopped.
-    static bool pnach[kMaxMods] = {}, known = false;
-    if (!known) {
-        for (int k = 0; k < kModWriteCount; ++k)
-            if (kModWrites[k].mod < kMaxMods) pnach[kModWrites[k].mod] = true;
-        known = true;
-    }
     bool any = false;
-    for (int m = 0; m < kMaxMods; ++m) any = any || (pnach[m] && g_on[m]);
+    for (int m = 0; m < kMaxMods; ++m) any = any || (words[m].end > 0 && g_on[m]);
     static bool ignoring = false;
     if (any != ignoring) {
         ps2host::SetUnmappedIgnored(any);
         ignoring = any;
     }
+    // A frame's words once a blank (the frame step runs a few times in one),
+    // as PCSX2 applies them each vertical blank.
+    static u64 last_blank = ~0ull;
+    const u64 blank = ps2host::FrameNumber();
+    const bool new_blank = blank != last_blank;
+    last_blank = blank;
     bool removed = false;
-    for (int k = 0; k < kModWriteCount; ++k) {
-        const ModWrite& w = kModWrites[k];
-        if (w.mod >= kMaxMods) continue;
-        const bool on = g_on[w.mod];
-        if (on && !g_written[w.mod]) {
-            g_saved[w.mod].push_back({w.address, ReadSized(w.address, w.size), w.size});
-            WriteSized(w.address, w.value, w.size);
-        } else if (on && (w.place == 1 || w.place == 2)) {
-            WriteSized(w.address, w.value, w.size);
-        }
-    }
     for (int m = 0; m < kMaxMods; ++m) {
-        if (g_on[m]) {
+        const ModWords& w = words[m];
+        if (w.end == 0) continue;
+        if (g_on[m] && !g_written[m]) {
+            for (int k = w.begin; k < w.end; ++k) {
+                const ModWrite& x = kModWrites[k];
+                if (x.mod != m) continue;
+                g_saved[m].push_back({x.address, ReadSized(x.address, x.size), x.size});
+                WriteSized(x.address, x.value, x.size);
+            }
             g_written[m] = true;
-        } else if (g_written[m]) {
+        } else if (g_on[m] && new_blank) {
+            for (int k : w.every_frame) WriteSized(kModWrites[k].address, kModWrites[k].value, kModWrites[k].size);
+        } else if (!g_on[m] && g_written[m]) {
             for (auto it = g_saved[m].rbegin(); it != g_saved[m].rend(); ++it) WriteSized(it->address, it->value, it->size);
             g_saved[m].clear();
             g_written[m] = false;
             removed = true;
         }
     }
+    // A mod turned off may have shared words with one still on: theirs again.
     if (removed)
-        for (int k = 0; k < kModWriteCount; ++k) {
-            const ModWrite& w = kModWrites[k];
-            if (w.mod < kMaxMods && g_on[w.mod]) WriteSized(w.address, w.value, w.size);
-        }
+        for (int m = 0; m < kMaxMods; ++m)
+            if (g_on[m] && g_written[m])
+                for (int k = words[m].begin; k < words[m].end; ++k)
+                    if (kModWrites[k].mod == m) WriteSized(kModWrites[k].address, kModWrites[k].value, kModWrites[k].size);
 }
 
 /* 0x001F43B0: the display's frame step - the mods' (and GRAPHICS') memory
