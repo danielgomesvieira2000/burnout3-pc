@@ -545,7 +545,8 @@ void SetOcclusion(int which) { ps2host::SetSetting("ao", kOcclusions[which]); }
 const char* const kModerns[] = {"original", "modern"};
 int Lighting() { return AmongGraphics("lighting", kModerns); }
 void SetLighting(int which) { ps2host::SetSetting("lighting", kModerns[which]); }
-int Reflections() { return AmongGraphics("reflections", kModerns); }
+const char* const kReflectionModes[] = {"original", "modern", "ssr"};
+int Reflections() { return AmongGraphics("reflections", kReflectionModes); }
 // TEXTURE FILTERING (graphics.cpp): the game's, MODERN, or the player's filter.
 const char* const kTextureFilters[] = {"original", "modern", "nearest", "bilinear",
                                        "trilinear", "aniso4", "aniso8", "aniso16"};
@@ -555,7 +556,7 @@ int Dof() { return AmongGraphics("dof", kModerns); }
 void SetDof(int which) { ps2host::SetSetting("dof", kModerns[which]); }
 void SetSmoke(int which) { ps2host::SetSetting("smoke", kModerns[which]); }
 void SetTextures(int which) { ps2host::SetSetting("textures", kTextureFilters[which]); }
-void SetReflections(int which) { ps2host::SetSetting("reflections", kModerns[which]); }
+void SetReflections(int which) { ps2host::SetSetting("reflections", kReflectionModes[which]); }
 const char* const kLods[] = {"original", "high"};
 int Lod() { return AmongGraphics("lod", kLods); }
 void SetLod(int which) { ps2host::SetSetting("lod", kLods[which]); }
@@ -650,8 +651,8 @@ const Option kOptions[] = {
      SetBlur, {"ORIGINAL", "OFF", "MODERN HIGH", "MODERN LOW"}, 4},
     {Page::kGraphics, "SHADOWS", "THE CARS' SHADOWS: AS DRAWN, THE SUN'S, SOFTER, OR NONE", Shadows, SetShadows,
      {"ORIGINAL", "MODERN", "SOFT", "OFF"}, 4},
-    {Page::kGraphics, "REFLECTIONS", "THE CARS' PAINT: AS DRAWN, OR SHARP AND LACQUERED", Reflections,
-     SetReflections, {"ORIGINAL", "MODERN"}, 2},
+    {Page::kGraphics, "REFLECTIONS", "THE CARS' PAINT: AS DRAWN, LACQUERED, OR MIRRORING THE SCENE TOO",
+     Reflections, SetReflections, {"ORIGINAL", "MODERN", "SSR"}, 3},
     {Page::kGraphics, "CINEMATIC CAMERAS", "TAKEDOWNS: AS DRAWN, OR WITH DEPTH OF FIELD", Dof, SetDof,
      {"ORIGINAL", "MODERN"}, 2},
     {Page::kGraphics, "SMOKE AND FIRE", "AS DRAWN, OR SOFT WHERE THEY MEET THE ROAD AND THE CARS", Smoke,

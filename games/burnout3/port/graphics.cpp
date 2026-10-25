@@ -23,8 +23,10 @@
  *                   ("modern", "modern_low")
  *   SHADOWS         ORIGINAL / MODERN / SOFT / OFF - SOFT the blob drawn
  *                   here (see SoftBlob), MODERN it and the sun's
- *   REFLECTIONS     MODERN / ORIGINAL - the paint's environment map sharp
- *                   and by a Fresnel term
+ *   REFLECTIONS     ORIGINAL / MODERN / SSR - the paint's environment map
+ *                   sharp and by a Fresnel term; SSR adds what the picture
+ *                   shows around the car where the paint's rays find it
+ *                   (Reflections: the effects' screen-space reflections)
  *   CINEMATIC CAMERAS  MODERN / ORIGINAL - depth of field in the takedown
  *                   and crash cameras (CinematicFocus)
  *   SMOKE AND FIRE  MODERN / ORIGINAL - soft particles, faded where they
@@ -175,7 +177,7 @@ std::string Graphics(const char* key) { return ps2host::Setting(key, GraphicsDef
 
 /* gs_renderer.h's GsEffectId. */
 enum class EffectId : u32 { kTint = 0xF0, kOcclusion = 1, kMotionBlur = 2, kBloom = 3, kGrade = 4, kSceneDepth = 5,
-                            kDepthOfField = 6 };
+                            kDepthOfField = 6, kReflections = 7 };
 
 /* The view being drawn: the graphics manager's per-view block (0x1C0 each,
    the view's index at 0x00667050), as the fog reads it - FRAME +0x630,
@@ -461,6 +463,24 @@ void Occlusion(lifted::Context& c) {
     EmitEffect(c, EffectId::kOcclusion, v, p, 22);
 }
 
+/* REFLECTIONS on the cars' paint (screen-space): where the paint's ray
+   finds what the picture shows - a rival beside, the road, a wall - that,
+   over the sphere map's; elsewhere the sphere map as it was. After the
+   occlusion, before the fog (it fogs them too). */
+void Reflections(lifted::Context& c) {
+    const View v = CurrentView();
+    const Camera k = ViewCamera(v);
+    if (!k.valid || !v.zbuf) return;
+    float p[22] = {};
+    DepthParams(k, p);
+    p[6] = 60.0f;           // the farthest paint reflecting
+    p[10] = 20.0f;          // the ray's longest, metres
+    p[11] = 1.0f;           // strength
+    p[12] = 0.04f;          // Fresnel's base (face on)
+    p[13] = 6.0f;           // the normal's footprint, target pixels
+    EmitEffect(c, EffectId::kReflections, v, p, 22);
+}
+
 /* MOTION BLUR MODERN: the camera's own motion, a frame's, the boost making
    the shutter longer. `boost` 0-1. MODERN LOW: half the shutter, streaks
    at most 3% of the height (5%) - fewer taps too (by the streak's length). */
@@ -676,6 +696,7 @@ void Fog(lifted::Context& c) {
     ++g_pictures[PlayerOf(CurrentView())];
     g_split = Split(CurrentView());
     if (Graphics("ao") == "on" || Graphics("shadows") == "modern") Occlusion(c);
+    if (Graphics("reflections") == "ssr") Reflections(c);
     // SMOKE AND FIRE MODERN: the scene's depth saved for the particles drawn
     // after the view's effects (soft particles).
     if (Graphics("smoke") == "modern") {
@@ -793,9 +814,12 @@ void GraphicsFrame() {
     // washed-out player 2)
     const bool split_ok = ModernBlur() &&
                           (Graphics("bloom") == "modern" || Graphics("bloom") == "modern_low");
-    const bool modern_reflections = Graphics("reflections") == "modern" && (!g_split || split_ok);
+    const std::string reflections = Graphics("reflections");
+    const bool modern_reflections = (reflections == "modern" || reflections == "ssr") && (!g_split || split_ok);
     ps2host::SetGpuScaleRule(modern_reflections ? 0x16Bu : 0u, modern_reflections ? 0x1A7u : 0u, modern_reflections ? 4u : 0u);
-    ps2host::SetGpuDrawTag(0x2D60u, modern_reflections ? 1u : 0u);
+    // (tag bit 3: the paint marked in the stencil, for the effects' screen-space reflections)
+    const bool ssr = modern_reflections && reflections == "ssr";
+    ps2host::SetGpuDrawTag(0x2D60u, modern_reflections ? (ssr ? 9u : 1u) : 0u);
     // TEXTURE FILTERING: MODERN, mipmapped textures filtered as a modern
     // GPU does - their detail at the internal resolution, no bands, the road
     // sharp; or the player's filter, forced on the 3D.
