@@ -185,6 +185,11 @@ for _key, _file, _section in PNACHES:
     if _os.path.exists(_path):
         _words = _words_of_pnach(_path, _section, places=True)
         _words = [(a, v & 0xFF, 1, p) if a == 0x01E8EE94 and n == 4 else (a, v, n, p) for a, v, n, p in _words]
+        if _key == "mod.traffic_check":
+            # One of its functions (0x001D9920-0x001D998C) sits in the scratch
+            # Projected Shadows writes at run time (from 0x001D9800): lifted,
+            # never written (place 9), so the two can be on together.
+            _words = [(a, v, n, 9 if 0x001D9800 <= a < 0x001D9C40 else p) for a, v, n, p in _words]
         if _key == "mod.traffic_series":
             # Part of its code and its table live in its own pveh/vlist.bin,
             # which the game loads at 0x005186A0 (table 0x005192A8, code
