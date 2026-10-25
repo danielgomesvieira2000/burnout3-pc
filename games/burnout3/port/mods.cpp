@@ -31,7 +31,6 @@ void F_001F43B0(lifted::Context& c);
 // GRAPHICS' memory, at the same step (graphics.cpp).
 void GraphicsFrame();
 void CustomSongsFrame();     // custom_songs.cpp
-void MusicWatchdog();        // overrides.cpp
 void HighFpsFrame();         // high_fps.cpp
 int ParticlesLevel();        // graphics.cpp: GRAPHICS' PARTICLES
 
@@ -115,7 +114,6 @@ void Frame(lifted::Context& c) {
     Refresh();
     GraphicsFrame();
     CustomSongsFrame();
-    MusicWatchdog();
     HighFpsFrame();
     if (On("mod.no_traffic")) generated::Write8(kTraffic, 0);
     if (On("mod.heavyweights")) {

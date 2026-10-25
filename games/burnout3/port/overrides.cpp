@@ -1530,7 +1530,8 @@ void RegisterGameOverrides() {
     ps2host::Override(0x00319330u, SelectorMove<F_00319330, 1>, "a selector's Down: PC SETTINGS' pages scroll");
 }
 
-/* The music's watchdog (each display frame step, mods.cpp): RenderWare
+/* The music's watchdog (each vertical blank, in every mode - sixty_fps.cpp:
+   not only in a race's frames: a load after a race waited on it): RenderWare
    Audio's stream threads wait at 0x00014848 (WaitSema on the stream's
    semaphore, back at 0x00014850) in a loop that checks the stream's flags
    again when woken - a wake-up too many is harmless there. One lost (#16:
@@ -1546,6 +1547,14 @@ void MusicWatchdog() {
     const u8* at = ps2host::GuestMemory().Translate(ps2host::kIopRamBase + 0x00014848u, 4);
     if (!at || at[0] != 0xF4 || at[1] != 0x62 || at[2] != 0x00 || at[3] != 0x0C) return;     // jal 0x00018BD0
     if (const int woken = ps2host::iop::WakeLongWaiters(0x00014850u, 2'000'000)) {
+        // The first time, the memories as the stall is (stall_ee.bin,
+        // stall_iop.bin beside the log): the streams' objects (+0x44 the
+        // buffer waiting, +0x58 the flags, +0x4C the semaphore) as they were.
+        static bool saved = false;
+        if (!saved) {
+            saved = true;
+            SaveMemories("stall_ee.bin", "stall_iop.bin");
+        }
         static int times = 0;
         if (++times <= 20)
             std::fprintf(stderr, "[music] %d of RenderWare Audio's stream threads woken: waiting 2 s on the stream's "
