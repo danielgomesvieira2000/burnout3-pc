@@ -13,6 +13,11 @@ settings say.
 
 NAME = "games/burnout3/port/tools/mods_spec.py"
 
+# A word of the EE kernel's memory (below 0x8000: lw from $zero reaches it),
+# which the port's kernel leaves free: TRAFFIC's spacing (mods.cpp's
+# kTrafficSpacing).
+TRAFFIC_SPACING = 0x00000100
+
 # The mods, in the order their words go in where two change the same word (a
 # later one's wins): a setting's key, and its words - (address, value, bytes).
 # A key of "always" is no setting: the port always has it.
@@ -54,6 +59,15 @@ MODS = [
     # a race's flag, 1).
     ("mod.particles_more", [(0x00261EB8, 0x24040001, 4)]),
     ("mod.particles_most", [(0x00261E6C, 0x24120001, 4)]),
+    # TRAFFIC's density (where bryan's Traffic Density sections found it):
+    # the traffic's spacing, 60.0 (lui 0x4270) in three places - the cars
+    # on the road as a race starts (0x00266DA0, a0), the next car's time in
+    # the race (0x002678B8, v1), the first cars' times (0x002682B0, v1) -
+    # loaded instead from a word of the kernel's memory, free in the port
+    # (TRAFFIC_SPACING; mods.cpp writes 60 / the density there).
+    ("mod.traffic_density", [(0x00266DA0, 0x8C040000 | TRAFFIC_SPACING, 4),
+                             (0x002678B8, 0x8C030000 | TRAFFIC_SPACING, 4),
+                             (0x002682B0, 0x8C030000 | TRAFFIC_SPACING, 4)]),
     # No pause menu after five idle minutes.
     ("always", [(0x003954E8, 0x00000000, 4),
                 # EA Trax in splitscreen: the music's update each frame

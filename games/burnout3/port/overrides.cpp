@@ -616,8 +616,17 @@ constexpr char kModKph[] = "mod.kph", kModHorn[] = "mod.horn", kModMirror[] = "m
                kModNoTraffic[] = "mod.no_traffic", kModCrashBreaker[] = "mod.crash_breaker",
                kModHeadlights[] = "mod.headlights", kModHeavyweights[] = "mod.heavyweights",
                kModVerticalSplit[] = "mod.vertical_split";
-int Traffic() { return 1 - Mod<kModNoTraffic>(); }
-void SetTraffic(int on) { SetMod<kModNoTraffic>(1 - on); }
+// TRAFFIC: OFF (no traffic, from the next race) or a density, 1X the game's
+// (mods.cpp: the traffic's spacing).
+const char* const kTrafficDensities[] = {"0.5", "1", "1.5", "2", "3"};
+int Traffic() {
+    if (Mod<kModNoTraffic>()) return 0;
+    return 1 + Among("traffic_density", kTrafficDensities, 1);
+}
+void SetTraffic(int which) {
+    SetMod<kModNoTraffic>(which == 0);
+    if (which > 0) ps2host::SetSetting("traffic_density", kTrafficDensities[which - 1]);
+}
 const Option kOptions[] = {
     {Page::kVideo, "FULLSCREEN", "THE WHOLE SCREEN OR A WINDOW (ALT+ENTER)", Fullscreen, SetFullscreen, {"OFF", "ON"}, 2},
     {Page::kVideo, "VERTICAL SYNC", "NO TEARING, OR THE LEAST DELAY", Vsync, SetVsync, {"OFF", "ON"}, 2},
@@ -661,8 +670,8 @@ const Option kOptions[] = {
      SetMod<kModHorn>, {"OFF", "ON"}, 2},
     {Page::kMods, "MIRROR MODE", "EVERY TRACK MIRRORED, LEFT FOR RIGHT", Mod<kModMirror>, SetMod<kModMirror>,
      {"OFF", "ON"}, 2},
-    {Page::kMods, "TRAFFIC", "THE ROADS' TRAFFIC, OR EMPTY ROADS (FROM THE NEXT RACE)", Traffic, SetTraffic,
-     {"OFF", "ON"}, 2},
+    {Page::kMods, "TRAFFIC", "HOW MUCH TRAFFIC THE ROADS HAVE (OFF: FROM THE NEXT RACE)", Traffic, SetTraffic,
+     {"OFF", "0.5X", "1X", "1.5X", "2X", "3X"}, 6},
     {Page::kMods, "CRASH BREAKER", "SET OFF IN CRASH MODE ONLY, OR IN EVERY MODE (CONTROLS)",
      Mod<kModCrashBreaker>, SetMod<kModCrashBreaker>, {"CRASH MODE", "ALL MODES"}, 2},
     {Page::kMods, "HEADLIGHTS", "AS THE TRACK HAS THEM, OR EVERY RACE CAR'S ALWAYS ON", Mod<kModHeadlights>,

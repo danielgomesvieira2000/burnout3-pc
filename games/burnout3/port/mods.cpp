@@ -15,6 +15,7 @@
  */
 
 #include <cstdlib>
+#include <cstring>
 #include <string>
 
 #include "ps2host/host.h"
@@ -43,6 +44,17 @@ const bool g_all_off = std::getenv("PS2HOST_MODS_OFF") != nullptr;
 // No traffic: the race's traffic on or off (0x0055D7FB, set from the event
 // as a race loads, 0x001322B0) - off every frame, the next race on again.
 constexpr u32 kTraffic = 0x0055D7FBu;
+// TRAFFIC's density (0.5X to 3X, "traffic_density"): the traffic's spacing,
+// 60.0 in the game's code, read from this word instead (tools/mods_spec.py:
+// mod.traffic_density) - 60 / the density, written each frame step before
+// the lifted code may read it, so the game's own code runs until then.
+constexpr u32 kTrafficSpacing = 0x00000100u;
+bool g_spacing_written = false;
+float TrafficDensity() {
+    const std::string v = ps2host::Setting("traffic_density", "1");
+    const float density = std::strtof(v.c_str(), nullptr);
+    return density >= 0.25f && density <= 4.0f ? density : 1.0f;
+}
 // Heavyweights in every mode: the garage's flag for the class (the byte at
 // 0x01E8EE94) - set every frame, the game's own back when the mod is turned
 // off. The patch writes the word (1): the byte after it is a flag of the
@@ -85,6 +97,8 @@ void Refresh() {
         // (GRAPHICS' PARTICLES: its level, by the preset unless chosen)
         if (key == "mod.particles_more" || key == "mod.particles_most")
             g_on[i] = !g_all_off && ParticlesLevel() == (key == "mod.particles_more" ? 1 : 2);
+        else if (key == "mod.traffic_density")
+            g_on[i] = !g_all_off && g_spacing_written && TrafficDensity() != 1.0f;
         else
             g_on[i] = !g_all_off && (key == "always" || ps2host::SettingOn(key, false));
     }
@@ -93,6 +107,11 @@ void Refresh() {
 /* 0x001F43B0: the display's frame step - the mods' (and GRAPHICS') memory
    written first. */
 void Frame(lifted::Context& c) {
+    const float spacing = 60.0f / TrafficDensity();
+    u32 bits;
+    std::memcpy(&bits, &spacing, sizeof bits);
+    generated::Write32(kTrafficSpacing, bits);
+    g_spacing_written = true;
     Refresh();
     GraphicsFrame();
     CustomSongsFrame();
