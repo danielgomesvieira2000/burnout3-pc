@@ -147,9 +147,12 @@ const char* GraphicsDefault(const char* key) {
 int ParticlesLevel() {
     std::string v = ps2host::Setting("particles", "");
     if (v.empty()) {
+        // (the switches as saved, OFF too: the player's choice then)
+        const bool saved = !ps2host::Setting("mod.particles_most", "").empty() ||
+                           !ps2host::Setting("mod.particles_more", "").empty();
         if (ps2host::SettingOn("mod.particles_most", false)) v = "most";
         else if (ps2host::SettingOn("mod.particles_more", false)) v = "more";
-        else v = GraphicsDefault("particles");
+        else v = saved ? "original" : GraphicsDefault("particles");
     }
     return v == "most" ? 2 : v == "more" ? 1 : 0;
 }
