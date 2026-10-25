@@ -35,11 +35,13 @@ wrong, press **F12** at that moment and attach the folder it writes to
 - **A GPU renderer (Vulkan)**: the PS2's graphics drawn on your graphics
   card, at the PS2's resolution, twice it, or as sharp as your screen (up to
   4x).
-- **Modern graphics** (PC SETTINGS > GRAPHICS, MODERN by default, each one
-  on its own): a lighting grade, ambient occlusion, a modern glow (MODERN
-  HIGH or LOW), the camera's own motion blur, the sun's shadows, lacquered
-  reflections on the cars' paint, depth of field in the takedown cameras,
-  soft smoke and fire - drawn inside the game's own frame, the HUD on top.
+- **Modern graphics** (PC SETTINGS > GRAPHICS, a PRESET row on top:
+  ORIGINAL or MODERN, MODERN by default, then each one on its own): a
+  lighting grade, ambient occlusion, a modern glow (MODERN HIGH or LOW), the
+  camera's own motion blur, the sun's shadows, lacquered reflections on the
+  cars' paint, depth of field in the takedown cameras, soft smoke and fire,
+  contrast-adaptive sharpening - drawn inside the game's own frame, the HUD
+  on top.
 - **Texture filtering of your choice**: ORIGINAL, MODERN, NEAREST,
   BILINEAR, TRILINEAR or ANISOTROPIC 4X/8X/16X - on the game's textures and
   a texture pack's alike.
@@ -55,9 +57,10 @@ wrong, press **F12** at that moment and attach the folder it writes to
   controller), all drawn by the port.
 - **PC settings** in the game's own main menu (where ONLINE used to be), in
   pages: VIDEO (fullscreen, vertical sync, the frame rate, resolution, the aspect ratio,
-  anti-aliasing: FXAA, SMAA or SSAA 2x), GRAPHICS (lighting, ambient
-  occlusion, bloom, motion blur, shadows, reflections, cinematic cameras,
-  smoke and fire, texture filtering, LOD, more particles),
+  anti-aliasing: FXAA, SMAA or SSAA 2x), GRAPHICS (a preset, lighting,
+  ambient occlusion, bloom, motion blur, shadows, reflections, cinematic
+  cameras, smoke and fire, texture filtering, sharpening, LOD, more
+  particles),
   CONTROLS (the keyboard's and the controller's bindings, racing and menus;
   button prompts; DualSense trigger effects), MODS (Nehalem's game patches:
   km/h, the horn, mirror mode, no traffic, Crash Breaker in every mode (the Crash Breaker Expansion),
@@ -252,7 +255,7 @@ games/burnout3/
 The port's 60 FPS menus and crashes, its DEVELOPER MENU and the PC SETTINGS
 MODS page come from PCSX2 patches made for the game, brought into the port
 (the port runs the game's code translated, so each is lifted again with the
-patch in: [lift_mods.py](games/burnout3/port/tools/lift_mods.py),
+patch in: [lift_mods.py](engine/tools/lift_mods.py), [mods_spec.py](games/burnout3/port/tools/mods_spec.py),
 [mods.cpp](games/burnout3/port/mods.cpp),
 [sixty_fps.cpp](games/burnout3/port/sixty_fps.cpp),
 [dev_menu.cpp](games/burnout3/port/dev_menu.cpp)). From
@@ -277,7 +280,30 @@ patch in: [lift_mods.py](games/burnout3/port/tools/lift_mods.py),
 The patches are their authors' work, brought into the port with their
 credit; they remain theirs. The port carries their words (the changed
 instructions and, for the Crash Breaker Expansion, its own code) in
-lift_mods.py, nothing of the game's.
+mods_spec.py, nothing of the game's.
+
+#### Your own pnaches
+
+Bigger PCSX2 mods - with code of their own, thousands of lines - can be
+used from their `.pnach` files without being part of this repository: put
+them in a folder named `b3 mod pnachs` at the repository's root (or name
+another with `PS2_MODS_DIR`) and build. The build reads the sections
+[mods_spec.py](games/burnout3/port/tools/mods_spec.py)'s `PNACHES` names,
+finds each mod's own code from its hooks and lifts it beside the game's
+([lift_mods.py](engine/tools/lift_mods.py)); a file that is missing just
+leaves its rows doing nothing. The rows they get in PC SETTINGS:
+
+| In the port | Section | Author |
+| --- | --- | --- |
+| MODS: SPEEDOMETER STYLE (RPM METER) | RPM Meter (no background) + Speed Unit | bryan |
+| MODS: SPEEDOMETER STYLE (BETA HUD) | Beta HUD - SLED speedometer, RPM bar and shift light | Remco/SuperType1 |
+| MODS: DEMO CRASHES | Demo Crashes | Remco/SuperType1 |
+| MODS: ORBIT CAMERA (right stick) | Right-Stick Orbit Camera | Remco/SuperType1 |
+| MODS: CAMERA ROLL, END OF RACE CAMERA, TRAFFIC CHECK, TRAFFIC DENSITY, TRANSMISSION CHOICE, CAR COLOURS, ELIMINATOR, GARAGE STATS, RACER BLINKERS, BOOST BAR SHAKE, TAKEDOWN PITCH, ROAD RAGE PARTS | bebf8793_burnout3_mods_v2's sections of those names | bryan |
+| GRAPHICS: CAR SHADOW SHAPE (projected), XBOX REFLECTIONS | Projected Shadows; Xbox Reflections | bryan |
+
+Not supported: mods that also replace files on the disc (the Traffic
+Series' cars).
 
 ### Third-party software
 

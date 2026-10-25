@@ -35,7 +35,12 @@
  *                   rest the player's filter forced on the 3D (not on
  *                   sprites - the HUD, text, the picture's own copies - nor
  *                   on a texture drawn into: ps2host::SetGpuTextureFilter)
- *   MODERN by default but TEXTURES (GraphicsDefault).
+ *   SHARPENING      MODERN / ORIGINAL - contrast-adaptive, with the grade
+ *                   (Sharpening)
+ *   PRESET          ORIGINAL / MODERN (the "graphics" setting): every row
+ *                   at once (GraphicsPresetValue); CUSTOM once one differs.
+ *   MODERN by default (GraphicsDefault); TEXTURES MODERN in it but on an
+ *   integrated GPU.
  *   LOD             ORIGINAL / HIGH - the cars' and the traffic's detailed
  *                   models out to longer distances (see the LOD distances)
  *   PARTICLES       ORIGINAL / MORE / MOST - Nehalem's patch, lifted with the
