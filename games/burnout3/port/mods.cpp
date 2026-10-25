@@ -14,10 +14,13 @@
  * PS2HOST_MODS_OFF=1: every mod off, those always on too (comparisons).
  */
 
+#include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <string>
 #include <vector>
 
+#include "ps2host/disc.h"
 #include "ps2host/host.h"
 #include "ps2host/memory.h"
 #include "ps2host/run.h"
@@ -206,8 +209,35 @@ void Frame(lifted::Context& c) {
 /* Whether the mod at `mod` (kModKeys' order) is on (mods_lifted.cpp asks). */
 bool ModOn(int mod) { return mod >= 0 && mod < kMaxMods && g_on[mod]; }
 
+/* TRAFFIC SERIES (bryan's): its cars' files - pveh/TRAF, a new pveh/vlist.bin
+   and Data/Globalus.bin - laid over the disc (the engine's Disc::AddFiles)
+   when the game starts with it on; its code is a mod as the rest. */
+void TrafficSeriesFiles() {
+    if (g_all_off || !ps2host::SettingOn("mod.traffic_series", false)) return;
+    // The mods' folder: PS2_MODS_DIR, else "b3 mod pnachs" beside the
+    // executable or in a folder above it (the repository's root).
+    namespace fs = std::filesystem;
+    std::error_code error;
+    fs::path folder;
+    if (const char* dir = std::getenv("PS2_MODS_DIR"); dir && *dir) folder = fs::u8path(dir);
+    std::vector<fs::path> starts{fs::current_path(error)};
+    if (!ps2host::SettingsPath().empty())
+        starts.insert(starts.begin(), fs::absolute(fs::u8path(ps2host::SettingsPath()), error).parent_path());
+    for (const fs::path& start : starts)
+        for (fs::path at = start; folder.empty() && !at.empty(); at = at.parent_path()) {
+            if (fs::is_directory(at / "b3 mod pnachs", error)) folder = at / "b3 mod pnachs";
+            if (at == at.parent_path()) break;
+        }
+    if (folder.empty()) {
+        std::fprintf(stderr, "[mods] TRAFFIC SERIES: no \"b3 mod pnachs\" folder found for its files\n");
+        return;
+    }
+    ps2host::GuestDisc().AddFiles((folder / "BurnoutTrafficSeries" / "game_files").u8string());
+}
+
 void RegisterMods() {
     Refresh();
+    ps2host::Disc::OnOpen(TrafficSeriesFiles);
     RegisterModFunctions();
     ps2host::Override(0x001F43B0u, Frame, "the display's frame step: MODS' memory (PC SETTINGS)");
 }

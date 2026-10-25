@@ -301,9 +301,7 @@ leaves its rows doing nothing. The rows they get in PC SETTINGS:
 | MODS: ORBIT CAMERA (right stick) | Right-Stick Orbit Camera | Remco/SuperType1 |
 | MODS: CAMERA ROLL, END OF RACE CAMERA, TRAFFIC CHECK, TRAFFIC DENSITY, TRANSMISSION CHOICE, CAR COLOURS, ELIMINATOR, GARAGE STATS, RACER BLINKERS, BOOST BAR SHAKE, TAKEDOWN PITCH, ROAD RAGE PARTS | bebf8793_burnout3_mods_v2's sections of those names | bryan |
 | GRAPHICS: CAR SHADOW SHAPE (projected), XBOX REFLECTIONS | Projected Shadows; Xbox Reflections | bryan |
-
-Not supported: mods that also replace files on the disc (the Traffic
-Series' cars).
+| MODS: TRAFFIC SERIES (20 traffic cars after Heavyweights) | BurnoutTrafficSeries: Traffic Series (8th class), its files laid over the disc as the game starts (your image is never changed) | bryan; Heavyweights always available by escape209 |
 
 ### Third-party software
 

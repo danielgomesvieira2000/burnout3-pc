@@ -626,7 +626,8 @@ constexpr char kModCarColor[] = "mod.car_color", kModEliminator[] = "mod.elimina
                kModBoostShake[] = "mod.boost_shake", kModTakedownPitch[] = "mod.takedown_pitch",
                kModRaceEndCamera[] = "mod.race_end_camera", kModGarageStats[] = "mod.garage_stats",
                kModDetachParts[] = "mod.detach_parts", kModOrbitCamera[] = "mod.orbit_camera",
-               kModDemoCrashes[] = "mod.demo_crashes", kModProjectedShadows[] = "mod.projected_shadows";
+               kModDemoCrashes[] = "mod.demo_crashes", kModProjectedShadows[] = "mod.projected_shadows",
+               kModTrafficSeries[] = "mod.traffic_series";
 // SPEEDOMETER STYLE: the game's, the RPM meter or the beta's (they share memory: one at a time).
 int SpeedoStyle() {
     return ps2host::SettingOn("mod.beta_hud", false) ? 2 : ps2host::SettingOn("mod.rpm_meter", false) ? 1 : 0;
@@ -732,6 +733,8 @@ const Option kOptions[] = {
      Mod<kModCarColor>, SetMod<kModCarColor>, {"OFF", "ON"}, 2},
     {Page::kMods, "ELIMINATOR", "ELIMINATOR IN SINGLE EVENT AND MULTIPLAYER", Mod<kModEliminator>,
      SetMod<kModEliminator>, {"OFF", "ON"}, 2},
+    {Page::kMods, "TRAFFIC SERIES", "20 TRAFFIC CARS AS A SERIES AFTER HEAVYWEIGHTS (FROM THE NEXT START)",
+     Mod<kModTrafficSeries>, SetMod<kModTrafficSeries>, {"OFF", "ON"}, 2},
     {Page::kMods, "GARAGE STATS", "TOP SPEED, GRIP, WEIGHT AND ACCELERATION IN THE GARAGE",
      Mod<kModGarageStats>, SetMod<kModGarageStats>, {"OFF", "ON"}, 2},
     {Page::kMods, "RACER BLINKERS", "RIVALS SIGNAL BEFORE TURNS, AS IN THE APRIL BETA", Mod<kModBlinkers>,

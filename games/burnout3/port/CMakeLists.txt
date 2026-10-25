@@ -43,7 +43,8 @@ foreach(k RANGE 1 ${MODS_LAST})
     list(APPEND MODS_OUTPUTS ${CMAKE_BINARY_DIR}/mods_lifted_${k}.cpp)
 endforeach()
 # The player's own pnaches (tools/mods_spec.py: PNACHES), when they are there.
-file(GLOB MODS_PNACHES "${CMAKE_CURRENT_LIST_DIR}/../../../b3 mod pnachs/*.pnach")
+file(GLOB MODS_PNACHES "${CMAKE_CURRENT_LIST_DIR}/../../../b3 mod pnachs/*.pnach"
+                       "${CMAKE_CURRENT_LIST_DIR}/../../../b3 mod pnachs/*/cheats/*.pnach")
 add_custom_command(OUTPUT ${MODS_OUTPUTS}
     COMMAND ${Python3_EXECUTABLE} ${LIFT_MODS}
             --game ${CMAKE_CURRENT_LIST_DIR}/.. --spec ${CMAKE_CURRENT_LIST_DIR}/tools/mods_spec.py

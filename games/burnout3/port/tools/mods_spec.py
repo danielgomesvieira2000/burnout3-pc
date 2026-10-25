@@ -174,7 +174,25 @@ PNACHES = [
     ("mod.orbit_camera", "Burnout 3 orbit cam in game.pnach", "Right-Stick Orbit Camera"),
     ("mod.demo_crashes", "b3 demo crashe physics.pnach", "Demo Crashes"),
 ]
+# bryan's TRAFFIC series: its code here, its files (BurnoutTrafficSeries/
+# game_files) laid over the disc as the game starts (port/mods.cpp). It
+# carries escape209's Heavyweights always available as a word: only its
+# byte is written, the one after it is a flag of the game's own.
+PNACHES.append(("mod.traffic_series", "BurnoutTrafficSeries/cheats/bebf8793_traffic_series.pnach",
+                "Traffic Series (8th class)"))
 for _key, _file, _section in PNACHES:
     _path = _os.path.join(PNACH_DIR, _file)
     if _os.path.exists(_path):
-        MODS.append((_key, _words_of_pnach(_path, _section, places=True)))
+        _words = _words_of_pnach(_path, _section, places=True)
+        _words = [(a, v & 0xFF, 1, p) if a == 0x01E8EE94 and n == 4 else (a, v, n, p) for a, v, n, p in _words]
+        if _key == "mod.traffic_series":
+            # Part of its code and its table live in its own pveh/vlist.bin,
+            # which the game loads at 0x005186A0 (table 0x005192A8, code
+            # 0x00519528): lifted from the file as words of the mod's.
+            _vlist = _os.path.join(PNACH_DIR, "BurnoutTrafficSeries", "game_files", "pveh", "vlist.bin")
+            if _os.path.exists(_vlist):
+                import struct as _struct
+                _data = open(_vlist, "rb").read()
+                for _off in range(0xC00, len(_data) - 3, 4):
+                    _words.append((0x005186A0 + _off, _struct.unpack_from("<I", _data, _off)[0], 4, 0))
+        MODS.append((_key, _words))
