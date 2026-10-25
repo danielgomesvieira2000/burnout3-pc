@@ -89,9 +89,19 @@ struct RaceFlag {
 RaceFlag g_race_flags[] = {{"mod.mirror", 0xCu}, {"mod.vertical_split", 0xFu}};
 
 /* The settings as they are now. */
+// TRAFFIC SERIES as the game started (its files are laid over the disc then,
+// TrafficSeriesFiles): its code on or off with them, never changed until the
+// next start - a traffic car chosen without its code has no physics. -1
+// before the disc is opened.
+int g_traffic_series = -1;
+
 void Refresh() {
     for (int i = 0; i < kModCount && i < kMaxMods; ++i) {
         const std::string key = kModKeys[i];
+        if (key == "mod.traffic_series") {
+            g_on[i] = g_traffic_series == 1;
+            continue;
+        }
         // (GRAPHICS' PARTICLES: its level, by the preset unless chosen)
         if (key == "mod.particles_more" || key == "mod.particles_most")
             g_on[i] = !g_all_off && ParticlesLevel() == (key == "mod.particles_more" ? 1 : 2);
@@ -245,6 +255,7 @@ bool ModOn(int mod) { return mod >= 0 && mod < kMaxMods && g_on[mod]; }
    and Data/Globalus.bin - laid over the disc (the engine's Disc::AddFiles)
    when the game starts with it on; its code is a mod as the rest. */
 void TrafficSeriesFiles() {
+    g_traffic_series = 0;
     if (g_all_off || !ps2host::SettingOn("mod.traffic_series", false)) return;
     // The mods' folder: PS2_MODS_DIR, else "b3 mod pnachs" beside the
     // executable or in a folder above it (the repository's root).
@@ -265,6 +276,7 @@ void TrafficSeriesFiles() {
         return;
     }
     ps2host::GuestDisc().AddFiles((folder / "BurnoutTrafficSeries" / "game_files").u8string());
+    g_traffic_series = 1;
 }
 
 void RegisterMods() {
