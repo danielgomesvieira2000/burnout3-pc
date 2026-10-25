@@ -277,8 +277,12 @@ bool ModBuilt(const char* key) {
     return false;
 }
 
-/* Whether the mod at `mod` (kModKeys' order) is on (mods_lifted.cpp asks). */
-bool ModOn(int mod) { return mod >= 0 && mod < kMaxMods && g_on[mod]; }
+/* Whether the mod at `mod` (kModKeys' order) is on (mods_lifted.cpp asks):
+   a pnach mod's code only once its words are in memory (the frame step's
+   ModMemory) - on from the settings at start, the boot runs before the
+   first frame step, and Demo Crashes' code without its data wrote past the
+   end of RAM. */
+bool ModOn(int mod) { return mod >= 0 && mod < kMaxMods && g_on[mod] && (g_written[mod] || !Pnach(mod)); }
 
 /* TRAFFIC SERIES (bryan's): its cars' files - pveh/TRAF, a new pveh/vlist.bin
    and Data/Globalus.bin - laid over the disc (the engine's Disc::AddFiles)
