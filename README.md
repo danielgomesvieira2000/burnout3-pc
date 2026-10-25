@@ -64,7 +64,7 @@ wrong, press **F12** at that moment and attach the folder it writes to
   particles),
   CONTROLS (the keyboard's and the controller's bindings, racing and menus;
   button prompts; DualSense trigger effects), MODS (Nehalem's game patches:
-  km/h, the horn, mirror mode, traffic off or 0.5x to 3x, Crash Breaker in every mode (the Crash Breaker Expansion),
+  km/h, mirror mode, traffic off or 0.5x to 3x, Crash Breaker in every mode (the Crash Breaker Expansion),
   headlights, heavyweights, a vertical splitscreen) and the game's hidden
   DEVELOPER MENU. Saved in `pc_settings.ini`; QUIT GAME in the main menu.
 - **Two players on one PC**: MULTIPLAYER > SPLITSCREEN - each player presses
@@ -268,7 +268,7 @@ patch in: [lift_mods.py](engine/tools/lift_mods.py), [mods_spec.py](games/burnou
 | 60 FPS menus, movies and crashes (always on) | Graphics: 60 FPS Menus, 60 FPS Crashes | Nehalem ([@Nahelam](https://github.com/Nahelam)) |
 | PC SETTINGS: DEVELOPER MENU | Development Menu (dev_menu) | Nehalem |
 | MODS: SPEEDOMETER (KM/H) | mph2kph | Nehalem |
-| MODS: HORN, the headlights while it sounds | horn, headlights_hold | Nehalem |
+| The horn (always on: CONTROLS' HORN), the headlights while it sounds | horn, headlights_hold | Nehalem |
 | MODS: MIRROR MODE | partial_mirror_mode | Nehalem |
 | MODS: TRAFFIC (off) | disable_traffic | Nehalem |
 | MODS: TRAFFIC (0.5X to 3X) | where the traffic's spacing is, from his Traffic Density sections (the port's own change: the spacing read from memory, any density) | bryan |

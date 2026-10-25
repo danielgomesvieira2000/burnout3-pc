@@ -24,7 +24,7 @@
  *   L2 (how far)   brake, reverse    Square    look back
  *   L1             next song         Triangle  camera
  *
- * - or the player's own. Both honk on L3 (the HORN mod's Circle). The race reads how far Cross and Square are
+ * - or the player's own. Both honk on L3 (the horn patch's Circle). The race reads how far Cross and Square are
  * pressed, in a narrow band of the DualShock 2's pressure (measured with
  * --press cross@...:PRESSURE): 30 of 255 coasts, 38 holds about 58 mph, 44
  * about 68, 50 and more is full throttle. A trigger's travel is spread over
@@ -348,7 +348,7 @@ const Action kKeyboardRacing[] = {
     {kL1, "LOOK BACK", "HELD TO SEE WHAT IS BEHIND YOU"},
     {kL2, "NEXT SONG", "SKIPS TO THE NEXT EA TRAX SONG"},
     {kStart, "PAUSE", "THE PAUSE MENU"},
-    {kCircle, "HORN", "HONKS, WITH THE HORN MOD ON (PC SETTINGS, MODS)"},
+    {kCircle, "HORN", "HONKS, THE HEADLIGHTS ON WHILE IT IS HELD"},
     {kR2, "CRASH BREAKER", "IN EVERY MODE WITH ITS MOD ON (PC SETTINGS, MODS)"},
 };
 const Action kControllerRacing[] = {
@@ -359,7 +359,7 @@ const Action kControllerRacing[] = {
     {kL1, "LOOK BACK", "HELD TO SEE WHAT IS BEHIND YOU"},
     {kL2, "NEXT SONG", "SKIPS TO THE NEXT EA TRAX SONG"},
     {kStart, "PAUSE", "THE PAUSE MENU"},
-    {kCircle, "HORN", "HONKS, WITH THE HORN MOD ON (PC SETTINGS, MODS)"},
+    {kCircle, "HORN", "HONKS, THE HEADLIGHTS ON WHILE IT IS HELD"},
     {kR2, "CRASH BREAKER", "IN EVERY MODE WITH ITS MOD ON (PC SETTINGS, MODS)"},
 };
 const Action kKeyboardMenus[] = {

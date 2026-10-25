@@ -25,8 +25,9 @@ MODS = [
     # The speedometer in km/h: the scale from miles (gp-0x7ED8) to kilometres
     # (gp-0x7D10), and the unit's string (0x7D8 MPH, 0x7D7 KPH).
     ("mod.kph", [(0x001A3BA0, 0x82F0, 2), (0x001A3D78, 0x07D7, 2)]),
-    # The horn's volume (0 in the game) 1.0: Circle (and R3) honks.
-    ("mod.horn", [(0x0028CDD0, 0x3C023F80, 4), (0x0028CDE8, 0xAFA2005C, 4),
+    # The horn's volume (0 in the game) 1.0: Circle (and R3) honks - always
+    # (no row: CONTROLS' HORN honks).
+    ("always", [(0x0028CDD0, 0x3C023F80, 4), (0x0028CDE8, 0xAFA2005C, 4),
                   # The car's lights (+0x58 of its +0xCC0) on while the horn is held
                   # (+0x13FC bit 3): a call to the mod's code (0x000B40C0) in place
                   # of the store that turns them off.
@@ -139,7 +140,7 @@ def _crash_breaker_functions():
 
 # The mods' own code, at the address their calls name.
 CODE = [
-    # mod.horn: the lights on (4) while the horn is held, off (0) otherwise.
+    # The horn's (always): the lights on (4) while the horn is held, off (0) otherwise.
     (0x000B40C0, [0x8E440CC0, 0x824313FC, 0x30630008, 0x10600002,
                   0x0000182D, 0x24630004, 0x03E00008, 0xA0830058]),
 ] + list(_crash_breaker_functions())

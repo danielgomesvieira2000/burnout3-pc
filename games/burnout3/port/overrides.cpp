@@ -482,7 +482,7 @@ const PageInfo kPages[] = {
     {Page::kVideo, "VIDEO", "THE WINDOW, FRAME RATE, RESOLUTION, SHAPE AND SMOOTHING"},
     {Page::kGraphics, "GRAPHICS", "THE GAME'S OWN EFFECTS"},
     {Page::kControls, "CONTROLS", "YOUR KEYS AND BUTTONS, AND THE BUTTONS SHOWN"},
-    {Page::kMods, "MODS", "NEHALEM'S MODS: KM/H, THE HORN, MIRROR MODE AND MORE"},
+    {Page::kMods, "MODS", "NEHALEM'S MODS: KM/H, MIRROR MODE, TRAFFIC AND MORE"},
     {Page::kOnline, "ONLINE", "WHAT YOUR DISCORD PROFILE SHOWS OF THE GAME"},
 };
 constexpr u32 kPageCount = sizeof kPages / sizeof kPages[0];
@@ -612,7 +612,7 @@ template <const char* kKey>
 int Mod() { return ps2host::SettingOn(kKey, false) ? 1 : 0; }
 template <const char* kKey>
 void SetMod(int on) { ps2host::SetSettingOn(kKey, on != 0); }
-constexpr char kModKph[] = "mod.kph", kModHorn[] = "mod.horn", kModMirror[] = "mod.mirror",
+constexpr char kModKph[] = "mod.kph", kModMirror[] = "mod.mirror",
                kModNoTraffic[] = "mod.no_traffic", kModCrashBreaker[] = "mod.crash_breaker",
                kModHeadlights[] = "mod.headlights", kModHeavyweights[] = "mod.heavyweights",
                kModVerticalSplit[] = "mod.vertical_split";
@@ -666,8 +666,6 @@ const Option kOptions[] = {
      SetParticles, {"ORIGINAL", "MORE", "MOST"}, 3},
     {Page::kMods, "SPEEDOMETER", "THE SPEED IN MILES OR IN KILOMETRES AN HOUR", Mod<kModKph>, SetMod<kModKph>,
      {"MPH", "KM/H"}, 2},
-    {Page::kMods, "HORN", "HONK (CONTROLS: HORN), THE HEADLIGHTS ON WHILE IT IS HELD", Mod<kModHorn>,
-     SetMod<kModHorn>, {"OFF", "ON"}, 2},
     {Page::kMods, "MIRROR MODE", "EVERY TRACK MIRRORED, LEFT FOR RIGHT", Mod<kModMirror>, SetMod<kModMirror>,
      {"OFF", "ON"}, 2},
     {Page::kMods, "TRAFFIC", "HOW MUCH TRAFFIC THE ROADS HAVE (OFF: FROM THE NEXT RACE)", Traffic, SetTraffic,
