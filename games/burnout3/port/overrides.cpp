@@ -75,6 +75,7 @@ void LanStopLobby();               // lan_lobby.cpp: the lobby this game served,
 // The graphics settings' defaults (graphics.cpp).
 const char* GraphicsDefault(const char* key);
 const char* GraphicsPresetValue(const char* key, bool modern);
+int ParticlesLevel();
 
 namespace {
 
@@ -557,14 +558,14 @@ void SetSmoke(int which) { ps2host::SetSetting("smoke", kModerns[which]); }
 void SetTextures(int which) { ps2host::SetSetting("textures", kTextureFilters[which]); }
 void SetReflections(int which) { ps2host::SetSetting("reflections", kModerns[which]); }
 const char* const kLods[] = {"original", "high"};
-int Lod() { return Among("lod", kLods); }
+int Lod() { return AmongGraphics("lod", kLods); }
 void SetLod(int which) { ps2host::SetSetting("lod", kLods[which]); }
 // PARTICLES: Nehalem's patch, partial (MORE) or full (MOST): two mods'
 // switches (port/tools/mods_spec.py).
-int Particles() {
-    return ps2host::SettingOn("mod.particles_most", false) ? 2 : ps2host::SettingOn("mod.particles_more", false) ? 1 : 0;
-}
+int Particles() { return ParticlesLevel(); }
 void SetParticles(int which) {
+    static const char* const kLevels[] = {"original", "more", "most"};
+    ps2host::SetSetting("particles", kLevels[which]);
     ps2host::SetSettingOn("mod.particles_more", which == 1);
     ps2host::SetSettingOn("mod.particles_most", which == 2);
 }
@@ -572,12 +573,12 @@ void SetParticles(int which) {
 // pictures, MODERN the PC's; CUSTOM shown once a row is changed alone (and
 // choosing it goes to the other preset).
 const char* const kPresetKeys[] = {"lighting", "ao", "bloom", "blur", "shadows", "reflections",
-                                   "dof", "smoke", "textures", "sharpen"};
+                                   "dof", "smoke", "textures", "sharpen", "lod"};
 int Preset() {
     const bool modern = ps2host::Setting("graphics", "modern") != "original";
     for (const char* key : kPresetKeys)
         if (ps2host::Setting(key, GraphicsDefault(key)) != GraphicsPresetValue(key, modern)) return 2;
-    if (Lod() != (modern ? 1 : 0) || Particles() != (modern ? 1 : 0)) return 2;
+    if (Particles() != (modern ? 1 : 0)) return 2;
     return modern ? 1 : 0;
 }
 void SetPreset(int which) {
@@ -585,7 +586,6 @@ void SetPreset(int which) {
     const bool modern = which == 1;
     ps2host::SetSetting("graphics", modern ? "modern" : "original");
     for (const char* key : kPresetKeys) ps2host::SetSetting(key, GraphicsPresetValue(key, modern));
-    SetLod(modern ? 1 : 0);
     SetParticles(modern ? 1 : 0);
 }
 // SHARPENING (the grade's): contrast-adaptive, the fine detail of textures

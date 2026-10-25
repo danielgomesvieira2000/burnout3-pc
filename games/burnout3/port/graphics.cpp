@@ -94,10 +94,6 @@ struct Switch {
 };
 Switch g_bloom{kBloomOn}, g_blur{kBlurOn}, g_shadows{kShadowsOn};
 
-bool Is(const char* key, const char* fallback, const char* value) {
-    return ps2host::Setting(key, fallback) == value;
-}
-
 }  // namespace
 
 /* The graphics settings' defaults: the PC's look, MODERN, unless the
@@ -130,6 +126,9 @@ const char* GraphicsPresetValue(const char* key, bool modern) {
     // TEXTURES: MODERN (mipmapped textures trilinear and anisotropic: no
     // bands in motion) in the MODERN preset; not on an integrated GPU (its cost).
     if (k == "textures") return original || light ? "original" : "modern";
+    // LOD HIGH (the detailed models farther) and PARTICLES MORE in MODERN.
+    if (k == "lod") return original ? "original" : "high";
+    if (k == "particles") return original ? "original" : "more";
     if (k == "bloom" || k == "blur" || k == "shadows" || k == "lighting" || k == "reflections" || k == "smoke" ||
         k == "dof" || k == "sharpen")
         return original ? "original" : "modern";
@@ -141,6 +140,18 @@ const char* GraphicsPresetValue(const char* key, bool modern) {
    pictures, as the recorded runs do; read each time: PRESET changes it). */
 const char* GraphicsDefault(const char* key) {
     return GraphicsPresetValue(key, ps2host::Setting("graphics", "modern") != "original");
+}
+
+/* PARTICLES: 0 the game's, 1 MORE, 2 MOST - the "particles" setting, or
+   (saved before it) the two mods' switches, else the preset's. */
+int ParticlesLevel() {
+    std::string v = ps2host::Setting("particles", "");
+    if (v.empty()) {
+        if (ps2host::SettingOn("mod.particles_most", false)) v = "most";
+        else if (ps2host::SettingOn("mod.particles_more", false)) v = "more";
+        else v = GraphicsDefault("particles");
+    }
+    return v == "most" ? 2 : v == "more" ? 1 : 0;
 }
 
 namespace {
@@ -733,7 +744,7 @@ void GraphicsFrame() {
         }
         g_shadows_now = shadows;
     }
-    SetDetail(Is("lod", "original", "high"));
+    SetDetail(Graphics("lod") == "high");
     // REFLECTIONS MODERN: the cars' environment map - its three faces (FBP
     // 0x18B, 0x193, 0x19B, their Z 0x16B-0x17B) and the sphere map warped
     // from them (FBP 0x16B, 256 wide: TBP 0x2D60 as the paint samples it) -

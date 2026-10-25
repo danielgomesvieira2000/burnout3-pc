@@ -38,6 +38,7 @@ void F_001F43B0(lifted::Context& c);
 void GraphicsFrame();
 void CustomSongsFrame();     // custom_songs.cpp
 void HighFpsFrame();         // high_fps.cpp
+int ParticlesLevel();        // graphics.cpp: GRAPHICS' PARTICLES
 
 namespace {
 
@@ -87,7 +88,11 @@ RaceFlag g_race_flags[] = {{"mod.mirror", 0xCu}, {"mod.vertical_split", 0xFu}};
 void Refresh() {
     for (int i = 0; i < kModCount && i < kMaxMods; ++i) {
         const std::string key = kModKeys[i];
-        g_on[i] = !g_all_off && (key == "always" || ps2host::SettingOn(key, false));
+        // (GRAPHICS' PARTICLES: its level, by the preset unless chosen)
+        if (key == "mod.particles_more" || key == "mod.particles_most")
+            g_on[i] = !g_all_off && ParticlesLevel() == (key == "mod.particles_more" ? 1 : 2);
+        else
+            g_on[i] = !g_all_off && (key == "always" || ps2host::SettingOn(key, false));
     }
 }
 
