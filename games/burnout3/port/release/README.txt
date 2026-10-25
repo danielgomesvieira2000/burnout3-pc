@@ -69,7 +69,7 @@ racing only:
   R2   accelerate (how far you pull)    Cross     boost, Impact Time
   L2   brake, reverse (how far)         Square    look back
   L1   next EA Trax song                Triangle  change camera
-  L3   the horn (MODS: HORN on)
+  L3   the horn
 Accelerate or brake on a trigger is analogue, whatever the layout. Both
 layouts honk on L3 (the left stick pressed).
 
@@ -130,14 +130,19 @@ long gone) has four pages and the game's hidden menu (Triangle goes back):
              (edges smoothed more carefully, still light), or SSAA 2X
              (drawn twice as sharp and averaged down - the cleanest, and
              the heaviest on the GPU)
-  GRAPHICS   how the game looks, each on its own - MODERN by default (on
-             a laptop's built-in graphics the heaviest start off):
+  GRAPHICS   how the game looks: PRESET on top (ORIGINAL, the game as it
+             was, or MODERN - every row at once; CUSTOM once one is
+             changed), then each on its own - MODERN by default (on a
+             laptop's built-in graphics the heaviest start off):
              LIGHTING (as drawn, or a modern grade of tone and colour),
              AMBIENT OCCLUSION (shade where things meet), BLOOM (the glow
              around lights: original, off, MODERN HIGH or MODERN LOW),
-             MOTION BLUR (as drawn, the camera's own, or off), SHADOWS
-             (as drawn, the sun's, soft, or none), REFLECTIONS (the cars'
-             paint sharp and lacquered), CINEMATIC CAMERAS (depth of
+             MOTION BLUR (as drawn, off, the camera's own MODERN HIGH, or
+             MODERN LOW with shorter streaks), SHADOWS (as drawn, the
+             sun's, soft, or none), REFLECTIONS (the cars' paint as drawn,
+             MODERN sharp and lacquered, or SSR LOW or HIGH: screen-space
+             reflections of the road, kerbs and cars over it too),
+             SHARPENING (fine detail kept crisp), CINEMATIC CAMERAS (depth of
              field in the takedown cameras), SMOKE AND FIRE (soft where
              they meet the road and the cars), TEXTURE FILTERING
              (original, modern, nearest, bilinear, trilinear or
@@ -149,8 +154,12 @@ long gone) has four pages and the game's hidden menu (Triangle goes back):
              CONTROLLER (MENUS): every key and button (see "Controls");
              BUTTON PROMPTS (auto, PlayStation or Xbox) and a DualSense's
              TRIGGER EFFECTS (off, light or on)
-  MODS       Nehalem's patches for the game (see Credits): SPEEDOMETER in
-             km/h, a HORN, MIRROR MODE, no TRAFFIC, CRASH BREAKER in every
+  MODS       ORBIT CAMERA (on by default: the controller's right stick
+             turns the race camera around your car, and no longer
+             accelerates), TRAFFIC (off, 0.5x, 1x, 1.5x, 2x or 3x), ROAD
+             RAGE PARTS (crashed cars shed their parts in every mode), and
+             Nehalem's patches for the game (see Credits): SPEEDOMETER in
+             km/h, MIRROR MODE, CRASH BREAKER in every
              mode (Nehalem's Crash Breaker Expansion: the rivals and the
              other players caught in the blast too, a rival's car blown up
              an Aftertouch Takedown, the prompt while you crash),
@@ -271,6 +280,8 @@ Known issues
 * The DualSense's trigger effects follow the car now; tell us how they
   feel (USB and Bluetooth).
 * Now and then the ambience skips in Impact Time's slow motion.
+* ORBIT CAMERA has no wall check yet: turned to the side next to a
+  railing or a building, the camera can end up behind it.
 
 
 Credits
@@ -290,6 +301,11 @@ game, from Nehalem's PS2-Game-Mods (github.com/Nahelam/PS2-Game-Mods):
                crashing - Burnout 3 Takedown/Crash Breaker Expansion)
   escape209    heavyweights_always_available (the original SLUS patch;
                ported to the other releases by Nehalem)
+
+SINGLE EVENT's ELIMINATOR, MODS' TRAFFIC and ROAD RAGE PARTS: from bryan's
+PCSX2 patches (Eliminator - Single Event, Traffic Density, detach parts in
+road rage); ORBIT CAMERA: the idea of Remco's (SuperType1's) Right-Stick
+Orbit Camera - the port's own code for the camera and Eliminator.
 
 SMAA: Jorge Jimenez, Jose I. Echevarria, Belen Masia, Fernando Navarro and
 Diego Gutierrez (github.com/iryoku/smaa).
