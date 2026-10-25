@@ -6,7 +6,8 @@ colour), each sent to the GS as a 64 x 32 32-bit image - its words as the GS
 lays out an 8-bit texture, the palettes as 16 x 16 tiles (CSM1). The port
 lays the records over the disc (extra_series.cpp); this makes their two
 images from port/extra_pictures/<ID>.png (128 x 64 RGBA, our own drawings:
-make_silhouette.py's) at build time.
+make_silhouette.py's, or the
+player's own art - any size, fitted) at build time.
 
     python extra_pictures.py --pictures port/extra_pictures --out build/extra_pictures.cpp
 
@@ -39,11 +40,26 @@ def upload(mem: bytearray, bp: int) -> bytes:
     return bytes(out)
 
 
+def fit(image):
+    """A picture of any size as the game's: what shows of it (its alpha's
+    bounds) scaled to fit 126 x 62 - the alpha premultiplied while it is
+    scaled - in the middle of 128 x 64."""
+    from PIL import Image
+    if image.size == (WIDTH, HEIGHT):
+        return image
+    box = image.getchannel("A").getbbox() or (0, 0, image.size[0], image.size[1])
+    image = image.crop(box)
+    scale = min((WIDTH - 2) / image.size[0], (HEIGHT - 2) / image.size[1])
+    size = (max(1, round(image.size[0] * scale)), max(1, round(image.size[1] * scale)))
+    small = image.convert("RGBa").resize(size, Image.LANCZOS).convert("RGBA")
+    out = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+    out.paste(small, ((WIDTH - size[0]) // 2, (HEIGHT - size[1]) // 2))
+    return out
+
+
 def encode(path: str) -> tuple:
     from PIL import Image
-    image = Image.open(path).convert("RGBA")
-    if image.size != (WIDTH, HEIGHT):
-        raise SystemExit("%s: %dx%d, not %dx%d" % (path, image.size[0], image.size[1], WIDTH, HEIGHT))
+    image = fit(Image.open(path).convert("RGBA"))
     # 255 colours for what shows, entry 0 the transparent one.
     pixels = list(image.getdata())
     shown = Image.new("RGBA", image.size)
