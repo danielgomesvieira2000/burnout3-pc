@@ -619,7 +619,7 @@ template <const char* kKey>
 void SetMod(int on) { ps2host::SetSettingOn(kKey, on != 0); }
 constexpr char kModKph[] = "mod.kph", kModMirror[] = "mod.mirror",
                kModNoTraffic[] = "mod.no_traffic", kModCrashBreaker[] = "mod.crash_breaker",
-               kModHeadlights[] = "mod.headlights", kModHeavyweights[] = "mod.heavyweights",
+               kModHeadlights[] = "mod.headlights",
                kModVerticalSplit[] = "mod.vertical_split", kModDetachParts[] = "mod.detach_parts";
 // ORBIT CAMERA: on unless turned off (orbit_camera.cpp: OrbitCameraOn).
 int OrbitCamera() { return OrbitCameraOn() ? 1 : 0; }
@@ -686,8 +686,6 @@ const Option kOptions[] = {
      Mod<kModDetachParts>, SetMod<kModDetachParts>, {"OFF", "ON"}, 2},
     {Page::kMods, "HEADLIGHTS", "AS THE TRACK HAS THEM, OR EVERY RACE CAR'S ALWAYS ON", Mod<kModHeadlights>,
      SetMod<kModHeadlights>, {"ORIGINAL", "ALWAYS ON"}, 2},
-    {Page::kMods, "HEAVYWEIGHTS", "THE HEAVYWEIGHT CARS IN THE GARAGE IN EVERY MODE", Mod<kModHeavyweights>,
-     SetMod<kModHeavyweights>, {"ORIGINAL", "ALL MODES"}, 2},
     {Page::kMods, "SPLITSCREEN", "TWO PLAYERS' VIEWS ONE ABOVE THE OTHER, OR SIDE BY SIDE", Mod<kModVerticalSplit>,
      SetMod<kModVerticalSplit>, {"HORIZONTAL", "VERTICAL"}, 2},   // (VERTICAL: parts of the HUD still wrong, FINDINGS)
     {Page::kControls, "BUTTON PROMPTS", "THE BUTTONS SHOWN: YOUR CONTROLLER'S, PLAYSTATION OR XBOX", ButtonPrompts,
@@ -1468,6 +1466,7 @@ void RegisterMouse();              // mouse.cpp
 void RegisterControls();           // controls.cpp
 void RegisterSixtyFps();           // sixty_fps.cpp
 void RegisterSingleEvent();        // single_event.cpp
+void RegisterExtraSeries();        // extra_series.cpp
 void RegisterHighFps();            // high_fps.cpp
 void RegisterDevMenu();            // dev_menu.cpp
 void RegisterMods();               // mods.cpp
@@ -1503,6 +1502,7 @@ void RegisterGameOverrides() {
     RegisterControls();
     RegisterSixtyFps();
     RegisterSingleEvent();
+    RegisterExtraSeries();
     RegisterHighFps();
     RegisterDevMenu();
     RegisterMods();

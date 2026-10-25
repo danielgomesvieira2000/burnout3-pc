@@ -34,6 +34,7 @@ void CustomSongsFrame();     // custom_songs.cpp
 void HighFpsFrame();         // high_fps.cpp
 void OrbitFrame(bool racing);    // orbit_camera.cpp
 bool ControlsRacing();       // controls.cpp
+void ExtraSeriesFrame();     // extra_series.cpp: its cars in the vehicles' list
 int ParticlesLevel();        // graphics.cpp: GRAPHICS' PARTICLES
 
 namespace {
@@ -56,14 +57,6 @@ float TrafficDensity() {
     const float density = std::strtof(v.c_str(), nullptr);
     return density >= 0.25f && density <= 4.0f ? density : 1.0f;
 }
-// Heavyweights in every mode: the garage's flag for the class (the byte at
-// 0x01E8EE94) - set every frame, the game's own back when the mod is turned
-// off. The patch writes the word (1): the byte after it is a flag of the
-// game's own (0x100 in the word while racing), kept here.
-constexpr u32 kHeavyweights = 0x01E8EE94u;
-bool g_heavyweights_set = false;
-u8 g_heavyweights_was = 0;
-
 bool On(const char* key) { return !g_all_off && ps2host::SettingOn(key, false); }
 
 /* CRASH BREAKER in every mode, Nehalem's Crash Breaker Expansion (its code:
@@ -118,15 +111,8 @@ void Frame(lifted::Context& c) {
     CustomSongsFrame();
     HighFpsFrame();
     OrbitFrame(ControlsRacing());
+    ExtraSeriesFrame();
     if (On("mod.no_traffic")) generated::Write8(kTraffic, 0);
-    if (On("mod.heavyweights")) {
-        if (!g_heavyweights_set) g_heavyweights_was = u8(generated::ReadU8(kHeavyweights));
-        g_heavyweights_set = true;
-        generated::Write8(kHeavyweights, 1);
-    } else if (g_heavyweights_set) {
-        g_heavyweights_set = false;
-        generated::Write8(kHeavyweights, g_heavyweights_was);
-    }
     if (On("mod.crash_breaker")) {
         generated::Write32(kCrashBreakerEntry, kCrashBreakerMod);
         g_crash_breaker_set = true;

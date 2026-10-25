@@ -2470,6 +2470,55 @@ run:
   the disc through the directory sectors GTFSCDVD reads (it walks them
   itself, sector by sector from 0x105, without sceCdSearchFile).
 
+## Vehicles, the car select's series, and the EXTRA SERIES
+
+* **A vehicle is a 64-bit ID**: its name's twelve characters in base 40
+  (space, `-`, `/`, digits, letters, `_`; 0x0021AB40 and 0x0021ADF0 read it
+  back). The name is its files: `COMPCAR18` is `pveh/COMP/CAR18.*`
+  (0x00251F40). A player's car has `.BGV` (its model), `.HWD` and `.LWD`; a
+  traffic vehicle one `.BTV`.
+* **`pveh/vlist.bin`** (loaded at 0x005186A0) lists all 107 - room for 128:
+  +4 how many, then per vehicle +0x8 a player's car (1), +0x208 a kind
+  (traffic 4), +0x408 its ID, +0x808 a word only traffic has, +0xA08 a
+  weight. Traffic on the disc: `COMP/CAR11-19` (cars, taxis, the Tuk Tuk:
+  CAR18), `HEVY/CAR11-35` (pickups, vans, buses, rigs, trailers, a tram),
+  `TSPC/CAR1-6`.
+* **A vehicle's class is its folder** (0x00251CB0): COMP 0, MSCL 1, CUPE 2,
+  SPRT 3, SUPR 4, HSPC 5, HEVY 6, TRAF 7 (no such folder on the disc), TSPC
+  8. The car select's series are the classes, and it lists a series' cars
+  from vlist.bin (0x00251B90 counts them, 0x00251C10 the n-th); a car not
+  among the executable's 67 counts as unlocked (0x0013A660). Its series is
+  +0x258 of 0x01E8EC30 - up to SUPER (4), SPECIAL (5) with +0x265, the
+  HEAVYWEIGHTS (6) with +0x264 too; both flags are arguments of its set-up
+  (0x0042CFA0: t1 the Heavyweights', t2 the specials').
+* **The 67 player cars have tables in the executable**: their IDs
+  (0x004CCF80), class (0x004CD1A0), names' strings (0x004CD2B0 capitals,
+  0x004CD3C0 mixed case), two floats each (0x004CD910). A car outside them
+  is index -1 (0x003EB060): names then come from 0x003EAE40's -1 case
+  ("UNKNOWN TRACK"), a class read before the table.
+* **A car's settings are its name's** in the value database: physics
+  (`VehiclePhysics/<name>`), sounds, their AI, cameras - through 0x0021AB40.
+* **A traffic model becomes a player's car** (bryan's Traffic Series showed
+  it) with a Heavyweight's two blocks appended (its header's +0x16DC and
+  +0x16E0 point at them; a `.BTV` has none) and that Heavyweight's `.HWD`
+  and `.LWD`. The Tuk Tuk's model also has 0.05 at +0x1C and three records
+  (+0xB80, +0xB94, +0xBA8) where bryan's has 0.75.
+* **The column's pictures** are records of `DATA/FRONTEND.TXD` named by the
+  car's ID (0x004277C0 finds them by name; none: a warning sign): 128 x 64
+  8-bit indices sent as a 64 x 32 32-bit image, and eight 256-colour
+  palettes (one per paint colour) as 16 x 16 tiles, each behind a GIF tag at
+  +0x200 and +0x2250; +0x104 and +0x184 are DMA references to them, absolute
+  for the file as laid out in memory.
+
+The EXTRA SERIES (port/extra_series.cpp) is class 7: its cars `TRAFCARn`,
+their files and picture laid over the disc as it opens (the engine's
+`Disc::AddFile`, made from the disc's own files), added to vlist.bin, their
+names ours, their settings other cars' by caller, the rivals in the series
+all its cars. Its picture is a render of the car in the garage: a capture
+(`PS2HOST_CAPTURE_FRAME`) replayed to just before the car is drawn and to
+just after (`PS2HOST_REPLAY_STOP_PRIM`), the car's pixels where the Z
+buffer changed between the two.
+
 ## Open questions
 
 * Which compiler and flags produced this binary? Unresolved, and it blocks all

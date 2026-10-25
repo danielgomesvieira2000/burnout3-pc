@@ -28,6 +28,10 @@ Thumbs.db
 # tools (lift.py --emit, derive.py --emit): never committed.
 games/*/src/
 games/*/include/*/
+
+# Pictures made from a game's models (the EXTRA SERIES' car select pictures,
+# games/burnout3/port/extra_pictures/): the game's, never committed.
+games/*/port/extra_pictures/
 !games/*/include/ps2/
 
 # Texture packs (PCSX2 replacements: third-party art made from the game's textures): never committed.

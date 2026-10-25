@@ -163,8 +163,8 @@ long gone) has four pages and the game's hidden menu (Triangle goes back):
              mode (Nehalem's Crash Breaker Expansion: the rivals and the
              other players caught in the blast too, a rival's car blown up
              an Aftertouch Takedown, the prompt while you crash),
-             HEADLIGHTS always on, the HEAVYWEIGHTS in every mode, and the
-             SPLITSCREEN one above the other or side by side
+             HEADLIGHTS always on, and the SPLITSCREEN one above the other
+             or side by side
   DEVELOPER MENU   the game's own hidden menu: unlock all, lock all, the
              awards (what it unlocks is kept when the game saves)
 
@@ -302,10 +302,12 @@ game, from Nehalem's PS2-Game-Mods (github.com/Nahelam/PS2-Game-Mods):
   escape209    heavyweights_always_available (the original SLUS patch;
                ported to the other releases by Nehalem)
 
-SINGLE EVENT's ELIMINATOR, MODS' TRAFFIC and ROAD RAGE PARTS: from bryan's
-PCSX2 patches (Eliminator - Single Event, Traffic Density, detach parts in
-road rage); ORBIT CAMERA: the idea of Remco's (SuperType1's) Right-Stick
-Orbit Camera - the port's own code for the camera and Eliminator.
+SINGLE EVENT's ELIMINATOR, the car select's EXTRA SERIES, MODS' TRAFFIC and
+ROAD RAGE PARTS: from bryan's PCSX2 patches (Eliminator - Single Event,
+Traffic Series, Traffic Density, detach parts in road rage); ORBIT CAMERA:
+the idea of Remco's (SuperType1's) Right-Stick Orbit Camera - the port's own
+code for the camera, Eliminator and the EXTRA SERIES (its cars made from your
+disc as the game starts).
 
 SMAA: Jorge Jimenez, Jose I. Echevarria, Belen Masia, Fernando Navarro and
 Diego Gutierrez (github.com/iryoku/smaa).

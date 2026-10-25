@@ -54,6 +54,7 @@ void F_003FBB50(lifted::Context& c);
 void F_003FB8B0(lifted::Context& c);
 void F_003FBDB0(lifted::Context& c);
 void F_003FC8C0(lifted::Context& c);
+u32 ExtraSeriesString(u32 id);      // extra_series.cpp: its strings
 void F_00271A60(lifted::Context& c);
 void F_00386B30(lifted::Context& c);
 void F_003865A0(lifted::Context& c);
@@ -403,9 +404,14 @@ void DescriptorCopy(lifted::Context& c) {
     }
 }
 
-/* 0x00271A60: a string by ID - the custom songs' names ours. */
+/* 0x00271A60: a string by ID - the custom songs' names ours, and the EXTRA
+   SERIES' (extra_series.cpp). */
 void StringLookup(lifted::Context& c) {
     const u32 id = u32(c.r[5]);
+    if (const u32 extra = ExtraSeriesString(id)) {
+        c.r[2] = extra;
+        return;
+    }
     if (St().installed && id >= kStringBase && id < kStringBase + 3 * St().songs.size()) {
         c.r[2] = kStrings + (id - kStringBase) * kNameChars * 2;
         return;

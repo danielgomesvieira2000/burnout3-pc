@@ -42,6 +42,19 @@ add_custom_command(OUTPUT ${MODS_LIFTED}
     DEPENDS ${LIFT_MODS} ${CMAKE_CURRENT_LIST_DIR}/tools/mods_spec.py
     COMMENT "Lifting the mods' functions")
 
+# The EXTRA SERIES' cars' pictures for the car select (extra_series.cpp):
+# port/extra_pictures/<ID>.png made into the game's own images. They are
+# pictures of the game's models, so never in the repository (.gitignore):
+# none there, an empty list.
+set(EXTRA_PICTURES ${CMAKE_BINARY_DIR}/extra_pictures.cpp)
+set(MAKE_EXTRA_PICTURES ${CMAKE_CURRENT_LIST_DIR}/tools/extra_pictures.py)
+file(GLOB EXTRA_PICTURE_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/extra_pictures/*.png)
+add_custom_command(OUTPUT ${EXTRA_PICTURES}
+    COMMAND ${Python3_EXECUTABLE} ${MAKE_EXTRA_PICTURES}
+            --pictures ${CMAKE_CURRENT_LIST_DIR}/extra_pictures --out ${EXTRA_PICTURES}
+    DEPENDS ${MAKE_EXTRA_PICTURES} ${EXTRA_PICTURE_FILES}
+    COMMENT "Making the EXTRA SERIES' pictures")
+
 ps2_add_port(burnout3
     GAME ${CMAKE_CURRENT_LIST_DIR}/..
     GENERATED ${PS2_GENERATED_DIR}
@@ -55,6 +68,7 @@ ps2_add_port(burnout3
             ${CMAKE_CURRENT_LIST_DIR}/triggers.cpp
             ${CMAKE_CURRENT_LIST_DIR}/sixty_fps.cpp
             ${CMAKE_CURRENT_LIST_DIR}/single_event.cpp
+            ${CMAKE_CURRENT_LIST_DIR}/extra_series.cpp
             ${CMAKE_CURRENT_LIST_DIR}/orbit_camera.cpp
             ${CMAKE_CURRENT_LIST_DIR}/high_fps.cpp
             ${CMAKE_CURRENT_LIST_DIR}/dev_menu.cpp
@@ -66,7 +80,8 @@ ps2_add_port(burnout3
             ${CMAKE_CURRENT_LIST_DIR}/lan.cpp
             ${CMAKE_CURRENT_LIST_DIR}/lan_libnet.cpp
             ${CMAKE_CURRENT_LIST_DIR}/lan_lobby.cpp
-            ${MODS_LIFTED})
+            ${MODS_LIFTED}
+            ${EXTRA_PICTURES})
 if(WIN32)
     target_link_libraries(burnout3 PRIVATE ws2_32)    # lan.cpp, lan_libnet.cpp, lan_lobby.cpp: the PC's sockets
     target_link_libraries(burnout3 PRIVATE iphlpapi)  # lan_lobby.cpp: the PC's networks, by adapter

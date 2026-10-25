@@ -79,7 +79,14 @@ MODS = [
                 # EA Trax in splitscreen: the music's update each frame
                 # (0x003F8C30) stops the music (0x003FC470) with two players or
                 # more (0x0064D3A0) - with three or more now (slti 2 -> 3).
-                (0x003F8C54, 0x28410003, 4)]),
+                (0x003F8C54, 0x28410003, 4),
+                # The car select's series (+0x258 of 0x01E8EC30) one past the
+                # HEAVYWEIGHTS (6): the EXTRA SERIES, 7 (extra_series.cpp) -
+                # with the specials and the Heavyweights (+0x265, +0x264), the
+                # next series there (0x0042BEA0), its arrow (0x0042C1A0,
+                # 0x0042CD60): slti 6 -> 7.
+                (0x0042BF24, 0x28610007, 4), (0x0042C208, 0x28410007, 4),
+                (0x0042CF14, 0x28610007, 4)]),
 ]
 
 # mod.crash_breaker's own code (the Crash Breaker Expansion's, Nehalem's), from
