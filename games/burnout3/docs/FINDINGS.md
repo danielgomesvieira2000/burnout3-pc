@@ -2439,6 +2439,37 @@ very next picture. The camera, built after the draw, follows one picture
 later: look back (L1 at 18200) turned the camera values in blank 18200 and
 showed in the picture after. That is the game's own order.
 
+## PCSX2 mods with code of their own
+
+The player's own pnaches (`b3 mod pnachs/`, never in the repository) bring
+thousands of words of code each: Demo Crashes 39,437, Car Colour 10,136.
+The port runs translated code, so engine/tools/lift_mods.py finds each
+mod's functions from what its words change and lifts them. What made them
+run:
+
+- **Hooks are jumps into a cave and back.** A function's first instruction
+  replaced by `j cave`, the cave `j back` into it: the function is lifted
+  with the cave as a chunk of its own. The way back is often the hooked
+  jump's own delay slot, so a delay slot must be followed again when a jump
+  lands on it.
+- **Returns through other registers.** Car Colour keeps $ra in $a0 and
+  leaves with `jr $a0`; Eliminator picks `jr $v1` between $ra and a game
+  function. A register jump to the function's own return address is its
+  return (the lifter's dispatch default).
+- **Reading the callers' frames.** Car Colour's garage hook, run in
+  0x0021E6F0's frame, reads the saved $ra of its caller 0x00151A40 to tell
+  the garage from the race. The structured translation keeps $ra in a
+  local and never stores it, so the hook never fired. Such callers are
+  translated plainly while the mod is on.
+- **Stale pointers.** Demo Crashes reads a pointer table at
+  0x003CF610 + 0x122A10 (the demo build's, not the retail game's) and
+  follows garbage into unmapped memory. PCSX2 returns 0 there and the game
+  carries on; the port does the same while a pnach mod is on.
+- **Code in data files.** The Traffic Series keeps code and a table in its
+  own pveh/vlist.bin, which the game loads at 0x005186A0. Its files go over
+  the disc through the directory sectors GTFSCDVD reads (it walks them
+  itself, sector by sector from 0x105, without sceCdSearchFile).
+
 ## Open questions
 
 * Which compiler and flags produced this binary? Unresolved, and it blocks all
