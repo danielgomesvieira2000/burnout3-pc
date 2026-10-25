@@ -474,9 +474,9 @@ void Reflections(lifted::Context& c) {
     float p[22] = {};
     DepthParams(k, p);
     p[6] = 60.0f;           // the farthest paint reflecting
-    p[10] = 20.0f;          // the ray's longest, metres
-    p[11] = 1.0f;           // strength
-    p[12] = 0.04f;          // Fresnel's base (face on)
+    p[10] = 30.0f;          // the ray's longest, metres
+    p[11] = 2.0f;           // strength (clearly seen: the bodies' sides and their lower edges)
+    p[12] = 0.45f;          // Fresnel's base (face on)
     p[13] = 6.0f;           // the normal's footprint, target pixels
     EmitEffect(c, EffectId::kReflections, v, p, 22);
 }
