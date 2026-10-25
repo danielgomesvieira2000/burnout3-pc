@@ -60,6 +60,11 @@ MODS = [
     # a race's flag, 1).
     ("mod.particles_more", [(0x00261EB8, 0x24040001, 4)]),
     ("mod.particles_most", [(0x00261E6C, 0x24120001, 4)]),
+    # ROAD RAGE PARTS (bryan's "detach parts in road rage"): a crash's parts
+    # come off (0x001CBD80) except in five of the game's modes (the player's
+    # +0xAC4: 0, 1, 3, 5, 6 - Road Rage among them); the skip (0x00395CDC,
+    # bne v1) gone, they come off in every mode.
+    ("mod.detach_parts", [(0x00395CDC, 0x00000000, 4)]),
     # TRAFFIC's density (where bryan's Traffic Density sections found it):
     # the traffic's spacing, 60.0 (lui 0x4270) in three places - the cars
     # on the road as a race starts (0x00266DA0, a0), the next car's time in
