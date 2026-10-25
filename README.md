@@ -39,7 +39,7 @@ wrong, press **F12** at that moment and attach the folder it writes to
   ORIGINAL or MODERN, MODERN by default, then each one on its own): a
   lighting grade, ambient occlusion, a modern glow and the camera's own
   motion blur (each MODERN HIGH or LOW; LOW in the MODERN preset), the sun's
-  shadows, lacquered reflections on the cars' paint (SSR: screen-space
+  shadows, lacquered reflections on the cars' paint (SSR LOW or HIGH: screen-space
   reflections over them too), depth of field in the takedown cameras, soft
   smoke and fire, contrast-adaptive sharpening - drawn inside the game's own
   frame, the HUD on top.

@@ -23,8 +23,8 @@
  *                   ("modern", "modern_low")
  *   SHADOWS         ORIGINAL / MODERN / SOFT / OFF - SOFT the blob drawn
  *                   here (see SoftBlob), MODERN it and the sun's
- *   REFLECTIONS     ORIGINAL / MODERN / SSR - the paint's environment map
- *                   sharp and by a Fresnel term; SSR adds what the picture
+ *   REFLECTIONS     ORIGINAL / MODERN / SSR LOW / SSR HIGH - the paint's
+ *                   environment map sharp and by a Fresnel term; SSR adds what the picture
  *                   shows around the car where the paint's rays find it
  *                   (Reflections: the effects' screen-space reflections)
  *   CINEMATIC CAMERAS  MODERN / ORIGINAL - depth of field in the takedown
@@ -463,21 +463,31 @@ void Occlusion(lifted::Context& c) {
     EmitEffect(c, EffectId::kOcclusion, v, p, 22);
 }
 
+/* REFLECTIONS SSR LOW (1) or HIGH (2), else 0 ("ssr", saved before LOW
+   and HIGH, LOW). */
+int SsrLevel() {
+    const std::string r = Graphics("reflections");
+    return r == "ssr_high" ? 2 : r == "ssr_low" || r == "ssr" ? 1 : 0;
+}
+
 /* REFLECTIONS on the cars' paint (screen-space): where the paint's ray
    finds what the picture shows - a rival beside, the road, a wall - that,
    over the sphere map's; elsewhere the sphere map as it was. After the
    occlusion, before the fog (it fogs them too). */
-void Reflections(lifted::Context& c) {
+void Reflections(lifted::Context& c, bool high) {
     const View v = CurrentView();
     const Camera k = ViewCamera(v);
     if (!k.valid || !v.zbuf) return;
     float p[22] = {};
     DepthParams(k, p);
     p[6] = 60.0f;           // the farthest paint reflecting
-    p[10] = 30.0f;          // the ray's longest, metres
-    p[11] = 2.0f;           // strength (clearly seen: the bodies' sides and their lower edges)
-    p[12] = 0.45f;          // Fresnel's base (face on)
-    p[13] = 6.0f;           // the normal's footprint, target pixels
+    // LOW: traced at the occlusion's resolution; HIGH: at the full one
+    // (sharp), farther and a little stronger.
+    p[10] = high ? 40.0f : 30.0f;   // the ray's longest, metres
+    p[11] = high ? 2.5f : 2.0f;     // strength (clearly seen: the bodies' sides and their lower edges)
+    p[12] = 0.45f;                  // Fresnel's base (face on)
+    p[16] = high ? 1.0f : 0.0f;     // traced at the full resolution
+    p[13] = 3.0f;           // the normal's footprint, pixels at the PS2's resolution
     EmitEffect(c, EffectId::kReflections, v, p, 22);
 }
 
@@ -696,7 +706,7 @@ void Fog(lifted::Context& c) {
     ++g_pictures[PlayerOf(CurrentView())];
     g_split = Split(CurrentView());
     if (Graphics("ao") == "on" || Graphics("shadows") == "modern") Occlusion(c);
-    if (Graphics("reflections") == "ssr") Reflections(c);
+    if (SsrLevel() > 0) Reflections(c, SsrLevel() == 2);
     // SMOKE AND FIRE MODERN: the scene's depth saved for the particles drawn
     // after the view's effects (soft particles).
     if (Graphics("smoke") == "modern") {
@@ -815,10 +825,10 @@ void GraphicsFrame() {
     const bool split_ok = ModernBlur() &&
                           (Graphics("bloom") == "modern" || Graphics("bloom") == "modern_low");
     const std::string reflections = Graphics("reflections");
-    const bool modern_reflections = (reflections == "modern" || reflections == "ssr") && (!g_split || split_ok);
+    const bool modern_reflections = (reflections == "modern" || SsrLevel() > 0) && (!g_split || split_ok);
     ps2host::SetGpuScaleRule(modern_reflections ? 0x16Bu : 0u, modern_reflections ? 0x1A7u : 0u, modern_reflections ? 4u : 0u);
     // (tag bit 3: the paint marked in the stencil, for the effects' screen-space reflections)
-    const bool ssr = modern_reflections && reflections == "ssr";
+    const bool ssr = modern_reflections && SsrLevel() > 0;
     ps2host::SetGpuDrawTag(0x2D60u, modern_reflections ? (ssr ? 9u : 1u) : 0u);
     // TEXTURE FILTERING: MODERN, mipmapped textures filtered as a modern
     // GPU does - their detail at the internal resolution, no bands, the road

@@ -545,8 +545,11 @@ void SetOcclusion(int which) { ps2host::SetSetting("ao", kOcclusions[which]); }
 const char* const kModerns[] = {"original", "modern"};
 int Lighting() { return AmongGraphics("lighting", kModerns); }
 void SetLighting(int which) { ps2host::SetSetting("lighting", kModerns[which]); }
-const char* const kReflectionModes[] = {"original", "modern", "ssr"};
-int Reflections() { return AmongGraphics("reflections", kReflectionModes); }
+const char* const kReflectionModes[] = {"original", "modern", "ssr_low", "ssr_high"};
+int Reflections() {
+    if (ps2host::Setting("reflections", "") == "ssr") return 2;    // (saved before LOW and HIGH)
+    return AmongGraphics("reflections", kReflectionModes);
+}
 // TEXTURE FILTERING (graphics.cpp): the game's, MODERN, or the player's filter.
 const char* const kTextureFilters[] = {"original", "modern", "nearest", "bilinear",
                                        "trilinear", "aniso4", "aniso8", "aniso16"};
@@ -652,7 +655,7 @@ const Option kOptions[] = {
     {Page::kGraphics, "SHADOWS", "THE CARS' SHADOWS: AS DRAWN, THE SUN'S, SOFTER, OR NONE", Shadows, SetShadows,
      {"ORIGINAL", "MODERN", "SOFT", "OFF"}, 4},
     {Page::kGraphics, "REFLECTIONS", "THE CARS' PAINT: AS DRAWN, LACQUERED, OR MIRRORING THE SCENE TOO",
-     Reflections, SetReflections, {"ORIGINAL", "MODERN", "SSR"}, 3},
+     Reflections, SetReflections, {"ORIGINAL", "MODERN", "SSR LOW", "SSR HIGH"}, 4},
     {Page::kGraphics, "CINEMATIC CAMERAS", "TAKEDOWNS: AS DRAWN, OR WITH DEPTH OF FIELD", Dof, SetDof,
      {"ORIGINAL", "MODERN"}, 2},
     {Page::kGraphics, "SMOKE AND FIRE", "AS DRAWN, OR SOFT WHERE THEY MEET THE ROAD AND THE CARS", Smoke,
