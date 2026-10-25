@@ -533,7 +533,7 @@ int AmongGraphics(const char* key, const char* const (&values)[N]) {
 const char* const kBlooms[] = {"original", "off", "modern", "modern_low"};
 int Bloom() { return AmongGraphics("bloom", kBlooms); }
 void SetBloom(int which) { ps2host::SetSetting("bloom", kBlooms[which]); }
-const char* const kBlurs[] = {"original", "modern", "off"};
+const char* const kBlurs[] = {"original", "off", "modern", "modern_low"};
 int Blur() { return AmongGraphics("blur", kBlurs); }
 void SetBlur(int which) { ps2host::SetSetting("blur", kBlurs[which]); }
 const char* const kShadows[] = {"original", "modern", "soft", "off"};
@@ -646,8 +646,8 @@ const Option kOptions[] = {
      SetOcclusion, {"OFF", "ON"}, 2},
     {Page::kGraphics, "BLOOM", "THE GLOW AROUND LIGHTS: AS DRAWN, NONE, OR MODERN - FULL OR SOFTER", Bloom,
      SetBloom, {"ORIGINAL", "OFF", "MODERN HIGH", "MODERN LOW"}, 4},
-    {Page::kGraphics, "MOTION BLUR", "THE SPEED'S BLUR: AS DRAWN, THE CAMERA'S OWN, OR NONE", Blur, SetBlur,
-     {"ORIGINAL", "MODERN", "OFF"}, 3},
+    {Page::kGraphics, "MOTION BLUR", "THE SPEED'S BLUR: AS DRAWN, NONE, OR THE CAMERA'S - FULL OR SHORTER", Blur,
+     SetBlur, {"ORIGINAL", "OFF", "MODERN HIGH", "MODERN LOW"}, 4},
     {Page::kGraphics, "SHADOWS", "THE CARS' SHADOWS: AS DRAWN, THE SUN'S, SOFTER, OR NONE", Shadows, SetShadows,
      {"ORIGINAL", "MODERN", "SOFT", "OFF"}, 4},
     {Page::kGraphics, "REFLECTIONS", "THE CARS' PAINT: AS DRAWN, OR SHARP AND LACQUERED", Reflections,

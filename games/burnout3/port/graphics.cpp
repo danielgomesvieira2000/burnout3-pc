@@ -18,8 +18,9 @@
  *   BLOOM           ORIGINAL / OFF / MODERN HIGH / MODERN LOW - the PC's
  *                   glow (ModernBloom), LOW's fainter and from brighter
  *                   lights ("modern", "modern_low")
- *   MOTION BLUR     ORIGINAL / MODERN / OFF (the key "blur", as it was
- *                   saved) - MODERN the camera's own (CameraBlur)
+ *   MOTION BLUR     ORIGINAL / OFF / MODERN HIGH / MODERN LOW - the
+ *                   camera's own (CameraBlur), LOW's streaks half as long
+ *                   ("modern", "modern_low")
  *   SHADOWS         ORIGINAL / MODERN / SOFT / OFF - SOFT the blob drawn
  *                   here (see SoftBlob), MODERN it and the sun's
  *   REFLECTIONS     MODERN / ORIGINAL - the paint's environment map sharp
@@ -56,6 +57,7 @@
 #include <string>
 #include <vector>
 
+#include "ps2host/high_fps.h"
 #include "ps2host/host.h"
 #include "ps2host/run.h"
 #include "ps2host/settings.h"
@@ -129,8 +131,9 @@ const char* GraphicsPresetValue(const char* key, bool modern) {
     // LOD HIGH (the detailed models farther) and PARTICLES MORE in MODERN.
     if (k == "lod") return original ? "original" : "high";
     if (k == "particles") return original ? "original" : "more";
-    if (k == "bloom" || k == "blur" || k == "shadows" || k == "lighting" || k == "reflections" || k == "smoke" ||
-        k == "dof" || k == "sharpen")
+    // BLOOM and MOTION BLUR LOW in MODERN: the softer glow, the shorter streaks.
+    if (k == "bloom" || k == "blur") return original ? "original" : "modern_low";
+    if (k == "shadows" || k == "lighting" || k == "reflections" || k == "smoke" || k == "dof" || k == "sharpen")
         return original ? "original" : "modern";
     return "original";
 }
@@ -385,10 +388,35 @@ void DepthParams(const Camera& k, float* p) {
 
 /* The view's player's car in the view's space - its place in the race's
    block (player 1's 0x0064E710, player 2's 0x27D0 on) - the centre of its
-   body, when it is in front of the camera as a chase camera has it. */
+   body, when it is in front of the camera as a chase camera has it.
+   Above 60 pictures a second the camera is blended between the game's last
+   two steps (ps2host/high_fps.h) and the car drawn with it, but the race
+   block's place is the last step's: blended here the same way - else the
+   car's sharp sphere (the blur) and its share of AO and shadow jumped
+   against the drawn car every other picture, its highlights flickering. */
+struct CarTrack {
+    float last[3] = {}, now[3] = {};
+    bool known = false;
+};
+CarTrack g_car_track[2];
+
 bool CarInView(const Camera& k, int view, float* out) {
     const u32 at = 0x0064E710u + 0x27D0u * u32(view & 1);
-    const float car[3] = {F32(at) - k.pos[0], F32(at + 4u) - k.pos[1], F32(at + 8u) - k.pos[2]};
+    const float raw[3] = {F32(at), F32(at + 4u), F32(at + 8u)};
+    CarTrack& track = g_car_track[view & 1];
+    if (!track.known || raw[0] != track.now[0] || raw[1] != track.now[1] || raw[2] != track.now[2]) {
+        const float step[3] = {raw[0] - track.now[0], raw[1] - track.now[1], raw[2] - track.now[2]};
+        const bool cut = !track.known || step[0] * step[0] + step[1] * step[1] + step[2] * step[2] > 50.0f * 50.0f;
+        for (int i = 0; i < 3; ++i) {
+            track.last[i] = cut ? raw[i] : track.now[i];
+            track.now[i] = raw[i];
+        }
+        track.known = true;
+    }
+    const float t = ps2host::HighFpsPictureTime();
+    float place[3];
+    for (int i = 0; i < 3; ++i) place[i] = track.last[i] + (track.now[i] - track.last[i]) * t;
+    const float car[3] = {place[0] - k.pos[0], place[1] - k.pos[1], place[2] - k.pos[2]};
     const float* rows[3] = {k.right, k.up, k.at};
     const float sign[3] = {-1.0f, 1.0f, 1.0f};      // (RenderWare's "right" points left on screen)
     for (int i = 0; i < 3; ++i) out[i] = sign[i] * (rows[i][0] * car[0] + rows[i][1] * car[1] + rows[i][2] * car[2]);
@@ -434,13 +462,19 @@ void Occlusion(lifted::Context& c) {
 }
 
 /* MOTION BLUR MODERN: the camera's own motion, a frame's, the boost making
-   the shutter longer. `boost` 0-1. */
+   the shutter longer. `boost` 0-1. MODERN LOW: half the shutter, streaks
+   at most 3% of the height (5%) - fewer taps too (by the streak's length). */
 struct Motion {
     Camera last;
     u32 picture = ~0u;
     u64 blank = 0;              // ps2host::FrameNumber() then
 };
 Motion g_motion[2];
+
+bool ModernBlur() {
+    const std::string blur = Graphics("blur");
+    return blur == "modern" || blur == "modern_low";
+}
 
 void CameraBlur(lifted::Context& c, float boost) {
     const View v = CurrentView();
@@ -483,7 +517,8 @@ void CameraBlur(lifted::Context& c, float boost) {
     // A cut (a replay's camera, a crash's): no blur across it. Else the
     // motion scaled to the shutter: a 120th of a second, a 60th boosting.
     const float moved = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
-    const double shutter = (1.0 + std::clamp(boost, 0.0f, 1.0f)) / 120.0;
+    const bool low = Graphics("blur") == "modern_low";
+    const double shutter = (1.0 + std::clamp(boost, 0.0f, 1.0f)) / (low ? 240.0 : 120.0);
     const float scale = float(std::min(shutter / std::max(elapsed, 1e-3), 4.0));
     // (the camera's turning at half its share: a chase camera swings, and a
     // whole picture smeared by it reads as a fault, not as speed)
@@ -493,7 +528,7 @@ void CameraBlur(lifted::Context& c, float boost) {
         p[4 + i] = (moved > 8.0f || turn < 2.9f) ? identity : identity + share * (p[4 + i] - identity);
     }
     p[16] = 1.0f;                                              // (a gain on it)
-    p[17] = 0.05f;                                             // the most, a share of the height
+    p[17] = low ? 0.03f : 0.05f;                               // the most, a share of the height
     // The player's car (its place in the race's block, 0x0064E710; player
     // 2's not known: none), a sphere around it kept sharp - only where it is
     // in front of the camera as a chase camera has it.
@@ -613,7 +648,7 @@ void RadialBlur(lifted::Context& c) {
     if (blur == "off") return;
     // MODERN in the race (the frontend's radial blurs have no 3D view of
     // their own: the game's, there).
-    if (blur == "modern" && CurrentView().zbuf && generated::ReadU8(kBlurOn)) {
+    if (ModernBlur() && CurrentView().zbuf && generated::ReadU8(kBlurOn)) {
         CameraBlur(c, F32(u32(c.r[4]) + 0x1Cu));
         CinematicFocus(c);
         return;
@@ -625,7 +660,7 @@ void RadialBlur(lifted::Context& c) {
 /* 0x00426C10: the camera's directional blur (the race's, instead of the
    radial one when the camera asks): MODERN's blur in its place. */
 void DirectionalBlur(lifted::Context& c) {
-    if (Graphics("blur") == "modern" && CurrentView().zbuf) {
+    if (ModernBlur() && CurrentView().zbuf) {
         CameraBlur(c, 0.0f);
         CinematicFocus(c);
         return;
@@ -756,7 +791,7 @@ void GraphicsFrame() {
     // (in a split screen only with the blur and the glow MODERN: the game's
     // own blurs there read buffers in the same pages at the PS2's size - a
     // washed-out player 2)
-    const bool split_ok = Graphics("blur") == "modern" &&
+    const bool split_ok = ModernBlur() &&
                           (Graphics("bloom") == "modern" || Graphics("bloom") == "modern_low");
     const bool modern_reflections = Graphics("reflections") == "modern" && (!g_split || split_ok);
     ps2host::SetGpuScaleRule(modern_reflections ? 0x16Bu : 0u, modern_reflections ? 0x1A7u : 0u, modern_reflections ? 4u : 0u);
