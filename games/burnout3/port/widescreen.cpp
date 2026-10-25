@@ -24,7 +24,6 @@
 #include "ps2host/hud.h"
 #include "ps2host/run.h"
 #include "ps2host/settings.h"
-#include "mods.h"
 
 // RenderWare's RwCameraSetViewWindow (see SetViewWindow).
 void F_001E2110(lifted::Context& c);
@@ -457,7 +456,7 @@ unsigned long long g_race_world_calls = 0;
 void RaceWorld(lifted::Context& c) {
     ++g_race_world_calls;
     if (ps2host::hud::Paused()) return;
-    Modded<0x0019A550u, F_0019A550>(c);
+    F_0019A550(c);
 }
 
 }  // namespace

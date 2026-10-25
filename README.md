@@ -282,27 +282,6 @@ credit; they remain theirs. The port carries their words (the changed
 instructions and, for the Crash Breaker Expansion, its own code) in
 mods_spec.py, nothing of the game's.
 
-#### Your own pnaches
-
-Bigger PCSX2 mods - with code of their own, thousands of lines - can be
-used from their `.pnach` files without being part of this repository: put
-them in a folder named `b3 mod pnachs` at the repository's root (or name
-another with `PS2_MODS_DIR`) and build. The build reads the sections
-[mods_spec.py](games/burnout3/port/tools/mods_spec.py)'s `PNACHES` names,
-finds each mod's own code from its hooks and lifts it beside the game's
-([lift_mods.py](engine/tools/lift_mods.py)); a file that is missing just
-leaves its rows doing nothing. The rows they get in PC SETTINGS:
-
-| In the port | Section | Author |
-| --- | --- | --- |
-| MODS: SPEEDOMETER STYLE (RPM METER) | RPM Meter (no background) + Speed Unit | bryan |
-| MODS: SPEEDOMETER STYLE (BETA HUD) | Beta HUD - SLED speedometer, RPM bar and shift light | Remco/SuperType1 |
-| MODS: DEMO CRASHES | Demo Crashes | Remco/SuperType1 |
-| MODS: ORBIT CAMERA (right stick) | Right-Stick Orbit Camera | Remco/SuperType1 |
-| MODS: CAMERA ROLL, END OF RACE CAMERA, TRAFFIC CHECK, TRAFFIC DENSITY, TRANSMISSION CHOICE, CAR COLOURS, ELIMINATOR, GARAGE STATS, RACER BLINKERS, BOOST BAR SHAKE, TAKEDOWN PITCH, ROAD RAGE PARTS | bebf8793_burnout3_mods_v2's sections of those names | bryan |
-| GRAPHICS: CAR SHADOW SHAPE (projected), XBOX REFLECTIONS | Projected Shadows; Xbox Reflections | bryan |
-| MODS: TRAFFIC SERIES (20 traffic cars after Heavyweights) | BurnoutTrafficSeries: Traffic Series (8th class), its files laid over the disc as the game starts (your image is never changed) | bryan; Heavyweights always available by escape209 |
-
 ### Third-party software
 
 [SDL 3](https://github.com/libsdl-org/SDL), [volk](https://github.com/zeux/volk),
