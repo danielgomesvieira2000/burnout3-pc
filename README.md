@@ -67,6 +67,9 @@ wrong, press **F12** at that moment and attach the folder it writes to
   km/h, mirror mode, traffic off or 0.5x to 3x, car parts shed in Road Rage, Crash Breaker in every mode (the Crash Breaker Expansion),
   headlights, heavyweights, a vertical splitscreen) and the game's hidden
   DEVELOPER MENU. Saved in `pc_settings.ini`; QUIT GAME in the main menu.
+- **Eliminator in SINGLE EVENT** (between ROAD RAGE and CRASH): the World
+  Tour's Eliminator - the last car of each lap out - on any race track. An
+  idea from bryan's PCSX2 patch, done with the game's own rules.
 - **Two players on one PC**: MULTIPLAYER > SPLITSCREEN - each player presses
   Start on the controller (or Enter on the keyboard) they play with, the
   first player 1, the next player 2; in the race each drives their own car,

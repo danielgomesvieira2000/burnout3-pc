@@ -1461,6 +1461,7 @@ void RegisterWidescreen();         // widescreen.cpp
 void RegisterMouse();              // mouse.cpp
 void RegisterControls();           // controls.cpp
 void RegisterSixtyFps();           // sixty_fps.cpp
+void RegisterSingleEvent();        // single_event.cpp
 void RegisterHighFps();            // high_fps.cpp
 void RegisterDevMenu();            // dev_menu.cpp
 void RegisterMods();               // mods.cpp
@@ -1495,6 +1496,7 @@ void RegisterGameOverrides() {
     RegisterMouse();
     RegisterControls();
     RegisterSixtyFps();
+    RegisterSingleEvent();
     RegisterHighFps();
     RegisterDevMenu();
     RegisterMods();
