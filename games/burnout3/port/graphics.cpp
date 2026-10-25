@@ -484,8 +484,8 @@ void Reflections(lifted::Context& c, bool high) {
     // LOW: traced at the occlusion's resolution; HIGH: at the full one
     // (sharp), farther and a little stronger.
     p[10] = high ? 40.0f : 30.0f;   // the ray's longest, metres
-    p[11] = high ? 2.5f : 2.0f;     // strength (clearly seen: the bodies' sides and their lower edges)
-    p[12] = 0.45f;                  // Fresnel's base (face on)
+    p[11] = high ? 1.75f : 1.5f;    // strength (seen on the bodies' sides and lower edges, not a mirror)
+    p[12] = 0.25f;                  // Fresnel's base (face on)
     p[16] = high ? 1.0f : 0.0f;     // traced at the full resolution
     p[13] = 3.0f;           // the normal's footprint, pixels at the PS2's resolution
     EmitEffect(c, EffectId::kReflections, v, p, 22);
