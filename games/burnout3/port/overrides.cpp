@@ -363,8 +363,13 @@ void CaptureHang(const std::string& dir) {
     SaveMemories((dir + "/ee.bin").c_str(), (dir + "/iop.bin").c_str());
 }
 
+// Each step of a load, either kind (MODS: a race over, mods changed mid-race
+// may take effect - GameLoadSteps).
+unsigned long long g_load_steps = 0;
+
 template <void (*Load)(lifted::Context&), u32 kAddress>
 void FastLoading(lifted::Context& c) {
+    ++g_load_steps;
     static const bool console = [] {
         const char* speed = std::getenv("PS2HOST_LOAD_SPEED");
         return speed && std::atoi(speed) <= 1;
@@ -1622,3 +1627,6 @@ void MusicWatchdog() {
                          "semaphore (a lost wake-up)\n", woken);
     }
 }
+
+/* Steps of the game's loads so far (MODS: a race is over once one runs). */
+unsigned long long GameLoadSteps() { return g_load_steps; }

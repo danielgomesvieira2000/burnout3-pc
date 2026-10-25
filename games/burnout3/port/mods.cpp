@@ -41,6 +41,8 @@ void F_001F43B0(lifted::Context& c);
 void GraphicsFrame();
 void CustomSongsFrame();     // custom_songs.cpp
 void MusicWatchdog();        // overrides.cpp
+unsigned long long GameLoadSteps();     // overrides.cpp
+unsigned long long RaceWorldCalls();    // widescreen.cpp
 void HighFpsFrame();         // high_fps.cpp
 int ParticlesLevel();        // graphics.cpp: GRAPHICS' PARTICLES
 
@@ -95,9 +97,36 @@ RaceFlag g_race_flags[] = {{"mod.mirror", 0xCu}, {"mod.vertical_split", 0xFu}};
 // before the disc is opened.
 int g_traffic_series = -1;
 
+/* A race in progress: from its world's first step until the next load (a
+   pause does not end it). A pnach mod's code switched mid-race leaves its
+   state half done - Demo Crashes turned off mid-crash froze the race - so a
+   change to one made then (the F9 panel's) waits for the next load. */
+bool RaceInProgress() {
+    static unsigned long long world = 0, loads = 0;
+    static bool racing = false;
+    if (RaceWorldCalls() != world) world = RaceWorldCalls(), racing = true;
+    if (GameLoadSteps() != loads) loads = GameLoadSteps(), racing = false;
+    return racing;
+}
+
+bool Pnach(int mod) {
+    static bool pnach[kMaxMods] = {}, known = false;
+    if (!known) {
+        for (int k = 0; k < kModWriteCount; ++k)
+            if (kModWrites[k].mod < kMaxMods) pnach[kModWrites[k].mod] = true;
+        known = true;
+    }
+    return mod >= 0 && mod < kMaxMods && pnach[mod];
+}
+
+bool g_refreshed = false;               // (the first, at start, takes every setting)
+
 void Refresh() {
+    const bool racing = RaceInProgress() && g_refreshed;
+    g_refreshed = true;
     for (int i = 0; i < kModCount && i < kMaxMods; ++i) {
         const std::string key = kModKeys[i];
+        if (racing && Pnach(i)) continue;   // (as it was until the next load)
         if (key == "mod.traffic_series") {
             g_on[i] = g_traffic_series == 1;
             continue;
