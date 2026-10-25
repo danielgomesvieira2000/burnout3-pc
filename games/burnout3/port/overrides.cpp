@@ -75,6 +75,7 @@ void LanStopLobby();               // lan_lobby.cpp: the lobby this game served,
 // The graphics settings' defaults (graphics.cpp).
 const char* GraphicsDefault(const char* key);
 const char* GraphicsPresetValue(const char* key, bool modern);
+bool ModBuilt(const char* key);         // mods.cpp
 int ParticlesLevel();
 
 namespace {
@@ -496,6 +497,7 @@ struct Option {
     void (*set)(int);
     const char* values[8];
     int count;
+    const char* needs = nullptr;            // a pnach mod's key: shown only if it was built in (ModBuilt)
 };
 int Fullscreen() { return ps2host::WindowFullscreen() ? 1 : 0; }
 void SetFullscreen(int on) { ps2host::SetWindowFullscreen(on != 0); }
@@ -694,9 +696,9 @@ const Option kOptions[] = {
     {Page::kGraphics, "PARTICLES", "SMOKE AND SPARKS WHILE DRIVING: AS DRAWN, MORE, OR THE MOST", Particles,
      SetParticles, {"ORIGINAL", "MORE", "MOST"}, 3},
     {Page::kGraphics, "CAR SHADOW SHAPE", "A ROUND BLOB, OR THE CAR'S OWN SHAPE ON THE ROAD (RESTART)",
-     Mod<kModProjectedShadows>, SetMod<kModProjectedShadows>, {"ORIGINAL", "PROJECTED"}, 2},
+     Mod<kModProjectedShadows>, SetMod<kModProjectedShadows>, {"ORIGINAL", "PROJECTED"}, 2, "mod.projected_shadows"},
     {Page::kGraphics, "XBOX REFLECTIONS", "THE XBOX VERSION'S CAR REFLECTIONS, AND SEEN FARTHER (200 M)",
-     XboxReflections, SetXboxReflections, {"OFF", "ON", "ON, FARTHER"}, 3},
+     XboxReflections, SetXboxReflections, {"OFF", "ON", "ON, FARTHER"}, 3, "mod.xbox_reflections"},
     {Page::kMods, "SPEEDOMETER", "THE SPEED IN MILES OR IN KILOMETRES AN HOUR", Mod<kModKph>, SetMod<kModKph>,
      {"MPH", "KM/H"}, 2},
     {Page::kMods, "HORN", "HONK (CONTROLS: HORN), THE HEADLIGHTS ON WHILE IT IS HELD", Mod<kModHorn>,
@@ -714,37 +716,37 @@ const Option kOptions[] = {
     {Page::kMods, "SPLITSCREEN", "TWO PLAYERS' VIEWS ONE ABOVE THE OTHER, OR SIDE BY SIDE", Mod<kModVerticalSplit>,
      SetMod<kModVerticalSplit>, {"HORIZONTAL", "VERTICAL"}, 2},   // (VERTICAL: parts of the HUD still wrong, FINDINGS)
     {Page::kMods, "SPEEDOMETER STYLE", "THE GAME'S, A THIN RPM BAR, OR THE APRIL BETA'S WITH A SHIFT LIGHT",
-     SpeedoStyle, SetSpeedoStyle, {"ORIGINAL", "RPM METER", "BETA HUD"}, 3},
+     SpeedoStyle, SetSpeedoStyle, {"ORIGINAL", "RPM METER", "BETA HUD"}, 3, "mod.beta_hud"},
     {Page::kMods, "DEMO CRASHES", "THE JUNE 2004 DEMO'S CRASH PHYSICS, CAMERA, DENTS AND SPARKS",
-     Mod<kModDemoCrashes>, SetMod<kModDemoCrashes>, {"OFF", "ON"}, 2},
+     Mod<kModDemoCrashes>, SetMod<kModDemoCrashes>, {"OFF", "ON"}, 2, "mod.demo_crashes"},
     {Page::kMods, "ORBIT CAMERA", "THE RIGHT STICK TURNS THE CAMERA AROUND THE CAR, AS IN REVENGE",
-     Mod<kModOrbitCamera>, SetMod<kModOrbitCamera>, {"OFF", "ON"}, 2},
+     Mod<kModOrbitCamera>, SetMod<kModOrbitCamera>, {"OFF", "ON"}, 2, "mod.orbit_camera"},
     {Page::kMods, "CAMERA ROLL", "THE CHASE CAMERA LEANS INTO CORNERS", Mod<kModCameraRoll>,
-     SetMod<kModCameraRoll>, {"OFF", "ON"}, 2},
+     SetMod<kModCameraRoll>, {"OFF", "ON"}, 2, "mod.camera_roll"},
     {Page::kMods, "END OF RACE CAMERA", "THE APRIL BETA'S SET-PIECE CAMERAS AS A RACE ENDS",
-     Mod<kModRaceEndCamera>, SetMod<kModRaceEndCamera>, {"OFF", "ON"}, 2},
+     Mod<kModRaceEndCamera>, SetMod<kModRaceEndCamera>, {"OFF", "ON"}, 2, "mod.race_end_camera"},
     {Page::kMods, "TRAFFIC CHECK", "PUSH TRAFFIC GOING YOUR WAY ASIDE, AS IN REVENGE, FOR POINTS",
-     Mod<kModTrafficCheck>, SetMod<kModTrafficCheck>, {"OFF", "ON"}, 2},
+     Mod<kModTrafficCheck>, SetMod<kModTrafficCheck>, {"OFF", "ON"}, 2, "mod.traffic_check"},
     {Page::kMods, "TRAFFIC DENSITY", "HOW MUCH TRAFFIC THE ROADS HAVE", TrafficDensity, SetTrafficDensity,
-     {"NORMAL", "1.5X", "2X", "3X"}, 4},
+     {"NORMAL", "1.5X", "2X", "3X"}, 4, "mod.traffic_x2"},
     {Page::kMods, "TRANSMISSION CHOICE", "AFTER CHOOSING A CAR: AUTOMATIC OR MANUAL", Mod<kModTransmission>,
-     SetMod<kModTransmission>, {"OFF", "ON"}, 2},
+     SetMod<kModTransmission>, {"OFF", "ON"}, 2, "mod.transmission"},
     {Page::kMods, "CAR COLOURS", "L2 + BUTTONS RECOLOUR YOUR CAR IN THE GARAGE (FROM THE NEXT START)",
-     Mod<kModCarColor>, SetMod<kModCarColor>, {"OFF", "ON"}, 2},
+     Mod<kModCarColor>, SetMod<kModCarColor>, {"OFF", "ON"}, 2, "mod.car_color"},
     {Page::kMods, "ELIMINATOR", "ELIMINATOR IN SINGLE EVENT AND MULTIPLAYER", Mod<kModEliminator>,
-     SetMod<kModEliminator>, {"OFF", "ON"}, 2},
+     SetMod<kModEliminator>, {"OFF", "ON"}, 2, "mod.eliminator"},
     {Page::kMods, "TRAFFIC SERIES", "20 TRAFFIC CARS AS A SERIES AFTER HEAVYWEIGHTS (FROM THE NEXT START)",
-     Mod<kModTrafficSeries>, SetMod<kModTrafficSeries>, {"OFF", "ON"}, 2},
+     Mod<kModTrafficSeries>, SetMod<kModTrafficSeries>, {"OFF", "ON"}, 2, "mod.traffic_series"},
     {Page::kMods, "GARAGE STATS", "TOP SPEED, GRIP, WEIGHT AND ACCELERATION IN THE GARAGE",
-     Mod<kModGarageStats>, SetMod<kModGarageStats>, {"OFF", "ON"}, 2},
+     Mod<kModGarageStats>, SetMod<kModGarageStats>, {"OFF", "ON"}, 2, "mod.garage_stats"},
     {Page::kMods, "RACER BLINKERS", "RIVALS SIGNAL BEFORE TURNS, AS IN THE APRIL BETA", Mod<kModBlinkers>,
-     SetMod<kModBlinkers>, {"OFF", "ON"}, 2},
+     SetMod<kModBlinkers>, {"OFF", "ON"}, 2, "mod.blinkers"},
     {Page::kMods, "BOOST BAR SHAKE", "THE BOOST BAR SHAKES WHILE BOOSTING, AS IN THE APRIL BETA",
-     Mod<kModBoostShake>, SetMod<kModBoostShake>, {"OFF", "ON"}, 2},
+     Mod<kModBoostShake>, SetMod<kModBoostShake>, {"OFF", "ON"}, 2, "mod.boost_shake"},
     {Page::kMods, "TAKEDOWN PITCH", "THE TAKEDOWN SOUND RISES PAST TEN IN A ROW", Mod<kModTakedownPitch>,
-     SetMod<kModTakedownPitch>, {"OFF", "ON"}, 2},
+     SetMod<kModTakedownPitch>, {"OFF", "ON"}, 2, "mod.takedown_pitch"},
     {Page::kMods, "ROAD RAGE PARTS", "CARS SHED THEIR PARTS IN ROAD RAGE", Mod<kModDetachParts>,
-     SetMod<kModDetachParts>, {"OFF", "ON"}, 2},
+     SetMod<kModDetachParts>, {"OFF", "ON"}, 2, "mod.detach_parts"},
     {Page::kControls, "BUTTON PROMPTS", "THE BUTTONS SHOWN: YOUR CONTROLLER'S, PLAYSTATION OR XBOX", ButtonPrompts,
      SetButtonPrompts, {"AUTO", "PLAYSTATION", "XBOX"}, 3},
     {Page::kControls, "TRIGGER EFFECTS", "DUALSENSE: THE TRIGGERS FEEL THE ENGINE, THE BRAKES AND THE GRIP",
@@ -971,7 +973,8 @@ void BuildItems() {
             [[fallthrough]];
         default:
             for (u32 i = 0; i < kOptionCount; ++i)
-                if (kOptions[i].page == g_main.page) items.push_back({Item::kOption, int(i)});
+                if (kOptions[i].page == g_main.page && (!kOptions[i].needs || ModBuilt(kOptions[i].needs)))
+                    items.push_back({Item::kOption, int(i)});
             break;
     }
 }
@@ -1501,7 +1504,7 @@ void MainMenu(lifted::Context& c) {
 void AddPanelPages() {
     std::vector<ps2host::PortOption> options;
     for (const Option& o : kOptions) {
-        if (o.page == Page::kVideo) continue;
+        if (o.page == Page::kVideo || (o.needs && !ModBuilt(o.needs))) continue;
         ps2host::PortOption p;
         for (const PageInfo& info : kPages)
             if (info.page == o.page) p.page = info.name;

@@ -231,6 +231,13 @@ void Frame(lifted::Context& c) {
 
 }  // namespace
 
+/* Whether a mod of that key was built in (a pnach's: its file was there). */
+bool ModBuilt(const char* key) {
+    for (int i = 0; i < kModCount; ++i)
+        if (std::string(kModKeys[i]) == key) return true;
+    return false;
+}
+
 /* Whether the mod at `mod` (kModKeys' order) is on (mods_lifted.cpp asks). */
 bool ModOn(int mod) { return mod >= 0 && mod < kMaxMods && g_on[mod]; }
 
