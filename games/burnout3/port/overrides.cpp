@@ -75,6 +75,7 @@ void LanStopLobby();               // lan_lobby.cpp: the lobby this game served,
 const char* GraphicsDefault(const char* key);
 const char* GraphicsPresetValue(const char* key, bool modern);
 int ParticlesLevel();
+bool OrbitCameraOn();                  // orbit_camera.cpp
 
 namespace {
 
@@ -620,6 +621,9 @@ constexpr char kModKph[] = "mod.kph", kModMirror[] = "mod.mirror",
                kModNoTraffic[] = "mod.no_traffic", kModCrashBreaker[] = "mod.crash_breaker",
                kModHeadlights[] = "mod.headlights", kModHeavyweights[] = "mod.heavyweights",
                kModVerticalSplit[] = "mod.vertical_split", kModDetachParts[] = "mod.detach_parts";
+// ORBIT CAMERA: on unless turned off (orbit_camera.cpp: OrbitCameraOn).
+int OrbitCamera() { return OrbitCameraOn() ? 1 : 0; }
+void SetOrbitCamera(int on) { ps2host::SetSettingOn("mod.orbit_camera", on != 0); }
 // TRAFFIC: OFF (no traffic, from the next race) or a density, 1X the game's
 // (mods.cpp: the traffic's spacing).
 const char* const kTrafficDensities[] = {"0.5", "1", "1.5", "2", "3"};
@@ -676,6 +680,8 @@ const Option kOptions[] = {
      {"OFF", "0.5X", "1X", "1.5X", "2X", "3X"}, 6},
     {Page::kMods, "CRASH BREAKER", "SET OFF IN CRASH MODE ONLY, OR IN EVERY MODE (CONTROLS)",
      Mod<kModCrashBreaker>, SetMod<kModCrashBreaker>, {"CRASH MODE", "ALL MODES"}, 2},
+    {Page::kMods, "ORBIT CAMERA", "THE CONTROLLER'S RIGHT STICK TURNS THE CAMERA AROUND YOUR CAR", OrbitCamera,
+     SetOrbitCamera, {"OFF", "ON"}, 2},
     {Page::kMods, "ROAD RAGE PARTS", "CRASHED CARS SHED THEIR PARTS IN EVERY MODE, ROAD RAGE TOO",
      Mod<kModDetachParts>, SetMod<kModDetachParts>, {"OFF", "ON"}, 2},
     {Page::kMods, "HEADLIGHTS", "AS THE TRACK HAS THEM, OR EVERY RACE CAR'S ALWAYS ON", Mod<kModHeadlights>,

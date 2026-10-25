@@ -61,6 +61,8 @@ bool MenuShowing();                         // mouse.cpp
 unsigned long long RaceWorldCalls();        // widescreen.cpp
 void F_001A0790(lifted::Context& c);        // the race's HUD
 
+void OrbitStick(ps2host::HostPadState* pad, bool racing);     // orbit_camera.cpp
+
 namespace controls {
 namespace {
 
@@ -328,6 +330,7 @@ void Controller(ps2host::HostPadState* pad) {
     }
     pad->buttons = out;
     for (int i = 0; i < kInputs; ++i) pad->pressure[i] = pressure[i];
+    OrbitStick(pad, racing);    // (the right stick: the camera's, with ORBIT CAMERA on)
 }
 
 }  // namespace
@@ -591,3 +594,6 @@ void RegisterControls() {
     ps2host::SetControllerFilter(controls::Controller);
     ps2host::Override(0x001A0790u, controls::RaceHud, "the race's HUD: racing, for the player's racing controls");
 }
+
+/* Whether the racing bindings hold (orbit_camera.cpp's: the camera turned only then). */
+bool ControlsRacing() { return controls::g_racing; }

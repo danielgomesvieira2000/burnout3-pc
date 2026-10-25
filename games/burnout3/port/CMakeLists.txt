@@ -55,6 +55,7 @@ ps2_add_port(burnout3
             ${CMAKE_CURRENT_LIST_DIR}/triggers.cpp
             ${CMAKE_CURRENT_LIST_DIR}/sixty_fps.cpp
             ${CMAKE_CURRENT_LIST_DIR}/single_event.cpp
+            ${CMAKE_CURRENT_LIST_DIR}/orbit_camera.cpp
             ${CMAKE_CURRENT_LIST_DIR}/high_fps.cpp
             ${CMAKE_CURRENT_LIST_DIR}/dev_menu.cpp
             ${CMAKE_CURRENT_LIST_DIR}/mods.cpp

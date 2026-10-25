@@ -64,7 +64,7 @@ wrong, press **F12** at that moment and attach the folder it writes to
   particles),
   CONTROLS (the keyboard's and the controller's bindings, racing and menus;
   button prompts; DualSense trigger effects), MODS (Nehalem's game patches:
-  km/h, mirror mode, traffic off or 0.5x to 3x, car parts shed in Road Rage, Crash Breaker in every mode (the Crash Breaker Expansion),
+  km/h, mirror mode, traffic off or 0.5x to 3x, car parts shed in Road Rage, an orbit camera on the right stick, Crash Breaker in every mode (the Crash Breaker Expansion),
   headlights, heavyweights, a vertical splitscreen) and the game's hidden
   DEVELOPER MENU. Saved in `pc_settings.ini`; QUIT GAME in the main menu.
 - **Eliminator in SINGLE EVENT** (between ROAD RAGE and CRASH): the World
@@ -276,6 +276,7 @@ patch in: [lift_mods.py](engine/tools/lift_mods.py), [mods_spec.py](games/burnou
 | MODS: TRAFFIC (off) | disable_traffic | Nehalem |
 | MODS: TRAFFIC (0.5X to 3X) | where the traffic's spacing is, from his Traffic Density sections (the port's own change: the spacing read from memory, any density) | bryan |
 | MODS: ROAD RAGE PARTS | detach parts in road rage (one instruction: the modes' skip gone) | bryan |
+| MODS: ORBIT CAMERA (on by default: the controller's right stick turns the race camera around your car, instead of the throttle) | the idea of Remco's Right-Stick Orbit Camera - the port's own code (orbit_camera.cpp), none of the patch's | Remco/SuperType1 |
 | MODS: CRASH BREAKER (all modes): rivals and other players caught in the blast, a rival blown up an Aftertouch Takedown, the prompt while crashing (splitscreen too) | [Crash Breaker Expansion](https://github.com/Nahelam/PS2-Game-Mods/tree/main/Burnout%203%20Takedown/Crash%20Breaker%20Expansion) - its hooks and its own code, lifted (it replaces his earlier crashbreaker_in_all_modes) | Nehalem |
 | MODS: HEADLIGHTS (always on) | perma_headlights | Nehalem |
 | GRAPHICS: PARTICLES (more, most) | Render extra particles while driving | Nehalem |
