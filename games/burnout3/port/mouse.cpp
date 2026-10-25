@@ -36,6 +36,7 @@
 #include "cursor_art.h"
 #include "ps2host/host.h"
 #include "ps2host/run.h"
+#include "mods.h"
 
 // The frontend's lists set up; an object back to its pool.
 void F_003210D0(lifted::Context& c);
@@ -517,7 +518,7 @@ void RegisterMouse() {
     ps2host::Override(0x0032B2C0u, BoxInput<F_0032B2C0, 0x20>, "a message box's input: its buttons, for the mouse");
     ps2host::Override(0x00449150u, BoxInput<F_00449150, 0x38>,
                       "a driver details message box's input: its buttons, for the mouse");
-    ps2host::Override(0x00318A80u, CarsInput<F_00318A80>, "a car select's input: its cars, for the mouse");
+    ps2host::Override(0x00318A80u, CarsInput<Modded<0x00318A80u, F_00318A80>>, "a car select's input: its cars, for the mouse");
     ps2host::Override(0x003F03D0u, CarsInput<F_003F03D0>, "a car select's input: its cars, for the mouse");
     ps2host::Override(0x003F0870u, CarsInput<F_003F0870>, "a car select's input: its cars, for the mouse");
 }

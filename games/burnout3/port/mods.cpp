@@ -16,15 +16,22 @@
 
 #include <cstdlib>
 #include <string>
+#include <vector>
 
 #include "ps2host/host.h"
+#include "ps2host/memory.h"
 #include "ps2host/run.h"
 #include "ps2host/settings.h"
 
-// mods_lifted.cpp (generated): the changed functions' choosers, the mods' keys.
+// mods_lifted.cpp (generated): the changed functions' choosers, the mods' keys
+// and the pnach mods' words as memory (place: the pnach's - 0 once at boot,
+// 1 every frame, 2 both, 3 once as it is turned on).
 void RegisterModFunctions();
 extern const char* const kModKeys[];
 extern const int kModCount;
+struct ModWrite { u32 address, value; u8 size, place; u16 mod; };
+extern const ModWrite kModWrites[];
+extern const int kModWriteCount;
 // The display's frame step (see Frame).
 void F_001F43B0(lifted::Context& c);
 // GRAPHICS' memory, at the same step (graphics.cpp).
@@ -34,7 +41,7 @@ void HighFpsFrame();         // high_fps.cpp
 
 namespace {
 
-constexpr int kMaxMods = 32;
+constexpr int kMaxMods = 64;
 bool g_on[kMaxMods] = {};
 const bool g_all_off = std::getenv("PS2HOST_MODS_OFF") != nullptr;
 
@@ -84,10 +91,80 @@ void Refresh() {
     }
 }
 
+/* The pnach mods' words as memory (their own code's data and state, the
+   game's data they change, and their code - as PCSX2 has it in memory):
+   all of a mod's as it is turned on (the game's own kept), those of place 1
+   and 2 each frame while it stays on, the game's own back once it is off -
+   and then every mod still on writes its words again, in case two share one. */
+struct Written {
+    u32 address, value;
+    u8 size;
+};
+std::vector<Written> g_saved[kMaxMods];
+bool g_written[kMaxMods] = {};
+
+u32 ReadSized(u32 address, u8 size) {
+    return size == 1 ? u32(generated::ReadU8(address)) : size == 2 ? u32(generated::ReadU16(address))
+                                                                    : u32(generated::ReadU32(address));
+}
+
+void WriteSized(u32 address, u32 value, u8 size) {
+    if (size == 1) generated::Write8(address, u8(value));
+    else if (size == 2) generated::Write16(address, u16(value));
+    else generated::Write32(address, value);
+}
+
+void ModMemory() {
+    // While a pnach mod is on, a read of no memory finds 0 and a write to
+    // none goes nowhere, as on PCSX2 (Demo Crashes reads through a pointer
+    // of the demo's build): not the run stopped.
+    static bool pnach[kMaxMods] = {}, known = false;
+    if (!known) {
+        for (int k = 0; k < kModWriteCount; ++k)
+            if (kModWrites[k].mod < kMaxMods) pnach[kModWrites[k].mod] = true;
+        known = true;
+    }
+    bool any = false;
+    for (int m = 0; m < kMaxMods; ++m) any = any || (pnach[m] && g_on[m]);
+    static bool ignoring = false;
+    if (any != ignoring) {
+        ps2host::SetUnmappedIgnored(any);
+        ignoring = any;
+    }
+    bool removed = false;
+    for (int k = 0; k < kModWriteCount; ++k) {
+        const ModWrite& w = kModWrites[k];
+        if (w.mod >= kMaxMods) continue;
+        const bool on = g_on[w.mod];
+        if (on && !g_written[w.mod]) {
+            g_saved[w.mod].push_back({w.address, ReadSized(w.address, w.size), w.size});
+            WriteSized(w.address, w.value, w.size);
+        } else if (on && (w.place == 1 || w.place == 2)) {
+            WriteSized(w.address, w.value, w.size);
+        }
+    }
+    for (int m = 0; m < kMaxMods; ++m) {
+        if (g_on[m]) {
+            g_written[m] = true;
+        } else if (g_written[m]) {
+            for (auto it = g_saved[m].rbegin(); it != g_saved[m].rend(); ++it) WriteSized(it->address, it->value, it->size);
+            g_saved[m].clear();
+            g_written[m] = false;
+            removed = true;
+        }
+    }
+    if (removed)
+        for (int k = 0; k < kModWriteCount; ++k) {
+            const ModWrite& w = kModWrites[k];
+            if (w.mod < kMaxMods && g_on[w.mod]) WriteSized(w.address, w.value, w.size);
+        }
+}
+
 /* 0x001F43B0: the display's frame step - the mods' (and GRAPHICS') memory
    written first. */
 void Frame(lifted::Context& c) {
     Refresh();
+    ModMemory();
     GraphicsFrame();
     CustomSongsFrame();
     HighFpsFrame();

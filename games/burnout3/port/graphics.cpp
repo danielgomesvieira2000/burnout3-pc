@@ -113,19 +113,29 @@ bool IntegratedGpu() {
     return known != 0;
 }
 
-const char* GraphicsDefault(const char* key) {
-    static const bool original = ps2host::Setting("graphics", "modern") == "original";
+/* A GRAPHICS row's value in a preset: ORIGINAL the game's own pictures,
+   MODERN the PC's (lighter on an integrated GPU). */
+const char* GraphicsPresetValue(const char* key, bool modern) {
+    const bool original = !modern;
     const std::string k = key;
     const bool light = IntegratedGpu();
     if (k == "ao") return original || light ? "off" : "on";
     if (light && k == "shadows") return original ? "original" : "soft";
     if (light && k == "blur") return "original";
-    // (TEXTURES: ORIGINAL - the game's own level choice is already sharp;
-    // MODERN smooths its bands in motion, at a cost)
+    // TEXTURES: MODERN (mipmapped textures trilinear and anisotropic: no
+    // bands in motion) in the MODERN preset; not on an integrated GPU (its cost).
+    if (k == "textures") return original || light ? "original" : "modern";
     if (k == "bloom" || k == "blur" || k == "shadows" || k == "lighting" || k == "reflections" || k == "smoke" ||
-        k == "dof")
+        k == "dof" || k == "sharpen")
         return original ? "original" : "modern";
     return "original";
+}
+
+/* A GRAPHICS row's value unless the player chose one: the preset's (the
+   "graphics" setting, PRESET's row - "original" pins the game's own
+   pictures, as the recorded runs do; read each time: PRESET changes it). */
+const char* GraphicsDefault(const char* key) {
+    return GraphicsPresetValue(key, ps2host::Setting("graphics", "modern") != "original");
 }
 
 namespace {
@@ -389,12 +399,18 @@ void Occlusion(lifted::Context& c) {
         p[8] = k.up[0] * sun[0] + k.up[1] * sun[1] + k.up[2] * sun[2];
         p[9] = k.at[0] * sun[0] + k.at[1] * sun[1] + k.at[2] * sun[2];
         p[10] = 0.5f;       // strength
-        p[11] = 15.0f;      // the longest shadow, metres
+        p[11] = 22.0f;      // the longest shadow, metres
     }
     // The player's car (p12-15: its centre, view space, and size): no sun's
     // shadow of its own on it, and less occlusion - its paint keeps its
     // gloss; what it casts on the road stays.
     if (CarInView(k, PlayerOf(v), &p[12])) p[15] = 2.6f;
+    // The wider scale of occlusion (p16 its strength, p17 its radius): the
+    // broad shade at walls' feet and under awnings.
+    if (p[5] > 0.0f) {
+        p[16] = 0.6f;
+        p[17] = 5.0f;
+    }
     EmitEffect(c, EffectId::kOcclusion, v, p, 22);
 }
 
@@ -490,14 +506,24 @@ void CinematicFocus(lifted::Context& c) {
     EmitEffect(c, EffectId::kDepthOfField, v, p, 22);
 }
 
-/* LIGHTING MODERN's grade, the parameters 12-16 of the glow and the grade. */
+/* SHARPENING MODERN: the grade's contrast-adaptive sharpening, its
+   strength (0 none) - stronger at the PS2's own resolution, where a pixel
+   is coarse, lighter as the internal resolution rises. */
+float Sharpening() {
+    if (Graphics("sharpen") != "modern") return 0.0f;
+    return 0.45f;
+}
+
+/* LIGHTING MODERN's grade, the parameters 12-16 of the glow and the grade
+   (17: SHARPENING). */
 void GradeParams(float* p) {
     p[9] = 0.5f;            // the picture's white: its colours are halved (the frame's copy doubles them)
     p[12] = 1.0f;           // the bright end's shoulder
-    p[13] = 1.04f;          // contrast
+    p[13] = 1.07f;          // contrast
     p[14] = 1.08f;          // saturation
     p[15] = 0.15f;          // vignette
     p[16] = 0.01f;          // warmth
+    p[17] = Sharpening();   // SHARPENING
 }
 bool ModernLighting() { return Graphics("lighting") == "modern"; }
 void NeutralGrade(float* p) {
@@ -507,6 +533,7 @@ void NeutralGrade(float* p) {
     p[14] = 1.0f;
     p[15] = 0.0f;
     p[16] = 0.0f;
+    p[17] = Sharpening();
 }
 
 /* BLOOM MODERN: the glow of the PC's, from the track's threshold and
@@ -519,8 +546,10 @@ void ModernBloom(lifted::Context& c, bool low) {
     float p[22] = {};
     // (in the picture's white: the track's threshold, 0.75 of the halved
     // colours' range, is 1.5 times white)
-    p[0] = std::clamp(2.0f * threshold - 0.9f, 0.45f, 1.6f);
-    p[1] = 0.55f * std::clamp(intensity, 0.0f, 2.0f);
+    // (the threshold a little above the track's and the strength under it:
+    // the lights and the sky glow, not a veil over the whole sunlit scene)
+    p[0] = std::clamp(2.0f * threshold - 0.75f, 0.5f, 1.7f);
+    p[1] = 0.45f * std::clamp(intensity, 0.0f, 2.0f);
     p[2] = 0.35f;
     if (low) {
         p[0] = std::min(p[0] + 0.15f, 1.75f);
@@ -534,7 +563,8 @@ void ModernBloom(lifted::Context& c, bool low) {
 void Grade(lifted::Context& c) {
     const View v = CurrentView();
     float p[22] = {};
-    GradeParams(p);
+    if (ModernLighting()) GradeParams(p);
+    else NeutralGrade(p);
     EmitEffect(c, EffectId::kGrade, v, p, 22);
 }
 
@@ -553,7 +583,7 @@ void BloomRender(lifted::Context& c) {
         return;
     }
     F_002659C0(c);
-    if (ModernLighting()) Grade(c);
+    if (ModernLighting() || Sharpening() > 0.0f) Grade(c);
 }
 
 /* 0x002FA9A0: the radial blur, the race's (the blur byte gates it there)

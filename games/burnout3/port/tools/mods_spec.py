@@ -129,3 +129,52 @@ CODE = [
     (0x000B40C0, [0x8E440CC0, 0x824313FC, 0x30630008, 0x10600002,
                   0x0000182D, 0x24630004, 0x03E00008, 0xA0830058]),
 ] + list(_crash_breaker_functions())
+
+
+# ---------------------------------------------------------------- the player's pnaches
+#
+# Mods in PCSX2's .pnach files the player keeps in "b3 mod pnachs" at the
+# repository's root (PS2_MODS_DIR elsewhere) - other people's work, never in
+# this repository: read at build time like the disc. Each a [section] of a
+# file, a setting's key; its words lifted where they change the game's code,
+# its own code followed from its hooks (engine/tools/lift_mods.py) and its
+# words written as memory while it is on (port/mods.cpp). A file or section
+# missing: that mod is left out (its row in MODS does nothing).
+import os as _os
+
+from lift_mods import words_of_pnach as _words_of_pnach
+
+_HERE = _os.path.dirname(_os.path.abspath(__file__))
+PNACH_DIR = _os.environ.get("PS2_MODS_DIR") or _os.path.normpath(_os.path.join(_HERE, "..", "..", "..", "..",
+                                                                                "b3 mod pnachs"))
+_V2 = "bebf8793_burnout3_mods_v2.pnach"
+PNACHES = [
+    # bryan + Claude's (mods_v2)
+    ("mod.car_color", _V2, "Player Car Color (body, decals, wheels, nitro)"),
+    ("mod.eliminator", _V2, "Eliminator - Single Event"),
+    ("mod.transmission", _V2, "Transmission Toggle"),
+    ("mod.traffic_check", _V2, "Traffic Check (Revenge style)"),
+    ("mod.traffic_x15", _V2, "Traffic Density x1.5"),
+    ("mod.traffic_x2", _V2, "Traffic Density x2"),
+    ("mod.traffic_x3", _V2, "Traffic Density x3"),
+    ("mod.blinkers", _V2, "Racer Blinkers (April beta)"),
+    ("mod.camera_roll", _V2, "Camera Roll in Corners"),
+    ("mod.boost_shake", _V2, "Boost Bar Shake (April beta)"),
+    ("mod.rpm_meter", _V2, "RPM Meter (no background) + Speed Unit"),
+    ("mod.takedown_pitch", _V2, "Takedown Pitch by Count (target 10)"),
+    ("mod.projected_shadows", _V2, "Projected Shadows (racers + traffic)"),
+    ("mod.race_end_camera", _V2, "End of Race Camera (April beta Set Pieces)"),
+    ("mod.garage_stats", _V2, "Garage Stats (TOP SPEED, GRIP, WEIGHT, ACCELERATION)"),
+    ("mod.detach_parts", _V2, "detach parts in road rage"),
+    ("mod.xbox_reflections", _V2, r"Xbox Reflections\Xbox-style car reflections v2"),
+    ("mod.garage_reflections", _V2, r"Xbox Reflections\Garage reflections v2 (beta)"),
+    ("mod.reflection_distance", _V2, r"Xbox Reflections\Reflection draw distance 200 m (optional)"),
+    # Remco/SuperType1's
+    ("mod.beta_hud", "BEBF8793_beta_hud.pnach", "Beta HUD - SLED speedometer, RPM bar and shift light"),
+    ("mod.orbit_camera", "Burnout 3 orbit cam in game.pnach", "Right-Stick Orbit Camera"),
+    ("mod.demo_crashes", "b3 demo crashe physics.pnach", "Demo Crashes"),
+]
+for _key, _file, _section in PNACHES:
+    _path = _os.path.join(PNACH_DIR, _file)
+    if _os.path.exists(_path):
+        MODS.append((_key, _words_of_pnach(_path, _section, places=True)))

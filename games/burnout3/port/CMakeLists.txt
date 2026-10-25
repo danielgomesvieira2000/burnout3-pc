@@ -35,11 +35,21 @@ add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../engine/host ${CMAKE_BINARY_D
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(MODS_LIFTED ${CMAKE_BINARY_DIR}/mods_lifted.cpp)
 set(LIFT_MODS ${CMAKE_CURRENT_LIST_DIR}/../../../engine/tools/lift_mods.py)
-add_custom_command(OUTPUT ${MODS_LIFTED}
+# The lifted code spread over shards, compiled side by side.
+set(MODS_SHARDS 8)
+set(MODS_OUTPUTS ${MODS_LIFTED})
+math(EXPR MODS_LAST "${MODS_SHARDS} - 1")
+foreach(k RANGE 1 ${MODS_LAST})
+    list(APPEND MODS_OUTPUTS ${CMAKE_BINARY_DIR}/mods_lifted_${k}.cpp)
+endforeach()
+# The player's own pnaches (tools/mods_spec.py: PNACHES), when they are there.
+file(GLOB MODS_PNACHES "${CMAKE_CURRENT_LIST_DIR}/../../../b3 mod pnachs/*.pnach")
+add_custom_command(OUTPUT ${MODS_OUTPUTS}
     COMMAND ${Python3_EXECUTABLE} ${LIFT_MODS}
             --game ${CMAKE_CURRENT_LIST_DIR}/.. --spec ${CMAKE_CURRENT_LIST_DIR}/tools/mods_spec.py
-            --out ${MODS_LIFTED}
-    DEPENDS ${LIFT_MODS} ${CMAKE_CURRENT_LIST_DIR}/tools/mods_spec.py
+            --out ${MODS_LIFTED} --shards ${MODS_SHARDS}
+    DEPENDS ${LIFT_MODS} ${CMAKE_CURRENT_LIST_DIR}/../../../engine/ps2decomp/lift.py
+            ${CMAKE_CURRENT_LIST_DIR}/tools/mods_spec.py ${MODS_PNACHES}
     COMMENT "Lifting the mods' functions")
 
 ps2_add_port(burnout3
@@ -64,7 +74,7 @@ ps2_add_port(burnout3
             ${CMAKE_CURRENT_LIST_DIR}/lan.cpp
             ${CMAKE_CURRENT_LIST_DIR}/lan_libnet.cpp
             ${CMAKE_CURRENT_LIST_DIR}/lan_lobby.cpp
-            ${MODS_LIFTED})
+            ${MODS_OUTPUTS})
 if(WIN32)
     target_link_libraries(burnout3 PRIVATE ws2_32)    # lan.cpp, lan_libnet.cpp, lan_lobby.cpp: the PC's sockets
     target_link_libraries(burnout3 PRIVATE iphlpapi)  # lan_lobby.cpp: the PC's networks, by adapter

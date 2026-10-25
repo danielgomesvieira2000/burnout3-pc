@@ -47,6 +47,7 @@
 #include "ps2host/music.h"
 #include "ps2host/run.h"
 #include "ps2host/settings.h"
+#include "mods.h"
 
 void F_003FCD20(lifted::Context& c);
 void F_003FCC10(lifted::Context& c);
@@ -410,7 +411,7 @@ void StringLookup(lifted::Context& c) {
         c.r[2] = kStrings + (id - kStringBase) * kNameChars * 2;
         return;
     }
-    F_00271A60(c);
+    Modded<0x00271A60u, F_00271A60>(c);
 }
 
 // ------------------------------------------------------------ overrides: the order past 51
