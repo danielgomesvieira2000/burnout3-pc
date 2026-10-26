@@ -946,3 +946,91 @@ runs; medians and spread, --json and --compare.
   -7.5%, no timing at all -7%, both inexact) bound what they could win - a
   project of days for a few percent of one thread.
 - *An integrated GPU at 2x*: needs the iGPU chosen by hand; not measured.
+
+## The roadmap from here (2026-10-26)
+
+Where it stands: one player at 60 never drops a picture on a desktop; the
+refresh lock (engine d1a5aa7) took away the drift between the game's clock
+and the screen's (592 doubled and 997 missing refreshes in a race at 144
+before, none once locked). What is left drops pictures only where a thread
+runs out of time: the VIF1 worker (VU1) and the GS thread in a crash's
+explosion or pile-up at 144 with the modern graphics, and every thread on
+two cores. The levers the sampler and the ablations named are spent down
+to a few percent each (above); what is left to win is structural - more
+threads for the work that has one, or less work on the thread that limits.
+
+Every step as before: a bench.py baseline first (`--json`, then
+`--compare`), exact (GPU runs as recorded, VU hashes, host tests), PGO
+refreshed before a real-time comparison, PGO against PGO.
+
+### First: what players see (an evening)
+
+1. **A player's own numbers.** PS2HOST_REFRESH_LOG and PS2HOST_HITCH as a
+   PC SETTINGS row or an ini switch, written to a log beside the
+   executable: doubled and missing refreshes, late pictures and which
+   thread was busy before them. Reports then come with the machine's own
+   evidence (the VRR stutter reports came with none).
+2. **The refresh lock on a VRR screen**: a player's log, the lock giving
+   up ("follows the pictures") or not. Its give-up has only host tests.
+3. **Frame pacing on by default?** Off for the least delay; with the lock a
+   paced picture goes in the middle of a refresh (no slips in a race) for
+   about half a refresh more. Measure the delay both ways (the timeline's
+   "due after its blank") and decide with the user.
+4. **The first minutes**: pipeline compilations and the texture pack's
+   first loads in a fresh install (no pipeline cache) - a hitch list with
+   the profiler, then the missing pipeline hints recorded.
+
+### Night projects, biggest first
+
+**A. VU1 on more than one thread** (the largest; nights). The VIF1 worker
+runs every VU1 program of a frame in order, on one thread - the bound at
+144 and in the pile-up. Most of a frame's programs are separate objects:
+an MSCAL whose inputs (VU memory, VI and VF registers) were all written by
+the same packet's unpacks. Plan: (1) measure - for recorded frames, the
+share of programs whose reads are covered by their own packet's writes
+(the interpreter can mark every read's writer); if it is small, stop.
+(2) Run those on a pool of workers, each with its own VU state, their GIF
+output kept in order (the XGKICKs in program order, as PATH1 goes now);
+anything that reads what an earlier program left runs where it is now.
+(3) Exact by construction (same inputs, same programs, same order out);
+checked by the VU hashes and every GPU run. Worth it only with cores
+spare - off on two.
+
+**B. The GS thread's hand-over to the renderer** (a night or two). After
+the decoding work its largest part is OnDraw (~6.5 ms of the pile-up's
+17): the records written for the renderer (~27 MB a pass) and Drew's
+bookkeeping. A compact record - the state once a run, vertices as they
+came - and the renderer expanding them, moves work off the thread that
+limits onto one with room (the renderer's ~8-10 ms). Measure by ablation
+first (the records not written: the ceiling).
+
+**C. The renderer on the GPU's side** (nights; after B). Its thread still
+walks the primitives; with B's compact records a compute pass could build
+the vertex buffers and the draws from them (indirect draws), the thread
+only ordering state changes. Pays off with B; on its own, little.
+
+**D. Two cores** (a night). On two cores without HT the crash's pile-up
+still runs late (25-31 late pictures). Five busy threads on two cores: try
+the VIF1 work on the GS thread there (one hand-over less, no
+context switches between them), the renderer's on the GPU submission
+thread, and the timer's priorities - each switched on by core count,
+measured with lowbench.sh.
+
+**E. PGO for what players run** (an evening, again after each project).
+race_modern was added; still missing: the crash with an explosion,
+splitscreen, a mod-heavy race, a texture pack at 3x. What no training run
+reaches is laid out cold.
+
+**F. A nightly benchmark** (an evening, then for free). bench.py over the
+replays, the VU snapshots and the virtual-time runs, compared with the
+last night's JSON: a slow change found the night it lands, not a week
+later.
+
+### Not again, unless something changes
+
+The GS decode split (the hand-over costs more than the decoding it
+moves), VU1 clamp-free or dirty-mask bodies (code size), superblocks and
+VF registers across blocks (ceilings -7% of the VU bench), zero-copy
+PATH3, frame skipping (Burnout's own fixed-step loop already keeps its
+speed; a skip only drops pictures), stepping the frame rate down to hide a
+hitch.
