@@ -1034,3 +1034,47 @@ VF registers across blocks (ceilings -7% of the VU bench), zero-copy
 PATH3, frame skipping (Burnout's own fixed-step loop already keeps its
 speed; a skip only drops pictures), stepping the frame rate down to hide a
 hitch.
+
+### A, measured first: VU1 on more than one thread (2026-10-26)
+
+The measure (engine, `PS2HOST_VU_DEPS=1` with `--vu-bench SNAPSHOT`;
+`PS2HOST_VU_DEPS_OUT=file` writes the graph): each run of a VU1 snapshot
+replayed on the interpreter from its own start - the data memory it reads
+before writing it (the interpreter's accesses), the registers and flags it
+reads (run again with each changed to random bits: what it sends, leaves
+in memory or in the other registers differs), what it writes; the VIF's
+writes between runs nobody's. A run depends on the last writers of what it
+reads; weighted by its pairs. MAC and STATUS as a run leaves them are left
+out (fast mode, the game's, does not keep them). Three snapshots, 20,000
+runs each: the crash's explosion (frame 20060), its pile-up (18860), the
+race (12500; ~1,150 runs a frame).
+
+| | explosion | pile-up | race |
+| --- | --- | --- | --- |
+| exact, any edge: the most side by side | 1.80x | 1.18x | 1.16x |
+| exact, 4 / 8 workers | 1.28x / 1.35x | 1.08x / 1.08x | 1.06x / 1.07x |
+| predicted edges gone, 4 / 8 workers, half a frame ahead | 4.0x / 7.5x | 4.0x / 5.1x | 3.9x / 5.1x |
+| predicted edges gone, 4 / 8 workers, 64 runs ahead | 2.6x / 3.0x | 2.3x / 2.5x | 2.4x / 2.7x |
+
+As the programs run, VU1's work is one chain: 3.1 of the race's 3.35
+million starts are MSCNT, a program going on where it stopped, and each run
+reads what the one before left - VI13 and VI14 (an output buffer's two
+pointers, swapped every run), VI15, VI12, VF28-31 (a matrix), and memory.
+Most of those reads are the value the same program began its previous run,
+or the run before that, with: predicted (VF28-31 ~90%, VI15 and VI12 99%,
+memory 80-83%). With them taken as predicted, the longest chain is 1/100
+to 1/160 of the work.
+
+So A is speculation or nothing: exact runs side by side win 6-35%. With
+each run started on predicted inputs and checked when its writers are done,
+4 workers could take VU1 to a quarter of its time - but it needs what each
+run reads known while it runs (the compiled code tracking its reads, or a
+whole-state compare that fails far more often than the reads do), a copy of
+data memory a run (~1,150 x 16 KB a frame: 2.6 GB/s at 144), the runs'
+XGKICKs held and sent in order, and a fall-back to the chain where a check
+fails. Days of work, its overheads not measured; and with VU1 a quarter,
+the GS thread is what limits the explosion at 144.
+
+Found on the way: Vu::Kick counted its runs from an address it had not
+wrapped - an XGKICK from VI past data memory's end read past the memory
+(no recorded program does it; a perturbed one did). Wrapped now.
