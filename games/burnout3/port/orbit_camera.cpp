@@ -1,5 +1,5 @@
 /*
- * MODS > ORBIT CAMERA (on by default): the controller's right stick turns
+ * MODS > ORBIT CAMERA (off by default): the controller's right stick turns
  * the race camera around the player's car - left and right all the way
  * round to the back, up and down a little - and lets it swing back behind
  * when let go, as Burnout Revenge's does. The right stick is the camera's
@@ -17,7 +17,8 @@
  * the turn, and its chase goes on as it was.
  *
  * PS2HOST_ORBIT_TEST=yaw,pitch (degrees): the camera held so turned (a
- * scripted run's test: its presses never reach the controller's filter).
+ * scripted run's test: its presses never reach the controller's filter;
+ * with --setting mod.orbit_camera=on, the camera being off by default).
  */
 
 #include <algorithm>
@@ -30,7 +31,7 @@
 #include "ps2host/run.h"
 #include "ps2host/settings.h"
 
-bool OrbitCameraOn() { return ps2host::SettingOn("mod.orbit_camera", true); }
+bool OrbitCameraOn() { return ps2host::SettingOn("mod.orbit_camera", false); }
 
 namespace {
 

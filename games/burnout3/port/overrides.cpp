@@ -501,6 +501,8 @@ int Fullscreen() { return ps2host::WindowFullscreen() ? 1 : 0; }
 void SetFullscreen(int on) { ps2host::SetWindowFullscreen(on != 0); }
 int Vsync() { return ps2host::WindowVsync() ? 1 : 0; }
 void SetVsync(int on) { ps2host::SetWindowVsync(on != 0); }
+int Vrr() { return ps2host::WindowVrr() ? 1 : 0; }
+void SetVrr(int on) { ps2host::SetWindowVrr(on != 0); }
 /* A setting's value among `values` (its index; the default's, `fallback`,
    if it is none of them - unset, the default). */
 template <std::size_t N>
@@ -621,7 +623,7 @@ constexpr char kModKph[] = "mod.kph", kModMirror[] = "mod.mirror",
                kModNoTraffic[] = "mod.no_traffic", kModCrashBreaker[] = "mod.crash_breaker",
                kModHeadlights[] = "mod.headlights",
                kModVerticalSplit[] = "mod.vertical_split", kModDetachParts[] = "mod.detach_parts";
-// ORBIT CAMERA: on unless turned off (orbit_camera.cpp: OrbitCameraOn).
+// ORBIT CAMERA: off unless turned on (orbit_camera.cpp: OrbitCameraOn).
 int OrbitCamera() { return OrbitCameraOn() ? 1 : 0; }
 void SetOrbitCamera(int on) { ps2host::SetSettingOn("mod.orbit_camera", on != 0); }
 // TRAFFIC: OFF (no traffic, from the next race) or a density, 1X the game's
@@ -638,6 +640,8 @@ void SetTraffic(int which) {
 const Option kOptions[] = {
     {Page::kVideo, "FULLSCREEN", "THE WHOLE SCREEN OR A WINDOW (ALT+ENTER)", Fullscreen, SetFullscreen, {"OFF", "ON"}, 2},
     {Page::kVideo, "VERTICAL SYNC", "NO TEARING, OR THE LEAST DELAY", Vsync, SetVsync, {"OFF", "ON"}, 2},
+    {Page::kVideo, "VRR (G-SYNC, FREESYNC)", "ON IF YOUR SCREEN'S REFRESH FOLLOWS THE GAME: SMOOTH HIGH FRAME RATES",
+     Vrr, SetVrr, {"OFF", "ON"}, 2},
     {Page::kVideo, "FRAME RATE", "RACES AT 60 PICTURES A SECOND, 120, OR THE SCREEN'S RATE", FrameRate, SetFrameRate,
      {"60", "120", "DISPLAY"}, 3},
     {Page::kVideo, "RESOLUTION", "DRAWN AS THE PS2 DID, TWICE AS SHARP, OR AS SHARP AS THE SCREEN", Resolution,

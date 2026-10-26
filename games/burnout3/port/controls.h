@@ -34,7 +34,9 @@ std::string BoundName(Device device, Context context, int input);
 /* The defaults again (the controller's racing: the game's own layout). */
 void ResetDefaults(Device device, Context context);
 /* The controller's racing layouts: the game's own (CLASSIC), triggers to
-   accelerate and brake (MODERN), or one of the player's (CUSTOM). */
+   accelerate and brake (MODERN), or one of the player's (CUSTOM). Setting
+   one sets the menus' too, unless the player's own: MODERN's Circle goes
+   back (Triangle in the game). */
 enum class Layout { kClassic, kModern, kCustom };
 Layout RacingLayout();
 void SetRacingLayout(Layout layout);

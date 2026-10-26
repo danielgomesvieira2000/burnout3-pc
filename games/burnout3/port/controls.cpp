@@ -24,7 +24,8 @@
  *   L2 (how far)   brake, reverse    Square    look back
  *   L1             next song         Triangle  camera
  *
- * - or the player's own. Both honk on L3 (the horn patch's Circle). The race reads how far Cross and Square are
+ * - or the player's own. Both honk on L3 (the horn patch's Circle). In the
+ * menus MODERN's Circle goes back (and Triangle shows details). The race reads how far Cross and Square are
  * pressed, in a narrow band of the DualShock 2's pressure (measured with
  * --press cross@...:PRESSURE): 30 of 255 coasts, 38 holds about 58 mph, 44
  * about 68, 50 and more is full throttle. A trigger's travel is spread over
@@ -136,6 +137,10 @@ constexpr Bindings kControllerModern = {{kSelect, kCircle, kR3, kStart, kUp, kRi
 constexpr Bindings kControllerModernBefore = {{kSelect, kL3, kR3, kStart, kUp, kRight, kDown, kLeft, kL1, kR1,
                                                kSquare, kCross, kTriangle, kCircle, kR2, kL2}};
 
+// MODERN's menus: Circle goes back (the game's Triangle), as B does on a PC
+// game's controller, and Triangle has Circle's DETAILS.
+constexpr Bindings kControllerMenusModern = {{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, kCircle, kTriangle, 14, 15}};
+
 struct State {
     bool loaded = false;
     Bindings bindings[2][2];        // [Device][Context]
@@ -155,6 +160,7 @@ Bindings Defaults(Device device, Context context) {
     if (device == Device::kKeyboard) return kKeyboardDefaults;
     if (context == Context::kRacing && (kForcedModern || ps2host::SettingOn("modern_controls", false)))
         return kControllerModern;           // the MODERN CONTROLS setting of 0.3.0 and on
+    if (context == Context::kMenus && ps2host::SettingOn("modern_controls", false)) return kControllerMenusModern;
     return context == Context::kRacing ? kControllerClassic : kControllerAsGame;
 }
 
@@ -462,6 +468,13 @@ void SetRacingLayout(Layout layout) {
     if (layout == Layout::kCustom) return;
     Of(Device::kController, Context::kRacing) = layout == Layout::kModern ? kControllerModern : kControllerClassic;
     Save(Device::kController, Context::kRacing);
+    // The menus' with it, where they are either layout's (the player's own
+    // kept).
+    Bindings& menus = Of(Device::kController, Context::kMenus);
+    if (Same(menus, kControllerAsGame) || Same(menus, kControllerMenusModern)) {
+        menus = layout == Layout::kModern ? kControllerMenusModern : kControllerAsGame;
+        Save(Device::kController, Context::kMenus);
+    }
     // The bindings say it now; the old setting with them, for a downgrade.
     ps2host::SetSettingOn("modern_controls", layout == Layout::kModern);
 }

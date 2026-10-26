@@ -51,13 +51,14 @@ wrong, press **F12** at that moment and attach the folder it writes to
   centred or stretched.
 - **Rebindable controls**: every key and controller button, with racing and
   menu controls set apart (Cross can choose in the menus without
-  accelerating); a CLASSIC or MODERN (triggers) racing layout.
+  accelerating); a CLASSIC or MODERN layout (triggers to accelerate and
+  brake, and Circle - B on an Xbox controller - to go back in the menus).
 - **Button icons that follow you**: the game's button prompts show the keys,
   mouse buttons or controller buttons you use - as you bound them, in the
   menus and in the race - with PlayStation or Xbox marks (automatic by
   controller), all drawn by the port.
 - **PC settings** in the game's own main menu (where ONLINE used to be), in
-  pages: VIDEO (fullscreen, vertical sync, the frame rate, resolution, the aspect ratio,
+  pages: VIDEO (fullscreen, vertical sync, VRR, the frame rate, resolution, the aspect ratio,
   anti-aliasing: FXAA, SMAA or SSAA 2x), GRAPHICS (a preset, lighting,
   ambient occlusion, bloom, motion blur, shadows, reflections, cinematic
   cameras, smoke and fire, texture filtering, sharpening, LOD, more
@@ -83,6 +84,10 @@ wrong, press **F12** at that moment and attach the folder it writes to
   camera's cuts and a wrecked car put back on the road shown as they happen,
   not slid between. Where the PC cannot keep up, a race steps down to 120 or
   60 by itself.
+- **G-Sync and FreeSync**: PC SETTINGS > VIDEO > VRR (G-SYNC, FREESYNC) ON
+  for a variable refresh screen - without vertical sync each picture goes
+  to it at once, fullscreen keeps the screen's own refresh, and DISPLAY
+  runs a little under it (139 on 144 Hz) to stay inside VRR's range.
 - **Smooth frames**: at 60, 120 Hz in fullscreen on a 144 Hz screen so that
   60 frames a second show evenly (frame pacing off by default:
   `frame_pacing=on` in `pc_settings.ini` turns it on).
@@ -276,7 +281,7 @@ patch in: [lift_mods.py](engine/tools/lift_mods.py), [mods_spec.py](games/burnou
 | MODS: TRAFFIC (off) | disable_traffic | Nehalem |
 | MODS: TRAFFIC (0.5X to 3X) | where the traffic's spacing is, from his Traffic Density sections (the port's own change: the spacing read from memory, any density) | bryan |
 | MODS: ROAD RAGE PARTS | detach parts in road rage (one instruction: the modes' skip gone) | bryan |
-| MODS: ORBIT CAMERA (on by default: the controller's right stick turns the race camera around your car, instead of the throttle) | the idea of Remco's Right-Stick Orbit Camera - the port's own code (orbit_camera.cpp), none of the patch's | Remco/SuperType1 |
+| MODS: ORBIT CAMERA (off by default; on, the controller's right stick turns the race camera around your car, instead of the throttle) | the idea of Remco's Right-Stick Orbit Camera - the port's own code (orbit_camera.cpp), none of the patch's | Remco/SuperType1 |
 | MODS: CRASH BREAKER (all modes): rivals and other players caught in the blast, a rival blown up an Aftertouch Takedown, the prompt while crashing (splitscreen too) | [Crash Breaker Expansion](https://github.com/Nahelam/PS2-Game-Mods/tree/main/Burnout%203%20Takedown/Crash%20Breaker%20Expansion) - its hooks and its own code, lifted (it replaces his earlier crashbreaker_in_all_modes) | Nehalem |
 | MODS: HEADLIGHTS (always on) | perma_headlights | Nehalem |
 | GRAPHICS: PARTICLES (more, most) | Render extra particles while driving | Nehalem |
