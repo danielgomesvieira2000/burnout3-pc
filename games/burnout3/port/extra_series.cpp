@@ -1,6 +1,6 @@
 /*
  * The car select's EXTRA SERIES, after the HEAVYWEIGHTS: the game's traffic
- * as cars to race - for now the Tuk Tuk. The idea and the way are bryan's
+ * as cars to race - the Tuk Tuk, the Yugo, the US Taxi and the Snow Plow. The idea and the way are bryan's
  * (his "Traffic Series" PCSX2 patch: a traffic model with a Heavyweight's
  * parts, other cars' handling, sounds and camera); this is the port's own
  * way in, its files made from the player's disc as it opens - nothing of the
@@ -89,6 +89,15 @@ const ExtraCar kCars[] = {
     // engine two Heavyweights' - bryan's choices.
     {"TRAFCAR1", "PVEH/COMP/CAR18.BTV", "PVEH/HEVY/CAR1", Id("COMPCAR2"), Id("HEVYCAR5"), Id("HEVYCAR2"),
      "Tuk Tuk", "TUK TUK", 1, 4500, 0.75f},
+    // The Yugo (COMPCAR14), the US Taxi (COMPCAR15) and the Snow Plow
+    // (HEVYCAR32): bryan's donors again; their models as the disc has them.
+    // The Snow Plow's parts a heavier Heavyweight's (CAR7: as 8-10 and 36).
+    {"TRAFCAR2", "PVEH/COMP/CAR14.BTV", "PVEH/HEVY/CAR1", Id("COMPCAR2"), Id("HEVYCAR5"), Id("HEVYCAR3"),
+     "Yugo", "YUGO", 1, 8000, 0.0f},
+    {"TRAFCAR3", "PVEH/COMP/CAR15.BTV", "PVEH/HEVY/CAR1", Id("COMPCAR9"), Id("HEVYCAR5"), Id("HEVYCAR1"),
+     "US Taxi", "US TAXI", 2, 9000, 0.0f},
+    {"TRAFCAR4", "PVEH/HEVY/CAR32.BTV", "PVEH/HEVY/CAR7", Id("HEVYCAR6"), Id("HEVYCAR36"), Id("HEVYCAR36"),
+     "Snow Plow", "SNOW PLOW", 1, 17000, 0.0f},
 };
 constexpr u32 kCarCount = sizeof kCars / sizeof kCars[0];
 

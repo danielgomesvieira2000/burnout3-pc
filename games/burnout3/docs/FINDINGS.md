@@ -2502,7 +2502,11 @@ run:
   it) with a Heavyweight's two blocks appended (its header's +0x16DC and
   +0x16E0 point at them; a `.BTV` has none) and that Heavyweight's `.HWD`
   and `.LWD`. The Tuk Tuk's model also has 0.05 at +0x1C and three records
-  (+0xB80, +0xB94, +0xBA8) where bryan's has 0.75.
+  (+0xB80, +0xB94, +0xBA8) where bryan's has 0.75; the Yugo's (COMP/CAR14),
+  the US Taxi's (COMP/CAR15) and the Snow Plow's (HEVY/CAR32) are his as the
+  disc has them. His parts are HEVY/CAR1's for the three small ones (CAR2
+  and CAR3 the same) and CAR7's for the Snow Plow (CAR8-10 and 36 the same):
+  the model's blocks, `.HWD` and `.LWD` compared byte for byte.
 * **The column's pictures** are records of `DATA/FRONTEND.TXD` named by the
   car's ID (0x004277C0 finds them by name; none: a warning sign): 128 x 64
   8-bit indices sent as a 64 x 32 32-bit image, and eight 256-colour
@@ -2510,7 +2514,8 @@ run:
   +0x200 and +0x2250; +0x104 and +0x184 are DMA references to them, absolute
   for the file as laid out in memory.
 
-The EXTRA SERIES (port/extra_series.cpp) is class 7: its cars `TRAFCARn`,
+The EXTRA SERIES (port/extra_series.cpp) is class 7: its cars `TRAFCARn`
+(1 the Tuk Tuk, 2 the Yugo, 3 the US Taxi, 4 the Snow Plow),
 their files and picture laid over the disc as it opens (the engine's
 `Disc::AddFile`, made from the disc's own files), added to vlist.bin, their
 names ours, their settings other cars' by caller, the rivals in the series
