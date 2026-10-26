@@ -90,7 +90,12 @@ wrong, press **F12** at that moment and attach the folder it writes to
   runs a little under it (139 on 144 Hz) to stay inside VRR's range.
 - **Smooth frames**: at 60, 120 Hz in fullscreen on a 144 Hz screen so that
   60 frames a second show evenly (frame pacing off by default:
-  `frame_pacing=on` in `pc_settings.ini` turns it on).
+  `frame_pacing=on` in `pc_settings.ini` turns it on). The game's clock
+  follows your screen's refresh, measured as it runs: 60 frames a second
+  on a 60, 120 or 240 Hz screen, or DISPLAY's rate, land one to each
+  refresh - no picture shown twice or dropped every few seconds as the
+  two clocks drift apart (`refresh_lock=off` in `pc_settings.ini` for the
+  old way; off with VRR on).
 - **Controls**: any controller SDL knows (Xbox, PlayStation, ...) as a
   DualShock 2, with **rumble**; the keyboard; the **mouse in the menus**
   (point, click, right-click to go back, wheel).
