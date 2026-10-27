@@ -1127,3 +1127,47 @@ checks, the record and Drew, and ~3 ms in the whole-way path.
   quick path, but its quick path already skips updating the drawn rows'
   end; changing when it applies changes the bookkeeping, not only its
   speed.
+
+## Hitches: a census, and the GPU's clocks (2026-10-27)
+
+True real time, windowed, the scripted race and crash runs (hf.sh), the
+profile from frame 11,900 (the pictures' pacing) and, with frame pacing off
+(the default), `PS2HOST_REFRESH_LOG` and `PS2HOST_HITCH` (a present more
+than 25 ms after the last):
+
+| run | late / dropped | longest |
+| --- | --- | --- |
+| race, 60, original, pacing off | 0 (blanks) | 17.98 ms |
+| crash, 60, 2x, pacing off | 0 (blanks) | 18.09 ms |
+| race, 144, 3x, the pack, pacing on | 0 / 0 | 9.10 ms |
+| crash, 144, 3x, the pack, pacing on | 2 / 5 | 11.40 ms (the explosion: VU1 12 ms) |
+
+The races themselves were clean; what stuttered was elsewhere - 4-10
+presents a run 26-103 ms apart in the menus, at a race's start and at the
+crash event's start, the same with the pipeline cache gone or kept (not
+the shaders). The crash event's start, profiled: the GPU renderer's
+thread waiting on a full ring of submissions for 25-40 ms - the GPU itself
+slow. nvidia-smi every 50 ms: through the loading screen the RTX 4070
+Laptop sat in P8 (360 MHz, its memory 405 MHz); the scene's first frames
+ran half a second at 98% in P5 (630 MHz, memory 810), then P0 (1,980 MHz,
+memory 8,001) at 22% - the same work, a tenth of the memory's speed.
+
+**NVIDIA's low-latency boost** (engine 8901b19, bd30d1d; game 1a326f4):
+VK_NV_low_latency2 where the driver has it, the swapchain made for it,
+the sleep mode set with its boost (its waits never made). PC SETTINGS >
+VIDEO > GPU BOOST, on by default (off: a laptop's battery).
+
+| | without | with |
+| --- | --- | --- |
+| crash event's start, 60 2x: late | 2, 4 | 0 |
+| race run at 60: presents over 25 ms | 4, 9 | 2, 2 (startup, title: two blanks, the game's own) |
+| race start, 144 3x the pack: late | 16, 7 | 2, 2 (the profile's first frame; one 11 ms VU1 picture) |
+
+The GPU then stays in P0-P4. Not covered: AMD and Intel GPUs (no such
+extension); a keep-warm load of our own would be their equivalent.
+
+Also: the high-fps trace's "turn" for a quaternion camera was its three
+values' dot product, a sign flip read as a 138-degree turn - now the
+rotation's angle. Its large "jump"/"twitch" lines in a race run are the
+race's own resets after a crash (cuts, shown as they are). The texture
+pack reads its files in the background (no stall at a new texture).
