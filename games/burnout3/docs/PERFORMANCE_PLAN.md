@@ -1171,3 +1171,60 @@ values' dot product, a sign flip read as a 138-degree turn - now the
 rotation's angle. Its large "jump"/"twitch" lines in a race run are the
 race's own resets after a crash (cuts, shown as they are). The texture
 pack reads its files in the background (no stall at a new texture).
+
+## Smooth, low latency, low power (2026-10-27/28, night)
+
+**MODERN texture filtering by the GPU's sampler** (engine bee1d4b). The
+game's textures were filtered by hand in gs.frag (a gather and the GS's
+sixteenths), a texture pack's by the GPU - the pack-off crash start at
+144, 3x saturated (48-58 late, 120 a second). Each MODERN level is now one
+hardware bilinear fetch (REPEAT's seams two, mixed). The weights stay
+the GS's sixteenths and the values truncated: finer weights gave alpha 1
+where the GS has 0, and an alpha-tested polygon showed.
+
+| 3x replay, a picture | MODERN before | MODERN now | ORIGINAL |
+| --- | --- | --- | --- |
+| explosion | 7.35 ms | 6.93 ms | 6.79 ms |
+| crash start | 7.00 ms | 6.41 ms | 6.25 ms |
+
+Real time, pack off, crash start at 144 3x: 0 late at 144, then 5 late
+(was 48-58, both stepping to 120).
+
+**The occlusion's distances at its own resolution** (engine 6f9d7f5): a
+pass writes them once, the spiral and the sun's march read them, 0.9 ->
+0.75 ms of a 3x explosion picture. The rest is arithmetic: the main pass
+0.57 ms (the sun's 20-step march 0.17), the blurs and the apply 0.1 each.
+All four effects are about 1.4 ms of the explosion's 6.9 at 3x.
+
+**Refresh lead** (engine 8e4092a). The locked blanks fell on the screen's
+vblanks, and a picture done on the GPU a few ms after its blank waited
+nearly a whole refresh. An empty fenced submit after each present tells
+when the GPU finished. The blanks now lead the screen's by the longest
+blank-to-done of two seconds (+10%, +1 ms, modulo the refresh), when that
+beats the blanks on the vblanks. Pacing off only (the default).
+
+| fullscreen, race | blank to shown before | now |
+| --- | --- | --- |
+| 60 Hz screen, 60, 1x (3 ms to done) | 16.66 ms | 5.9-7.3 ms |
+| 144 Hz screen, 144, 3x (5.5 ms, peaks 8.5) | 7.3 ms | 7.3 ms (no lead: the next refresh is sooner) |
+
+No picture went to a refresh that had one, and none were late.
+`PS2HOST_REFRESH_LOG` prints `[latency]`; `PS2HOST_REFRESH_LEAD=0` turns
+it off.
+
+**FRAME RATE never above the screen's refresh** (engine 920a833): 144
+asked of a 60 Hz fullscreen mode drew 120 pictures a second, MAILBOX
+showing 60. GS thread 100%, 760 late, 83 ms blank to shown -> 60, GS 19%,
+none late, 10 ms. **Minimised, the game's own rate** (engine 55b9dbd;
+2 cores -> 0.7 at 144; not yet tried by hand).
+
+Measured, nothing to take:
+- The timer's last-700 us spin: the high-resolution sleep wakes 300-600 us
+  late (p90 600 us, p99 1.4-4 ms), so the margin is right.
+- The crash start's write-backs are small (32-128 wide).
+- The EE at 144 has no hotspot (the high-fps CSV trace itself is 9% of it -
+  a measuring cost, off for players).
+- At 144 the CPU is 2.8x 60's (EE 56%, VIF1 53%, GS 56%, renderer 34% of a
+  core at 1x): every picture runs the game's drawing.
+- Frame pacing ON holds a picture to 6 ms after its blank, then the middle
+  of a refresh - 10.4 ms at 144. It's opt-in (smoothness), left as it is.
