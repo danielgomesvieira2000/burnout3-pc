@@ -1078,3 +1078,52 @@ the GS thread is what limits the explosion at 144.
 Found on the way: Vu::Kick counted its runs from an address it had not
 wrapped - an XGKICK from VI past data memory's end read past the memory
 (no recorded program does it; a perturbed one did). Wrapped now.
+
+### B, measured: the GS thread's hand-over (2026-10-27)
+
+The pile-up's replay (`--gs-replay`, bench.py; without the profile: the GS
+thread 18 ms a pass), each part switched off in turn (a measure only):
+
+| switched off | GS thread | the part |
+| --- | --- | --- |
+| nothing | 17.97 ms | |
+| all of OnDraw | 8.91 | 9.06 ms: half the thread |
+| OnDraw past the vertices' conversion | 10.00 | conversion 1.1 |
+| past the bounds and the scissor's cull | 11.72 | bounds 1.7 |
+| the fast path past its choice | 14.38 | its tail 3.6 |
+| Drew on the fast path | 15.94 | 2.0 |
+| the records for the renderer (Same) | 15.78 | 2.2 |
+
+What the replay draws: 276,131 triangle-strip primitives, 7,301 sprites,
+a few hundred points and lines; 252,036 by the fast path, 10,107 the whole
+way (~300 ns each: ~3 ms). The registers stay the same over stretches of
+~36 primitives (7,253 stretches; 5,054 of 16 or more).
+
+**Tried, no gain (dropped).**
+- *Strips sent as strips*: a triangle continuing the one before sends its
+  third vertex only (a third of the bytes), the renderer's thread making
+  the triangles again: 18.28 against 17.97 ms - the records' cost is the
+  call and bookkeeping a primitive, not the bytes.
+- *The fast state kept through its own Drew* (g_mutations moved by the
+  fast path's drawing alone): 392 of the 10,107 whole-way primitives
+  saved, no change in time. What sends them the whole way, by where
+  g_mutations moves: Use 1,826, SyncWrite 1,581, Sync 1,571, LoadClut
+  1,343, Drew 1,138, MarkStale 1,117, CachedTexture 934, WriteBack 320 -
+  6,464 of them have the fast state's very registers.
+- *The extremes found once* (one loop for the bounds and the cull):
+  within the noise.
+
+**What is left, and its size.** Nothing here is one large part: the
+thread's OnDraw half is ~35 ns a primitive spread over conversion, bounds,
+checks, the record and Drew, and ~3 ms in the whole-way path.
+- *The primitives of a stretch handed over as one* (the GS model holding
+  them until anything but a vertex comes; the bridge one tight loop, one
+  record, Drew's quick path inline): ~3 ms of 18 (-15%), a refactor of the
+  GS model's hand-over and the bridge's fast path.
+- *g_mutations per resource, not one count*: two in three whole-way
+  primitives could stay fast (~2 ms), in the bookkeeping that decides when
+  memory and the GPU's images agree - the riskiest code in the bridge.
+- *Drew's rectangle as the dirty pages' largest*: more primitives on its
+  quick path, but its quick path already skips updating the drawn rows'
+  end; changing when it applies changes the bookkeeping, not only its
+  speed.
