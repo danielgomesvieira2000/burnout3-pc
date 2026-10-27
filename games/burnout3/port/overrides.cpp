@@ -503,6 +503,8 @@ int Vsync() { return ps2host::WindowVsync() ? 1 : 0; }
 void SetVsync(int on) { ps2host::SetWindowVsync(on != 0); }
 int Vrr() { return ps2host::WindowVrr() ? 1 : 0; }
 void SetVrr(int on) { ps2host::SetWindowVrr(on != 0); }
+int GpuBoost() { return ps2host::WindowGpuBoost() ? 1 : 0; }
+void SetGpuBoost(int on) { ps2host::SetWindowGpuBoost(on != 0); }
 /* A setting's value among `values` (its index; the default's, `fallback`,
    if it is none of them - unset, the default). */
 template <std::size_t N>
@@ -642,6 +644,8 @@ const Option kOptions[] = {
     {Page::kVideo, "VERTICAL SYNC", "NO TEARING, OR THE LEAST DELAY", Vsync, SetVsync, {"OFF", "ON"}, 2},
     {Page::kVideo, "VRR (G-SYNC, FREESYNC)", "ON IF YOUR SCREEN'S REFRESH FOLLOWS THE GAME: SMOOTH HIGH FRAME RATES",
      Vrr, SetVrr, {"OFF", "ON"}, 2},
+    {Page::kVideo, "GPU BOOST", "THE GPU KEPT CLOCKED UP: NO HITCH AT A NEW SCENE. OFF SAVES BATTERY", GpuBoost, SetGpuBoost,
+     {"OFF", "ON"}, 2},
     {Page::kVideo, "FRAME RATE", "RACES AT 60 PICTURES A SECOND, 120, OR THE SCREEN'S RATE", FrameRate, SetFrameRate,
      {"60", "120", "DISPLAY"}, 3},
     {Page::kVideo, "RESOLUTION", "DRAWN AS THE PS2 DID, TWICE AS SHARP, OR AS SHARP AS THE SCREEN", Resolution,

@@ -88,6 +88,11 @@ wrong, press **F12** at that moment and attach the folder it writes to
   for a variable refresh screen - without vertical sync each picture goes
   to it at once, fullscreen keeps the screen's own refresh, and DISPLAY
   runs a little under it (139 on 144 Hz) to stay inside VRR's range.
+- **No stutter at a new scene**: PC SETTINGS > VIDEO > GPU BOOST (on by
+  default, an NVIDIA GPU's) keeps the GPU's clocks up through menus and
+  loading screens, so a race's or an event's first moments do not stutter
+  while the GPU wakes up (16 late pictures at a race's start at 144 without
+  it, none with it). OFF saves a laptop's battery.
 - **Smooth frames**: at 60, 120 Hz in fullscreen on a 144 Hz screen so that
   60 frames a second show evenly (frame pacing off by default:
   `frame_pacing=on` in `pc_settings.ini` turns it on). The game's clock
