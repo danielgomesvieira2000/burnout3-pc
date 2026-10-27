@@ -34,7 +34,8 @@
  *   TEXTURE FILTERING  ORIGINAL / MODERN / NEAREST / BILINEAR / TRILINEAR /
  *                   ANISOTROPIC 4X, 8X, 16X (the key "textures"; ORIGINAL by
  *                   default) - MODERN the game's own filters with mipmapped
- *                   textures trilinear and anisotropic by the screen; the
+ *                   textures trilinear by the screen (anisotropic only as
+ *                   the player's ANISOTROPIC: its cost at 3x); the
  *                   rest the player's filter forced on the 3D (not on
  *                   sprites - the HUD, text, the picture's own copies - nor
  *                   on a texture drawn into: ps2host::SetGpuTextureFilter)
@@ -127,8 +128,8 @@ const char* GraphicsPresetValue(const char* key, bool modern) {
     if (k == "ao") return original || light ? "off" : "on";
     if (light && k == "shadows") return original ? "original" : "soft";
     if (light && k == "blur") return "original";
-    // TEXTURES: MODERN (mipmapped textures trilinear and anisotropic: no
-    // bands in motion) in the MODERN preset; not on an integrated GPU (its cost).
+    // TEXTURES: MODERN (mipmapped textures trilinear: no bands in motion) in
+    // the MODERN preset; not on an integrated GPU (its cost).
     if (k == "textures") return original || light ? "original" : "modern";
     // LOD HIGH (the detailed models farther) and PARTICLES MORE in MODERN.
     if (k == "lod") return original ? "original" : "high";
@@ -831,8 +832,9 @@ void GraphicsFrame() {
     const bool ssr = modern_reflections && SsrLevel() > 0;
     ps2host::SetGpuDrawTag(0x2D60u, modern_reflections ? (ssr ? 9u : 1u) : 0u);
     // TEXTURE FILTERING: MODERN, mipmapped textures filtered as a modern
-    // GPU does - their detail at the internal resolution, no bands, the road
-    // sharp; or the player's filter, forced on the 3D.
+    // GPU does - their detail at the internal resolution, no bands (trilinear:
+    // the ANISOTROPIC rows for the road sharper still, at their cost); or the
+    // player's filter, forced on the 3D.
     const std::string textures = Graphics("textures");
     ps2host::SetGpuModernTextures(textures == "modern");
     if (textures == "nearest") ps2host::SetGpuTextureFilter(1);

@@ -45,7 +45,9 @@ wrong, press **F12** at that moment and attach the folder it writes to
   frame, the HUD on top.
 - **Texture filtering of your choice**: ORIGINAL, MODERN, NEAREST,
   BILINEAR, TRILINEAR or ANISOTROPIC 4X/8X/16X - on the game's textures and
-  a texture pack's alike.
+  a texture pack's alike. MODERN (the default) is trilinear: smooth and
+  sharp at little cost; ANISOTROPIC sharpens the road far ahead further, at
+  a real cost to the GPU in the heaviest moments at high resolutions.
 - **Widescreen**: 4:3, 16:9 or the window's own shape, with the HUD kept in
   place - and a HUD editor (**F10**) to anchor each HUD element left, right,
   centred or stretched.
