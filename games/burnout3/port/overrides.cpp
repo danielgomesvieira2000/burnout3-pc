@@ -607,6 +607,12 @@ const char* const kAntiAliasings[] = {"off", "fxaa", "smaa", "ssaa2"};
 int AntiAliasing() { return Among("antialiasing", kAntiAliasings); }
 void SetAntiAliasing(int which) { ps2host::SetWindowAntiAliasing(kAntiAliasings[which]); }
 const char* const kPromptStyles[] = {"auto", "playstation", "xbox"};
+// PERFORMANCE OVERLAY (a phone's; the PC's F1): the frame rate, and each part's load.
+int PerfOverlay() { return ps2host::SettingOn("fps_counter", false) ? (ps2host::SettingOn("fps_detail", false) ? 2 : 1) : 0; }
+void SetPerfOverlay(int which) {
+    ps2host::SetSettingOn("fps_counter", which > 0);
+    ps2host::SetSettingOn("fps_detail", which == 2);
+}
 // TOUCH CONTROLS (a phone's): the on-screen controller, as its button at the top.
 int TouchControls() { return ps2host::TouchControlsShown() ? 1 : 0; }
 void SetTouchControls(int on) { ps2host::SetTouchControls(on != 0); }
@@ -653,11 +659,13 @@ const Option kOptions[] = {
      {"60", "120", "DISPLAY"}, 3},
     {Page::kVideo, "RESOLUTION", "DRAWN AS THE PS2 DID, TWICE AS SHARP, OR AS SHARP AS THE SCREEN", Resolution,
      SetResolution, {"ORIGINAL", "2X", "DISPLAY"}, 3},
+    {Page::kVideo, "PERFORMANCE OVERLAY", "THE FRAME RATE IN A CORNER, AND HOW BUSY EACH PART IS", PerfOverlay,
+     SetPerfOverlay, {"OFF", "FPS", "FPS + CPU"}, 3},
     {Page::kVideo, "ASPECT RATIO", "THE PICTURE'S SHAPE: A TELEVISION'S, WIDESCREEN, OR THE SCREEN'S OWN", Aspect,
      SetAspect, {"ORIGINAL (4:3)", "WIDESCREEN (16:9)", "AUTO"}, 3},
     {Page::kVideo, "ANTIALIASING", "EDGES AS DRAWN, SMOOTHED (FXAA, SMAA), OR SUPERSAMPLED (SSAA)",
      AntiAliasing, SetAntiAliasing, {"OFF", "FXAA", "SMAA", "SSAA 2X"}, 4},
-    {Page::kGraphics, "PRESET", "EVERY ROW AT ONCE: THE GAME AS IT WAS, OR THE PC'S MODERN PICTURES", Preset,
+    {Page::kGraphics, "PRESET", "EVERY ROW AT ONCE: THE GAME AS IT WAS, OR MODERN PICTURES", Preset,
      SetPreset, {"ORIGINAL", "MODERN", "CUSTOM"}, 3},
     {Page::kGraphics, "LIGHTING", "THE PICTURE'S TONE AND COLOUR: AS DRAWN, OR MODERN", Lighting,
      SetLighting, {"ORIGINAL", "MODERN"}, 2},
@@ -737,7 +745,7 @@ constexpr int kBindingsPageCount = sizeof kBindingsPages / sizeof kBindingsPages
 bool Shown(const Option& o) {
     if (ps2host::OnPhone())
         return o.set != SetFullscreen && o.set != SetVsync && o.set != SetVrr && o.set != SetGpuBoost;
-    return o.set != SetTouchControls && o.set != controls::SetGyroLevel;     // (a phone's)
+    return o.set != SetTouchControls && o.set != controls::SetGyroLevel && o.set != SetPerfOverlay;  // (a phone's)
 }
 bool Shown(const PageInfo& p) { return !(ps2host::OnPhone() && p.page == Page::kOnline); }
 bool Shown(const BindingsPage& b) {
@@ -774,8 +782,8 @@ struct Mode {
 bool Always() { return true; }
 bool Never() { return false; }
 const Mode kModes[] = {
-    {"SPLITSCREEN", "TWO PLAYERS ON THIS PC, THE SCREEN SHARED", Always},
-    {"LAN", "RACE OTHER PCS ON YOUR NETWORK, OR OVER A VPN", LanEnabled},
+    {"SPLITSCREEN", "TWO PLAYERS ON THIS DEVICE, THE SCREEN SHARED", Always},
+    {"LAN", "RACE PCS AND PHONES ON YOUR NETWORK, OR OVER A VPN", LanEnabled},
     {"ONLINE", "RACE OVER THE INTERNET: NOT YET", Never},
 };
 constexpr int kSplitscreenMode = 0, kLanMode = 1;

@@ -54,24 +54,18 @@
 #include <utility>
 #include <vector>
 
+#include "ps2host/sockets.h"     // Winsock's names on every system (Android's BSD sockets)
 #ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #include <iphlpapi.h>
+#else
+#include <ifaddrs.h>
+#include <net/if.h>
 #endif
 
 bool LanDebug();                   // lan.cpp: B3_LAN_DEBUG=1
 bool LanAddressByHand();           // lan.cpp: B3_LAN_IP set before the game started
 
 namespace {
-
-#ifdef _WIN32
 
 constexpr unsigned short kRedirectorPort = 21800, kLobbyPort = 10901, kDiscoveryPort = 21801;
 constexpr const char* kStamp = "2004.9.7 12:00:00";
@@ -103,6 +97,34 @@ struct Network {
     bool Holds(const in_addr& a) const { return (a.s_addr & mask.s_addr) == (address.s_addr & mask.s_addr); }
 };
 
+/* A variable of the process's environment set ("" removes it). */
+void SetEnv(const char* name, const std::string& value) {
+#ifdef _WIN32
+    _putenv_s(name, value.c_str());
+#else
+    if (value.empty()) unsetenv(name);
+    else setenv(name, value.c_str(), 1);
+#endif
+}
+
+#ifndef _WIN32
+/* A phone's (or Linux's) networks: each interface that is up, not the loopback. */
+std::vector<Network> Networks() {
+    std::vector<Network> out;
+    ifaddrs* all = nullptr;
+    if (getifaddrs(&all) != 0) return out;
+    for (const ifaddrs* a = all; a; a = a->ifa_next) {
+        if (!a->ifa_addr || a->ifa_addr->sa_family != AF_INET || !a->ifa_netmask) continue;
+        if (!(a->ifa_flags & IFF_UP) || (a->ifa_flags & IFF_LOOPBACK)) continue;
+        const in_addr ip = reinterpret_cast<const sockaddr_in*>(a->ifa_addr)->sin_addr;
+        if ((ntohl(ip.s_addr) >> 16) == 0xA9FEu) continue;
+        const in_addr mask = reinterpret_cast<const sockaddr_in*>(a->ifa_netmask)->sin_addr;
+        out.push_back({ip, mask, a->ifa_name ? a->ifa_name : "?"});
+    }
+    freeifaddrs(all);
+    return out;
+}
+#else
 std::vector<Network> Networks() {
     std::vector<Network> out;
     ULONG size = 16384;
@@ -130,6 +152,7 @@ std::vector<Network> Networks() {
     }
     return out;
 }
+#endif
 
 std::string Get(const Pairs& p, const std::string& key, const std::string& otherwise = "") {
     const auto it = p.find(key);
@@ -536,8 +559,14 @@ SOCKET Listen(unsigned short port, int type) {
     const SOCKET s = socket(AF_INET, type, type == SOCK_STREAM ? IPPROTO_TCP : IPPROTO_UDP);
     if (s == INVALID_SOCKET) return s;
     // Exclusive: a second lobby on the port fails here instead of sharing it.
-    BOOL on = TRUE;
+    int on = 1;
+#ifdef _WIN32
     setsockopt(s, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, reinterpret_cast<const char*>(&on), sizeof on);
+#else
+    // (BSD sockets are exclusive already; a TCP port in TIME_WAIT from the
+    // last lobby taken again, as Windows does.)
+    if (type == SOCK_STREAM) setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &on, sizeof on);
+#endif
     sockaddr_in a{};
     a.sin_family = AF_INET;
     a.sin_port = htons(port);
@@ -551,7 +580,7 @@ SOCKET Listen(unsigned short port, int type) {
 /* The redirector: the lobby's address - the one this connection reached. */
 void Redirector(SOCKET s) {
     sockaddr_in here{};
-    int size = sizeof here;
+    SockLen size = sizeof here;
     getsockname(s, reinterpret_cast<sockaddr*>(&here), &size);
     Messages(s, "redir", [&](const char* command, const std::string&) {
         if (std::strncmp(command, "@dir", 4) == 0)
@@ -570,7 +599,7 @@ void Lobby(SOCKET s, sockaddr_in peer) {
         self->s = s;
         self->address = Dotted(peer.sin_addr);
         sockaddr_in here{};
-        int size = sizeof here;
+        SockLen size = sizeof here;
         if (getsockname(s, reinterpret_cast<sockaddr*>(&here), &size) == 0) self->here = Dotted(here.sin_addr);
         self->id = g_next_user++;
         self->name = self->pers = "PLAYER" + std::to_string(self->id);
@@ -615,7 +644,7 @@ template <class Handle>
 void Accept(SOCKET listener, Handle handle) {
     for (;;) {
         sockaddr_in peer{};
-        int size = sizeof peer;
+        SockLen size = sizeof peer;
         const SOCKET s = accept(listener, reinterpret_cast<sockaddr*>(&peer), &size);
         if (s == INVALID_SOCKET) return;
         std::thread([=] { handle(s, peer); }).detach();
@@ -651,7 +680,7 @@ void Discovery(SOCKET s, std::string address) {
     for (;;) {
         char data[64];
         sockaddr_in from{};
-        int size = sizeof from;
+        SockLen size = sizeof from;
         const int got = recvfrom(s, data, sizeof data, 0, reinterpret_cast<sockaddr*>(&from), &size);
         if (got < 0) {
             if (WSAGetLastError() == WSAECONNRESET) continue;
@@ -675,7 +704,10 @@ void StopLobby() {
     std::lock_guard<std::recursive_mutex> hold(g_lock);
     if (!g_serving) return;
     for (SOCKET& s : g_listeners) {
-        if (s != INVALID_SOCKET) closesocket(s);
+        if (s != INVALID_SOCKET) {
+            shutdown(s, SD_BOTH);       // (Linux wakes a blocked accept() or recvfrom() only so)
+            closesocket(s);
+        }
         s = INVALID_SOCKET;
     }
     for (const auto& u : g_users) {
@@ -683,6 +715,9 @@ void StopLobby() {
         if (u->s == INVALID_SOCKET) continue;
         const linger cut{1, 0};
         setsockopt(u->s, SOL_SOCKET, SO_LINGER, reinterpret_cast<const char*>(&cut), sizeof cut);
+#ifndef _WIN32
+        shutdown(u->s, SD_BOTH);
+#endif
         closesocket(u->s);
         u->s = INVALID_SOCKET;
     }
@@ -724,9 +759,13 @@ u_long Discover(int wait_ms) {
     WSAStartup(MAKEWORD(2, 2), &data);
     const SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (s == INVALID_SOCKET) return 0;
-    BOOL on = TRUE;
+    int on = 1;
     setsockopt(s, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&on), sizeof on);
+#ifdef _WIN32
     DWORD timeout = 250;
+#else
+    timeval timeout{0, 250000};
+#endif
     setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof timeout);
     // A network chosen (B3_LAN_IP: by hand, or in the game's list): its own
     // broadcast address only, if it is one of this PC's.
@@ -765,7 +804,7 @@ u_long Discover(int wait_ms) {
         }
         char data_in[64] = {};
         sockaddr_in from{};
-        int size = sizeof from;
+        SockLen size = sizeof from;
         const int got = recvfrom(s, data_in, sizeof data_in - 1, 0, reinterpret_cast<sockaddr*>(&from), &size);
         if (got >= int(sizeof kAnswer - 1) && std::memcmp(data_in, kAnswer, sizeof kAnswer - 1) == 0) {
             // The address the answer names; else the one it came from.
@@ -778,26 +817,20 @@ u_long Discover(int wait_ms) {
     return found;
 }
 
-#endif
-
 }  // namespace
 
 /* This PC's networks for the game's list of network configurations
    (lan.cpp): each one's address and its adapter's name. */
 std::vector<std::pair<std::string, std::string>> LanNetworkList() {
     std::vector<std::pair<std::string, std::string>> out;
-#ifdef _WIN32
     for (const Network& n : Networks()) out.emplace_back(Dotted(n.address), n.name);
-#endif
     return out;
 }
 
 /* LAN left (back in MULTIPLAYER or the main menu, overrides.cpp): the
    lobby this game served, if any, closed. */
 void LanStopLobby() {
-#ifdef _WIN32
     StopLobby();
-#endif
 }
 
 std::string LanLocalAddressText();      // lan.cpp: this PC's address on the LAN
@@ -807,7 +840,6 @@ std::string LanPlayerName();            // lan.cpp: this PC's player, as the lob
    ChooseNetwork; else when the lobby's name is about to be looked up):
    makes sure there is a lobby and points the game at it (PS2HOST_INET_HOST). */
 void LanPrepareLobby() {
-#ifdef _WIN32
     static bool fixed = std::getenv("PS2HOST_INET_HOST") != nullptr && !g_serving;
     if (fixed) return;          // set by hand: the lobby is there
     // A lobby this game served before (LAN taken again, maybe on another
@@ -816,7 +848,7 @@ void LanPrepareLobby() {
     if (const u_long ip = Discover(1200)) {
         in_addr a{};
         a.s_addr = ip;
-        _putenv_s("PS2HOST_INET_HOST", Dotted(a).c_str());
+        SetEnv("PS2HOST_INET_HOST", Dotted(a));
         Log("a lobby answered at " + Dotted(a));
         return;
     }
@@ -827,6 +859,5 @@ void LanPrepareLobby() {
     g_room_name = LanPlayerName();
     if (!StartLobby(here)) return;
     g_serving = true;
-    _putenv_s("PS2HOST_INET_HOST", here.c_str());
-#endif
+    SetEnv("PS2HOST_INET_HOST", here);
 }

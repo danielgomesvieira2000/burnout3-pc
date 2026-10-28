@@ -29,18 +29,7 @@
 #include <utility>
 #include <vector>
 
-#ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#else
-#include <arpa/inet.h>          // htonl, ntohl
-#endif
+#include "ps2host/sockets.h"     // Winsock's names on every system
 
 #include "ps2host/host.h"
 #include "ps2host/run.h"
@@ -135,7 +124,6 @@ void Log(const std::string& text) {
 // "connected" toward the lobby (or outward) would send from (nothing is sent).
 u32 LocalAddress() {
     u32 found = 0;
-#ifdef _WIN32
     if (const char* text = std::getenv("B3_LAN_IP")) {
         in_addr a{};
         if (inet_pton(AF_INET, text, &a) == 1) return u32(a.s_addr);
@@ -151,13 +139,12 @@ u32 LocalAddress() {
         if (!host || inet_pton(AF_INET, host, &out.sin_addr) != 1 || out.sin_addr.s_addr == htonl(0x7F000001u))
             inet_pton(AF_INET, "10.0.0.1", &out.sin_addr);
         sockaddr_in a{};
-        int size = sizeof a;
+        SockLen size = sizeof a;
         if (connect(s, reinterpret_cast<sockaddr*>(&out), sizeof out) == 0 &&
             getsockname(s, reinterpret_cast<sockaddr*>(&a), &size) == 0)
             found = a.sin_addr.s_addr;
         closesocket(s);
     }
-#endif
     return found ? found : u32(0x0100007Fu);
 }
 
@@ -254,24 +241,30 @@ void UseNetwork(u32 line) {
         Log("network chosen: line " + std::to_string(line + 1) + ", but B3_LAN_IP is set by hand: it stands");
         return;
     }
+    const auto set = [](const std::string& value) {
 #ifdef _WIN32
+        _putenv_s("B3_LAN_IP", value.c_str());
+#else
+        if (value.empty()) unsetenv("B3_LAN_IP");
+        else setenv("B3_LAN_IP", value.c_str(), 1);
+#endif
+    };
     if (line == 0 || line >= g_networks.size()) {
-        _putenv_s("B3_LAN_IP", "");
+        set("");
         Log("network chosen: AUTO, all networks");
     } else {
         const std::string& address = g_networks[line].first;
         bool up = false;
         for (const auto& [now, adapter] : LanNetworkList()) up = up || now == address;
         if (up) {
-            _putenv_s("B3_LAN_IP", address.c_str());
+            set(address);
             Log("network chosen: " + address + " (" + g_networks[line].second + ")");
         } else {
-            _putenv_s("B3_LAN_IP", "");
+            set("");
             Log("network chosen: " + address + " (" + g_networks[line].second +
                 "), but it is not up any more (a VPN disconnected?): all networks are used instead");
         }
     }
-#endif
 }
 
 /* 0x003464B0(screen): the list of network configurations. When a line is

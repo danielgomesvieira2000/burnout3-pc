@@ -120,11 +120,15 @@ bool IntegratedGpu() {
 }
 
 /* A GRAPHICS row's value in a preset: ORIGINAL the game's own pictures,
-   MODERN the PC's (lighter on an integrated GPU). */
+   MODERN the PC's (lighter on an integrated GPU, and on a phone - whose
+   processor is the limit too: the game's own models and particles there,
+   which more of would cost its VU and GS threads). */
 const char* GraphicsPresetValue(const char* key, bool modern) {
     const bool original = !modern;
     const std::string k = key;
-    const bool light = IntegratedGpu();
+    const bool phone = ps2host::OnPhone();
+    const bool light = phone || IntegratedGpu();
+    if (phone && (k == "lod" || k == "particles")) return "original";
     if (k == "ao") return original || light ? "off" : "on";
     if (light && k == "shadows") return original ? "original" : "soft";
     if (light && k == "blur") return "original";

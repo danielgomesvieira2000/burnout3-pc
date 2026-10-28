@@ -820,7 +820,9 @@ void UpdatePrompts(bool mouse_used) {
     }
     u64 frame = 0;
     const ps2host::InputDevice device = ps2host::LastInputDevice(&frame);
-    if (mouse_used) g_prompts = Prompts::kMouse;
+    // (A phone's taps come as the mouse's clicks: its prompts stay the
+    // controller's - the on-screen one's buttons.)
+    if (mouse_used && !ps2host::OnPhone()) g_prompts = Prompts::kMouse;
     else if (frame != g_input_seen)
         g_prompts = device == ps2host::InputDevice::kKeyboard ? Prompts::kKeyboard : Prompts::kController;
     g_input_seen = frame;
