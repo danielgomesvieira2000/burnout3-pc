@@ -41,9 +41,7 @@
  * and until what bound it is let go, the game sees nothing.
  */
 
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
+#include "ps2host/platform.h"      // the keys' names
 
 #include <algorithm>
 #include <cstdio>

@@ -2,7 +2,10 @@
 # the dispatch table and drives this file.
 
 cmake_minimum_required(VERSION 3.20)
-project(burnout3_port LANGUAGES CXX RC)     # RC: the icon
+project(burnout3_port LANGUAGES C CXX)
+if(WIN32)
+    enable_language(RC)                     # the icon
+endif()
 
 set(PS2_GENERATED_DIR "" CACHE PATH "dispatch.cpp, from engine/tools/port.py")
 
@@ -24,6 +27,10 @@ if(MSVC)
     else()
         add_compile_options("/d1trimfile:${repo_root_native}")
     endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    # clang (Android's NDK): the same.
+    get_filename_component(repo_root ${CMAKE_CURRENT_LIST_DIR}/../../.. ABSOLUTE)
+    add_compile_options("-ffile-prefix-map=${repo_root}/=" -ffp-contract=off)
 endif()
 
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../engine/host ${CMAKE_BINARY_DIR}/ps2host)

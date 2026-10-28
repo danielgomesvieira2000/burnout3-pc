@@ -38,6 +38,8 @@
 #endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#else
+#include <arpa/inet.h>          // htonl, ntohl
 #endif
 
 #include "ps2host/host.h"
