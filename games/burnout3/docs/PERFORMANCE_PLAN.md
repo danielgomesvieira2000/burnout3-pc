@@ -1228,3 +1228,53 @@ Measured, nothing to take:
   core at 1x): every picture runs the game's drawing.
 - Frame pacing ON holds a picture to 6 ms after its blank, then the middle
   of a refresh - 10.4 ms at 144. It's opt-in (smoothness), left as it is.
+
+## Phones: the first night (2026-10-28, night)
+
+The player's Pixel 7 Pro (Tensor G2: two Cortex-X1, two A78, four A55;
+Mali-G710 MP7) ran races at about 30 pictures a second, nothing wrong in them.
+No phone was at hand this night: what was found, from the code, the PC and the
+emulator.
+
+What the phone did that the PC does not:
+
+- **The VU's arithmetic one lane at a time.** `PS2RT_VU_SSE` was keyed on
+  `__SSE2__`, which Arm's compilers do not define: every FMAC of VU1's
+  microprograms (the VIF1 worker, the heaviest thread on the PC too) and of
+  the EE's macro mode ran the model's scalar path in doubles. Now the SSE code
+  through sse2neon - checked against the model on arm64 under qemu (5.2 M
+  FMAC lanes, 7.5 M MMI results, none differ). Two traps: sse2neon's
+  `_mm_setcsr` sets the rounding only (no flush to zero: the clamp-free DAZ
+  path would have been wrong), so the FPU control is FPCR written directly;
+  NEON's float-to-int saturates both ways itself (FTOI without the xor).
+- **Its compiled VU blocks returned to the loop after each** (musttail was
+  x86-64's only); the EE's MMI lanes and the GS's 16-bit stores were scalar.
+- **The library built as any shared library**: every call between the game's
+  9,300 functions through the PLT, every global through the GOT, stack
+  canaries in each frame, no LTO, no PGO. Now hidden symbols, no PLT, no
+  canaries, ThinLTO, and PGO from counts made on the emulator (the same
+  sources: `android.py pgo`).
+- **MODERN graphics as on a desktop GPU**: LOD HIGH and PARTICLES MORE are
+  more VU1 and GS work. A phone's MODERN is the integrated GPU's lighter one,
+  with the game's own LOD and particles.
+- **The scheduler's choice of cores.** The heavy threads (EE, GS, VIF1, the
+  renderer) are now on the big cores (those within 3/4 of the fastest's
+  clock) and in an ADPF hint session told the busiest one's work each frame,
+  so the clocks rise with the work instead of after it; the blank timer no
+  longer spins.
+
+Still to measure on the phone - PORT SETTINGS > VIDEO > PERFORMANCE OVERLAY at
+FPS + CPU shows each heavy thread's share of a core and the GPU's busy share:
+
+- **The GPU's render passes.** A race frame on the PC: ~190 passes, ~73
+  copies of a target the next draw reads ("own copy" ends), ~200 barriers,
+  ~90 compute dispatches. A desktop GPU does not mind; a tiler (Mali) loads
+  and stores the colour and the depth-stencil (D32S8: two planes) at each
+  pass's start and end - at 640x448 about 5 MB a pass, hundreds of MB a frame
+  if most are the frame's own target, near a phone's whole bandwidth at 60.
+  If GPU shows near 100%, the levers in order: the own-copy reads done inside
+  the pass (VK_EXT_rasterization_order_attachment_access /
+  dynamic_rendering_local_read where the driver has them), each pass's render
+  area cut to its draws' bounds (draws recorded first, the pass begun after),
+  texture decodes moved out of passes, barriers with exact stages instead of
+  ALL_COMMANDS (a tiler drains its vertex/fragment overlap at each).
