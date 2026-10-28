@@ -116,20 +116,26 @@ PC settings
 In the main menu, PC SETTINGS (where ONLINE used to be - EA's servers are
 long gone) has four pages and the game's hidden menu (Triangle goes back):
 
-  VIDEO      fullscreen, vertical sync, the frame rate (60; 120 for a
+  VIDEO      fullscreen, vertical sync, VRR (G-SYNC, FREESYNC: off by
+             default; on, for a variable refresh screen, each picture goes
+             to it at once), the frame rate (60; 120 for a
              120 Hz or faster screen; or DISPLAY, your screen's own rate -
              144, 165, up to 240 - in races, splitscreen too, and the
              menus: the game still runs at its own 60 steps a second, the
              pictures between drawn between them - the cars, the camera,
              the garage's car; the menus' flat pictures and movies move at
              60; where the PC cannot keep up, a race steps down to 120 or
-             60 by itself), the internal resolution
+             60 by itself; never above your screen's refresh), the
+             internal resolution
              (original, twice as sharp, or as sharp as your screen - up to
              4x), the aspect ratio (4:3, 16:9 or your window's), and
              anti-aliasing: off, FXAA (edges smoothed, almost free), SMAA
              (edges smoothed more carefully, still light), or SSAA 2X
              (drawn twice as sharp and averaged down - the cleanest, and
-             the heaviest on the GPU)
+             the heaviest on the GPU), and GPU BOOST (on by default, an
+             NVIDIA GPU's: its clocks kept up through menus and loading
+             screens, so a race's start does not stutter while it wakes up;
+             OFF saves a laptop's battery)
   GRAPHICS   how the game looks: PRESET on top (ORIGINAL, the game as it
              was, or MODERN - every row at once; CUSTOM once one is
              changed), then each on its own - MODERN by default (on a
@@ -145,8 +151,10 @@ long gone) has four pages and the game's hidden menu (Triangle goes back):
              SHARPENING (fine detail kept crisp), CINEMATIC CAMERAS (depth of
              field in the takedown cameras), SMOKE AND FIRE (soft where
              they meet the road and the cars), TEXTURE FILTERING
-             (original, modern, nearest, bilinear, trilinear or
-             anisotropic 4x, 8x or 16x - on a texture pack too), LOD (the
+             (original, modern - smooth and sharp at little cost -,
+             nearest, bilinear, trilinear or anisotropic 4x, 8x or 16x,
+             the road sharper far ahead at a real cost to the GPU - on a
+             texture pack too), LOD (the
              cars' detailed models farther away - heavier on the
              processor) and PARTICLES (more smoke and sparks while
              driving: Nehalem's patch)
@@ -154,7 +162,7 @@ long gone) has four pages and the game's hidden menu (Triangle goes back):
              CONTROLLER (MENUS): every key and button (see "Controls");
              BUTTON PROMPTS (auto, PlayStation or Xbox) and a DualSense's
              TRIGGER EFFECTS (off, light or on)
-  MODS       ORBIT CAMERA (on by default: the controller's right stick
+  MODS       ORBIT CAMERA (off by default; on, the controller's right stick
              turns the race camera around your car, and no longer
              accelerates), TRAFFIC (off, 0.5x, 1x, 1.5x, 2x or 3x), ROAD
              RAGE PARTS (crashed cars shed their parts in every mode), and
@@ -169,6 +177,10 @@ long gone) has four pages and the game's hidden menu (Triangle goes back):
              awards (what it unlocks is kept when the game saves)
 
 QUIT GAME is in the main menu too.
+
+The car select has the HEAVYWEIGHTS in every mode and an EXTRA SERIES after
+them: the game's Tuk Tuk, Yugo, US Taxi and Snow Plow to race, made from your
+disc as the game starts.
 
 
 Texture packs
