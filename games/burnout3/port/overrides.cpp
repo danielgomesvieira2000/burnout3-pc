@@ -701,6 +701,8 @@ const Option kOptions[] = {
      SetMod<kModVerticalSplit>, {"HORIZONTAL", "VERTICAL"}, 2},   // (VERTICAL: parts of the HUD still wrong, FINDINGS)
     {Page::kControls, "TOUCH CONTROLS", "THE ON-SCREEN CONTROLLER: SHOWN, OR HIDDEN FOR A REAL ONE", TouchControls,
      SetTouchControls, {"OFF", "ON"}, 2},
+    {Page::kControls, "GYRO STEERING", "TURN THE PHONE LIKE A WHEEL TO STEER; HIGH NEEDS THE LEAST TURN",
+     controls::GyroLevel, controls::SetGyroLevel, {"OFF", "LOW", "MEDIUM", "HIGH"}, 4},
     {Page::kControls, "BUTTON PROMPTS", "THE BUTTONS SHOWN: YOUR CONTROLLER'S, PLAYSTATION OR XBOX", ButtonPrompts,
      SetButtonPrompts, {"AUTO", "PLAYSTATION", "XBOX"}, 3},
     {Page::kControls, "TRIGGER EFFECTS", "DUALSENSE: THE TRIGGERS FEEL THE ENGINE, THE BRAKES AND THE GRIP",
@@ -735,7 +737,7 @@ constexpr int kBindingsPageCount = sizeof kBindingsPages / sizeof kBindingsPages
 bool Shown(const Option& o) {
     if (ps2host::OnPhone())
         return o.set != SetFullscreen && o.set != SetVsync && o.set != SetVrr && o.set != SetGpuBoost;
-    return o.set != SetTouchControls;
+    return o.set != SetTouchControls && o.set != controls::SetGyroLevel;     // (a phone's)
 }
 bool Shown(const PageInfo& p) { return !(ps2host::OnPhone() && p.page == Page::kOnline); }
 bool Shown(const BindingsPage& b) {

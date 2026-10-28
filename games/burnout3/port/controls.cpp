@@ -44,6 +44,7 @@
 #include "ps2host/platform.h"      // the keys' names
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -279,6 +280,25 @@ u16 Keyboard() {
     return out;
 }
 
+/* GYRO STEERING (a phone's, PORT SETTINGS > CONTROLS): racing, the phone
+   turned as a wheel steers - the left stick's X from its tilt, full lock at
+   the sensitivity's angle - unless the stick itself is pushed (the touch
+   controls' or a controller's). Never in the menus. */
+const char* const kGyroLevels[] = {"off", "low", "medium", "high"};
+constexpr float kGyroFullLock[] = {0.0f, 40.0f, 28.0f, 18.0f};     // degrees, by level
+constexpr float kGyroDeadZone = 2.0f;
+
+void GyroSteer(ps2host::HostPadState* pad, bool racing) {
+    if (!racing) return;
+    const int level = GyroLevel();
+    float degrees = 0.0f;
+    if (!level || !ps2host::Tilt(&degrees)) return;
+    if (std::abs(int(pad->sticks[2]) - 0x80) > 0x20) return;      // the stick's own
+    const float turn = std::abs(degrees) <= kGyroDeadZone ? 0.0f
+                       : (degrees - std::copysign(kGyroDeadZone, degrees)) / (kGyroFullLock[level] - kGyroDeadZone);
+    pad->sticks[2] = u8(std::lround(127.5f + std::clamp(turn, -1.0f, 1.0f) * 127.5f));
+}
+
 /* The controller's DualShock 2, each pad read it is there (the host's
    controller filter): its buttons as the bindings have them. */
 void Controller(ps2host::HostPadState* pad) {
@@ -335,9 +355,18 @@ void Controller(ps2host::HostPadState* pad) {
     pad->buttons = out;
     for (int i = 0; i < kInputs; ++i) pad->pressure[i] = pressure[i];
     OrbitStick(pad, racing);    // (the right stick: the camera's, with ORBIT CAMERA on)
+    GyroSteer(pad, racing);
 }
 
 }  // namespace
+
+int GyroLevel() {
+    const std::string level = ps2host::Setting("gyro_steering", "off");
+    for (int i = 0; i < int(std::size(kGyroLevels)); ++i)
+        if (level == kGyroLevels[i]) return i;
+    return 0;
+}
+void SetGyroLevel(int level) { ps2host::SetSetting("gyro_steering", kGyroLevels[level]); }
 
 // ------------------------------------------------------------ the rows
 

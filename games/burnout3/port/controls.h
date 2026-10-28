@@ -40,6 +40,10 @@ void ResetDefaults(Device device, Context context);
 enum class Layout { kClassic, kModern, kCustom };
 Layout RacingLayout();
 void SetRacingLayout(Layout layout);
+/* GYRO STEERING (a phone's): 0 off, 1-3 LOW, MEDIUM, HIGH - how far the
+   phone turns for full lock. */
+int GyroLevel();
+void SetGyroLevel(int level);
 
 /* Binding a row: from now, the next key or button the player presses on the
    device (once everything held is let go) is the input's - swapped with the
