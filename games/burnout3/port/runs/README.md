@@ -77,3 +77,14 @@ gives each run a fresh directory), creates a profile from the front end and
 saves it; the CRCs cover the pictures and the three files the game wrote
 (`memcard/BASLUS-21050/...`). The other runs have no card, as they were
 recorded.
+
+## On Android
+
+The APK takes a run's options from `args.txt` in its files folder
+(`Android/data/<package>/files`), after its own: push the `.args` with
+`--no-memcard` (the app always has a card; the runs were recorded without
+one) and `--frames <files>/frames --frames-every 200`, start the app, pull
+the pictures and compare them with the CRCs. Delete `args.txt` afterwards. On
+the emulator `race` matches its CRCs from the race on; the frontend differs
+where the menus say PORT SETTINGS instead of PC SETTINGS. The emulator has a
+hardware keyboard, so CONTROLS lists the keyboard's pages there.

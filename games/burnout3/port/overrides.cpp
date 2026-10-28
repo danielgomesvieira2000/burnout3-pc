@@ -607,6 +607,9 @@ const char* const kAntiAliasings[] = {"off", "fxaa", "smaa", "ssaa2"};
 int AntiAliasing() { return Among("antialiasing", kAntiAliasings); }
 void SetAntiAliasing(int which) { ps2host::SetWindowAntiAliasing(kAntiAliasings[which]); }
 const char* const kPromptStyles[] = {"auto", "playstation", "xbox"};
+// TOUCH CONTROLS (a phone's): the on-screen controller, as its button at the top.
+int TouchControls() { return ps2host::TouchControlsShown() ? 1 : 0; }
+void SetTouchControls(int on) { ps2host::SetTouchControls(on != 0); }
 int ButtonPrompts() { return Among("button_prompts", kPromptStyles); }
 void SetButtonPrompts(int which) { ps2host::SetSetting("button_prompts", kPromptStyles[which]); }
 // TRIGGER EFFECTS (triggers.cpp): "on" the full strength, as before.
@@ -696,6 +699,8 @@ const Option kOptions[] = {
      SetMod<kModHeadlights>, {"ORIGINAL", "ALWAYS ON"}, 2},
     {Page::kMods, "SPLITSCREEN", "TWO PLAYERS' VIEWS ONE ABOVE THE OTHER, OR SIDE BY SIDE", Mod<kModVerticalSplit>,
      SetMod<kModVerticalSplit>, {"HORIZONTAL", "VERTICAL"}, 2},   // (VERTICAL: parts of the HUD still wrong, FINDINGS)
+    {Page::kControls, "TOUCH CONTROLS", "THE ON-SCREEN CONTROLLER: SHOWN, OR HIDDEN FOR A REAL ONE", TouchControls,
+     SetTouchControls, {"OFF", "ON"}, 2},
     {Page::kControls, "BUTTON PROMPTS", "THE BUTTONS SHOWN: YOUR CONTROLLER'S, PLAYSTATION OR XBOX", ButtonPrompts,
      SetButtonPrompts, {"AUTO", "PLAYSTATION", "XBOX"}, 3},
     {Page::kControls, "TRIGGER EFFECTS", "DUALSENSE: THE TRIGGERS FEEL THE ENGINE, THE BRAKES AND THE GRIP",
@@ -722,6 +727,32 @@ const BindingsPage kBindingsPages[] = {
      "THE BUTTONS FOR THE MENUS AND THE PAUSE SCREEN"},
 };
 constexpr int kBindingsPageCount = sizeof kBindingsPages / sizeof kBindingsPages[0];
+
+/* What the platform shows (ps2host::OnPhone, KeyboardPresent): a phone's
+   screen is always the whole of it and synced, with no VRR or GPU boost to
+   ask for and no Discord; it has its touch controls instead. A keyboard's
+   bindings only with a keyboard. */
+bool Shown(const Option& o) {
+    if (ps2host::OnPhone())
+        return o.set != SetFullscreen && o.set != SetVsync && o.set != SetVrr && o.set != SetGpuBoost;
+    return o.set != SetTouchControls;
+}
+bool Shown(const PageInfo& p) { return !(ps2host::OnPhone() && p.page == Page::kOnline); }
+bool Shown(const BindingsPage& b) {
+    return b.device != controls::Device::kKeyboard || ps2host::KeyboardPresent();
+}
+// The row of PC SETTINGS' link to kPages[page] (kPageCount: DEVELOPER MENU's).
+int PageRow(u32 page) {
+    int row = 0;
+    for (u32 i = 0; i < page && i < kPageCount; ++i) row += Shown(kPages[i]) ? 1 : 0;
+    return row;
+}
+// The row of CONTROLS' link to kBindingsPages[page].
+int BindingsRow(int page) {
+    int row = 0;
+    for (int i = 0; i < page; ++i) row += Shown(kBindingsPages[i]) ? 1 : 0;
+    return row;
+}
 
 /* MULTIPLAYER (the main menu's) first asks how: SPLITSCREEN - two players
    on this PC - LAN (the game's online flow on the PC's network: lan.cpp) or
@@ -794,9 +825,9 @@ void MakeTexts(lifted::Context& c) {
     g_main.entries = g_pool.Take(8 * kEntries, 8);
     g_main.helps = g_pool.Take(4 * kEntries, 4);
     g_main.pc_settings.Make(16);
-    g_main.pc_settings.Set("PC SETTINGS");
+    g_main.pc_settings.Set(ps2host::OnPhone() ? "PORT SETTINGS" : "PC SETTINGS");
     g_main.pc_settings_help.Make(32);
-    g_main.pc_settings_help.Set("SET UP THE PC VERSION");
+    g_main.pc_settings_help.Set(ps2host::OnPhone() ? "SET UP THE ANDROID VERSION" : "SET UP THE PC VERSION");
     g_main.quit.Make(16);
     g_main.quit.Set("QUIT GAME");
     g_main.quit_help.Make(32);
@@ -845,7 +876,10 @@ std::string SeatName(u32 id) {
 std::pair<std::string, std::string> ItemText(int item) {
     const Item& it = g_main.items[std::size_t(item)];
     switch (it.kind) {
-        case Item::kPageLink: return {kPages[it.index].name, kPages[it.index].help};
+        case Item::kPageLink:
+            if (ps2host::OnPhone() && kPages[it.index].page == Page::kVideo)
+                return {kPages[it.index].name, "FRAME RATE, RESOLUTION, SHAPE AND SMOOTHING"};   // (no window)
+            return {kPages[it.index].name, kPages[it.index].help};
         case Item::kOption: return {OptionText(u32(it.index)), kOptions[it.index].help};
         case Item::kBindingsLink: return {kBindingsPages[it.index].name, kBindingsPages[it.index].help};
         case Item::kLayout: {
@@ -906,7 +940,8 @@ void BuildItems() {
             items.push_back({Item::kPlay, 0});
             break;
         case Page::kPcSettings:
-            for (u32 i = 0; i < kPageCount; ++i) items.push_back({Item::kPageLink, int(i)});
+            for (u32 i = 0; i < kPageCount; ++i)
+                if (Shown(kPages[i])) items.push_back({Item::kPageLink, int(i)});
             items.push_back({Item::kDevMenu, 0});
             break;
         case Page::kBindings: {
@@ -918,11 +953,12 @@ void BuildItems() {
             break;
         }
         case Page::kControls:
-            for (int i = 0; i < kBindingsPageCount; ++i) items.push_back({Item::kBindingsLink, i});
+            for (int i = 0; i < kBindingsPageCount; ++i)
+                if (Shown(kBindingsPages[i])) items.push_back({Item::kBindingsLink, i});
             [[fallthrough]];
         default:
             for (u32 i = 0; i < kOptionCount; ++i)
-                if (kOptions[i].page == g_main.page) items.push_back({Item::kOption, int(i)});
+                if (kOptions[i].page == g_main.page && Shown(kOptions[i])) items.push_back({Item::kOption, int(i)});
             break;
     }
 }
@@ -1208,14 +1244,14 @@ bool TrianglePressed() {
    SETTINGS, it to the main menu - the row it came from highlighted. */
 void GoBack(lifted::Context& c) {
     switch (g_main.page) {
-        case Page::kBindings: ShowPage(c, Page::kControls, g_main.bindings); return;
+        case Page::kBindings: ShowPage(c, Page::kControls, BindingsRow(g_main.bindings)); return;
         case Page::kPcSettings: ShowPage(c, Page::kMainMenu, kPcSettingsEntry); return;
         case Page::kMultiplayer: ShowPage(c, Page::kMainMenu, kMultiplayerEntry); return;
         case Page::kPlayers: ShowPage(c, Page::kMultiplayer); return;
         default: {
             int from = 0;
             for (u32 i = 0; i < kPageCount; ++i)
-                if (kPages[i].page == g_main.page) from = int(i);
+                if (kPages[i].page == g_main.page) from = PageRow(i);
             ShowPage(c, Page::kPcSettings, from);
         }
     }
@@ -1357,7 +1393,7 @@ void MainMenuInput(lifted::Context& c) {
     const bool back = TrianglePressed();
     // Back from the development menu: PC SETTINGS again, DEVELOPER MENU picked.
     if (ours && DevMenuReturned()) {
-        ShowPage(c, Page::kPcSettings, int(kPageCount));
+        ShowPage(c, Page::kPcSettings, PageRow(kPageCount));
         c.r[2] = 1;
         return;
     }
@@ -1452,7 +1488,7 @@ void MainMenu(lifted::Context& c) {
 void AddPanelPages() {
     std::vector<ps2host::PortOption> options;
     for (const Option& o : kOptions) {
-        if (o.page == Page::kVideo) continue;
+        if (o.page == Page::kVideo || !Shown(o)) continue;
         ps2host::PortOption p;
         for (const PageInfo& info : kPages)
             if (info.page == o.page) p.page = info.name;
