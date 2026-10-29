@@ -360,6 +360,56 @@ the Intel UHD's fixed cost is the open question this phase answers.
     is a vertex loop with independent iterations. That is the condition both
     for running vertices side by side in SIMD and for a GPU version.
   - Command: `PS2HOST_VU_BY_PROGRAM=1 burnout3-sse4.exe <elf> --vu-fast --vu-bench <snapshot>`.
+- **06A0 and 14E0: their loops** (2026-10-29). Pair counts come from
+  `PS2HOST_VU_PC_COUNTS=file --vu-bench` (one interpreted pass; it gives the
+  same data hash as compiled code). Loops were found with
+  `engine/tools/vuloops.py`.
+  - **06A0 (the explosion's own program, 19%): one loop, 90% of its pairs.**
+    - The loop at 0108-0228 is 38 pairs. It is unrolled four items to an
+      iteration and software-pipelined. Each item is an affine transform
+      and a squared distance against bounds (`sub vf00, ...` sets MAC).
+    - About 11 iterations make a batch (about 43 items) and about 180 a run.
+      An outer loop at 0058-0680 walks the batches.
+    - No float recurrence. **Its output is compacted**: `fmand`/`ibeq` skip
+      `isubiu vi08` for an item that fails its test, so where each item is
+      written depends on how many before it passed. That is a prefix sum
+      over pass/fail bits; the items themselves are independent.
+  - **14E0 is a jump.** At 14E0 is `jr vi15` (vi15 = 4, always) to a
+    664-pair program at 0020 with nine loops. Which loops run depends on
+    the scene:
+
+    | Loop | Explosion | Race | Shape |
+    | --- | --- | --- | --- |
+    | 0238-04C0 | 30% | 0% | 83 pairs, 42 loads, 8 `mtir` (per-vertex indices into matrices or offsets): the crash path |
+    | 0598-06B8 | 14% | 0% | 3 outputs, +12 qw each |
+    | 0798-08D0 | 9% | 32% | 3 outputs, +12 qw each |
+    | 0C20-0D88 | 12% | 21% | **vf12z chain**, see below |
+    | 0EC0-0F40 | 11% | 11% | +3 per iteration (triangles?) |
+    | 11A0-1240 | 11% | 17% | +3 / +6 |
+
+    - Every loop steps its own pointers. There are no float recurrences
+      except one in 0C20-0D88: `rsqrt Q, vf02w, vf12z` → `addaq.z ACC` →
+      `maddz vf05` → `madd vf12, vf05, vf05`, and the next iteration reads
+      that vf12z.
+    - It is either one vertex's stages spread over two iterations
+      (pipelining) or a true vertex-to-vertex dependency. Settle it with a
+      perturbation test: change vf12z at iteration i and see whether vertex
+      i+1's output changes.
+  - **What this means.**
+    - Both programs are loops over independent items, apart from the
+      output compaction (06A0) and the one open chain (14E0's 0C20). So
+      running items side by side is legal.
+    - It isn't a plain loop to vectorise. Each loop is already unrolled
+      and software-pipelined by hand, iterations are few (about 11 a batch
+      in 06A0), and MAC flags pass from one iteration to the next.
+    - **CPU SIMD across iterations:** at most 2x on AVX2 (two vec4 at
+      once), less after undoing the pipelining and compaction; perhaps
+      10-20% off VU1 in all.
+    - **GPU:** natural here (items are independent, compaction is a stream
+      compaction). But it needs the GS work after XGKICK on the GPU too
+      (roadmap C).
+    - Speculative VU1 threads (A, 2.3-4x) remain the larger and more
+      general lever.
 - **What a pair costs** (the bench with one cost removed; measurements, not
   exact code):
   - the stall checks and ready-cycle bookkeeping: about 10%;
