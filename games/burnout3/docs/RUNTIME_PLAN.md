@@ -418,6 +418,37 @@ the Intel UHD's fixed cost is the open question this phase answers.
       (roadmap C).
     - Speculative VU1 threads (A, 2.3-4x) remain the larger and more
       general lever.
+      - **Later the same day: A was dropped.** Modelled with a predictor a
+        port could have, 8-11% of runs are right and there is no speed-up
+        (PERFORMANCE_PLAN).
+- **SIMD across iterations: its ceiling** (2026-10-29,
+  `engine/tools/vulanes.py SNAPSHOT COUNTS`).
+  - **Where the time goes.** VU_RECOMPILER.md shows a pair's arithmetic is
+    only 10-13% of its cost; the rest is bookkeeping (stall checks, MAC
+    flags, flag landing, clamps, the block's own lines). So two items in one
+    AVX2 register pays only if the two run in lockstep and share that
+    bookkeeping. That needs a loop with no branch inside but the one back,
+    no float recurrence, enough iterations, and a warm-up to rebuild the
+    software pipeline in the second lane.
+  - **What qualifies:**
+
+    | | explosion | race |
+    | --- | --- | --- |
+    | pairs in loops that qualify | 28.4% | 37.0% |
+    | more, once 0C20's suspect is set aside (perturbed: none) | +1.8% | +7.6% |
+    | branches inside (06A0's compaction, 19.5% of the explosion; 14E0's 11A0 and 0EC0; the 320-pair outer bodies) | 43.5% | 26.7% |
+    | estimated saving: 2 lanes, a warm-up of 2 iterations, lower half 30% of a pair, bookkeeping and upper shared | ~5% | ~6-7% |
+
+  - **The qualifying loops run only 10-30 iterations an entry**, so the
+    warm-up and lane setup eat much of the gain.
+  - **Decision: not built.** A days-long change to vurecomp (loop
+    detection, two-lane VI state, warm-up, merging cycles and flags
+    exactly) for about 5-7% of VU1 is the wrong trade.
+  - Better levers aim at the bookkeeping itself, which is about half of
+    every pair. Example: loop bodies compiled for the pipeline state their
+    own back edge leaves, so the stall checks and flag queueing at the loop
+    head are resolved when compiling (the superblock ceiling, -7%, was
+    measured for the whole bench, not for loops alone).
 - **What a pair costs** (the bench with one cost removed; measurements, not
   exact code):
   - the stall checks and ready-cycle bookkeeping: about 10%;
