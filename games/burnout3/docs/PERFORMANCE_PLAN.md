@@ -1420,8 +1420,13 @@ compiled code's to the bit (registers left included).
 
 **Where it stands.** The CPU's levers measurable without a GPU are spent
 to a percent or two each: the VU1 code runs near four instructions a cycle,
-its clamps three times its arithmetic (VF registers through memory the one
-large lever left: VU_RECOMPILER.md); the GS thread's remaining parts are
+its clamps three times its arithmetic, VF held in host registers within a
+block worth ~4% (VU_RECOMPILER.md); the GS thread's remaining parts are
 the bridge's bookkeeping, which needs the GPU regressions to change. With
-the GPUs back: lowbench (2 cores without HT, the crash's pile-up, the Intel
-GPU) before and after tonight's builds, then the profile refreshed.
+the GPUs back: GPU regressions (car_select, race_training, race) on
+tonight's build, then lowbench (2 cores without HT, the crash's pile-up,
+the Intel GPU) with `BIN=` b3_night_before_np.exe and b3_night_after_np.exe
+(build/port/cmake, both without the profile), then the profile refreshed.
+The profile-guided build of tonight's code (the old profile) on the VU
+benches against the night's first: crash 40.5 -> 39.5 ms, pile-up 41.4 ->
+37.8, race 35.8 -> 35.1; the pile-up's GS replay ~43.5 M cycles a pass.
