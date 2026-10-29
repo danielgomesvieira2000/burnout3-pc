@@ -1272,9 +1272,15 @@ FPS + CPU shows each heavy thread's share of a core and the GPU's busy share:
   and stores the colour and the depth-stencil (D32S8: two planes) at each
   pass's start and end - at 640x448 about 5 MB a pass, hundreds of MB a frame
   if most are the frame's own target, near a phone's whole bandwidth at 60.
-  If GPU shows near 100%, the levers in order: the own-copy reads done inside
+  Done the same night, verified exact on the PC: **deferred passes** (on by
+  default on Android; `PS2HOST_GPU_DEFER_PASSES=1` elsewhere) - a pass's
+  draws recorded into a secondary command buffer, the pass begun as it ends
+  with its render area the draws' own and the depth-stencil loaded and
+  stored only where a draw read or wrote it (`LOAD_OP_NONE` through
+  VK_EXT/KHR_load_store_op_none). The race: 86% of the targets' area, the
+  depth-stencil neither loaded nor stored in ~29% of the passes.
+  If GPU still shows near 100%, the levers next: the own-copy reads done inside
   the pass (VK_EXT_rasterization_order_attachment_access /
-  dynamic_rendering_local_read where the driver has them), each pass's render
-  area cut to its draws' bounds (draws recorded first, the pass begun after),
-  texture decodes moved out of passes, barriers with exact stages instead of
+  dynamic_rendering_local_read where the driver has them), texture decodes
+  moved out of passes, barriers with exact stages instead of
   ALL_COMMANDS (a tiler drains its vertex/fragment overlap at each).
