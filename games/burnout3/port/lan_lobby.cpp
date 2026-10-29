@@ -18,6 +18,13 @@
  * KEY=value pairs, one per line, and a NUL. Ports: redirector TCP 21800,
  * lobby TCP 10901, discovery UDP 21801.
  *
+ * The race's settings: every player races with the serving player's (the
+ * MODS that change the play - the traffic, Crash Breaker, the mirror -
+ * kRaceSettings): the others ask its discovery port for them every 2
+ * s while in LAN (FollowHost, question B3LAN?S1) and take them for the
+ * session (ps2host::SessionSetting: their own file untouched), dropped as
+ * LAN is left.
+ *
  * Networks: the question goes out on every adapter (Discover), the answer
  * names this PC's address on the asker's network (Discovery), and the
  * serving player is handed to each other player at its address on that
@@ -40,6 +47,7 @@
  *   for VPNs that carry no broadcast at all.
  */
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -66,6 +74,8 @@
 #include <iphlpapi.h>
 #endif
 
+#include "ps2host/settings.h"
+
 bool LanDebug();                   // lan.cpp: B3_LAN_DEBUG=1
 bool LanAddressByHand();           // lan.cpp: B3_LAN_IP set before the game started
 
@@ -78,6 +88,22 @@ constexpr const char* kStamp = "2004.9.7 12:00:00";
 constexpr int kRoomId = 1;
 std::string g_room_name = "LAN";            // the room: the serving player's name (LanPrepareLobby)
 constexpr const char kQuestion[] = "B3LAN?1", kAnswer[] = "B3LAN!1";
+constexpr const char kSettingsQuestion[] = "B3LAN?S1", kSettingsAnswer[] = "B3LAN!S1";
+
+/* The settings that change the play, each with its value when not set: the
+   serving player's for everyone (FollowHost); the mirror's track is the
+   other way round. The rest - what is seen or heard (parts coming off, the
+   camera, the speedometer, the pictures) - stay each player's. */
+constexpr const char* kRaceSettings[][2] = {
+    {"traffic_density", "1"}, {"mod.no_traffic", "off"}, {"mod.crash_breaker", "off"}, {"mod.mirror", "off"},
+};
+
+/* This game's race settings, as answered: key=value lines. */
+std::string RaceSettingsText() {
+    std::string text;
+    for (const auto& s : kRaceSettings) text += std::string(s[0]) + "=" + ps2host::Setting(s[0], s[1]) + "\n";
+    return text;
+}
 
 using Pairs = std::map<std::string, std::string>;
 using List = std::vector<std::string>;
@@ -661,6 +687,10 @@ void Discovery(SOCKET s, std::string address) {
             const std::string answer = AnswerFor(from.sin_addr);
             if (!answer.empty())
                 sendto(s, answer.data(), int(answer.size()), 0, reinterpret_cast<sockaddr*>(&from), size);
+        } else if (got == int(sizeof kSettingsQuestion - 1) &&
+                   std::memcmp(data, kSettingsQuestion, sizeof kSettingsQuestion - 1) == 0) {
+            const std::string answer = std::string(kSettingsAnswer) + "\n" + RaceSettingsText();
+            sendto(s, answer.data(), int(answer.size()), 0, reinterpret_cast<sockaddr*>(&from), size);
         }
     }
 }
@@ -778,6 +808,63 @@ u_long Discover(int wait_ms) {
     return found;
 }
 
+/* The serving player's race settings followed (FollowHost): each run of the
+   thread has its generation; a new one, or StopFollowing, ends the last. */
+std::atomic<unsigned> g_follow{0};
+
+void StopFollowing() {
+    ++g_follow;
+    ps2host::ClearSessionSettings();
+}
+
+/* Asks the lobby at IP for its race settings every 2 s, as long as this
+   follow lasts, and takes them for the session. */
+void FollowHost(u_long ip) {
+    const unsigned generation = ++g_follow;
+    std::thread([ip, generation] {
+        const SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        if (s == INVALID_SOCKET) return;
+        DWORD timeout = 500;
+        setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof timeout);
+        sockaddr_in to{};
+        to.sin_family = AF_INET;
+        to.sin_port = htons(kDiscoveryPort);
+        to.sin_addr.s_addr = ip;
+        std::string last;
+        while (g_follow == generation) {
+            sendto(s, kSettingsQuestion, int(sizeof kSettingsQuestion - 1), 0, reinterpret_cast<sockaddr*>(&to),
+                   sizeof to);
+            char data[512] = {};
+            const int got = recv(s, data, sizeof data - 1, 0);
+            if (got > int(sizeof kSettingsAnswer - 1) && g_follow == generation &&
+                std::memcmp(data, kSettingsAnswer, sizeof kSettingsAnswer - 1) == 0) {
+                const std::string text(data + sizeof kSettingsAnswer, got - int(sizeof kSettingsAnswer));
+                for (std::size_t at = 0; at < text.size();) {
+                    std::size_t end = text.find('\n', at);
+                    if (end == std::string::npos) end = text.size();
+                    const std::string line = text.substr(at, end - at);
+                    const std::size_t equals = line.find('=');
+                    // Only the race's settings: an answer never sets another.
+                    if (equals != std::string::npos)
+                        for (const auto& known : kRaceSettings)
+                            if (line.compare(0, equals, known[0]) == 0 && equals == std::strlen(known[0]))
+                                ps2host::SessionSetting(known[0], line.substr(equals + 1));
+                    at = end + 1;
+                }
+                if (text != last) {
+                    std::string shown = text;
+                    std::replace(shown.begin(), shown.end(), '\n', ' ');
+                    Log("the host's race settings: " + shown);
+                    last = text;
+                }
+            }
+            for (int i = 0; i < 20 && g_follow == generation; ++i)
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        closesocket(s);
+    }).detach();
+}
+
 #endif
 
 }  // namespace
@@ -796,6 +883,7 @@ std::vector<std::pair<std::string, std::string>> LanNetworkList() {
    lobby this game served, if any, closed. */
 void LanStopLobby() {
 #ifdef _WIN32
+    StopFollowing();
     StopLobby();
 #endif
 }
@@ -809,7 +897,12 @@ std::string LanPlayerName();            // lan.cpp: this PC's player, as the lob
 void LanPrepareLobby() {
 #ifdef _WIN32
     static bool fixed = std::getenv("PS2HOST_INET_HOST") != nullptr && !g_serving;
-    if (fixed) return;          // set by hand: the lobby is there
+    StopFollowing();
+    if (fixed) {                // set by hand: the lobby is there
+        in_addr a{};
+        if (inet_pton(AF_INET, std::getenv("PS2HOST_INET_HOST"), &a) == 1) FollowHost(a.s_addr);
+        return;
+    }
     // A lobby this game served before (LAN taken again, maybe on another
     // network): closed, and the LAN asked again.
     StopLobby();
@@ -818,6 +911,7 @@ void LanPrepareLobby() {
         a.s_addr = ip;
         _putenv_s("PS2HOST_INET_HOST", Dotted(a).c_str());
         Log("a lobby answered at " + Dotted(a));
+        FollowHost(ip);
         return;
     }
     // This game reaches its own lobby by its LAN address: the address the
