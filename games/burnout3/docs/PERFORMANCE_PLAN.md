@@ -1079,6 +1079,63 @@ Found on the way: Vu::Kick counted its runs from an address it had not
 wrapped - an XGKICK from VI past data memory's end read past the memory
 (no recorded program does it; a perturbed one did). Wrapped now.
 
+### A, modelled with a predictor a port could have (2026-10-29): it does not pay
+
+**Why model again.** The 2026-10-26 estimate (4 workers, 2.3-4x) counted each
+dependency *edge* as predicted when its value matched. A run is only right if
+*every* field it reads matches. `PS2HOST_VU_SPEC=livein[,workers,window,overhead]`
+with `--vu-bench` (engine, `Vu::Speculate`) models that:
+- Each run, or segment of runs worked through in order, starts on a predicted
+  state. The prediction is the state as committed, plus the VIF's writes
+  since (known exactly), plus what each run still in flight is taken to
+  write: its program's latest committed run with the same VIF write pattern
+  before it, its "donor".
+- It is right if that matches the true start on every field the runs read
+  that neither they nor the VIF wrote first. Data comes from the
+  interpreter's reads, per field. Registers come from each program's
+  live-ins: `engine/tools/vulivein.py`, a static liveness analysis that
+  counts Q, P, MAC, STATUS and CLIP as read anywhere they are read (their
+  writers land later).
+- **The rule is exact.** Every run or segment judged right was run for real
+  from its prediction and gave the in-order result: XGKICKs, written fields
+  and registers. That held for 1,674 of 1,674 in the race and 2,113 of 2,113
+  in the explosion.
+
+**Results**, 20,000 runs each, 400 pairs' cost a unit:
+
+| | race | explosion |
+| --- | --- | --- |
+| single runs right (4 workers, 64-run window) | 8.4% | 10.6% |
+| segments of 4 / 16 runs right | 0.0% / 0.1% | ~0% |
+| segments cut where a run alone would be right (an oracle), ~10 runs | 0.1% | 2.5% |
+| speed-up, any configuration | 1.00x | 0.99-1.00x |
+
+**Why.** Burnout's VU1 stream passes small, computed state from run to run:
+- **Run pairs.** 14E0 runs as A then B. A converts the VIF's integers in
+  place (0x0A1 holds `4780xxxx`, an UNPACK with an offset row; it comes back
+  as floats) and B reads them (0x0A1, 0x13D, 0x09D).
+- **A per-object matrix memo.** 14E0 starts with `ilw.w vi01, 965(vi00)`;
+  `ibne`. 0x3C5.w is "matrix done": the VIF uploads a new object's matrix
+  with w=0, the first run computes vf28-31 and stores 1, and later runs reuse
+  vf28-31. Objects are 2-4 runs long.
+- **Shared toggles.** 0x3F5.y (0/2) is read by 1548, 1910, 1318 and 1398;
+  0x3EE.w is another.
+- **What the predictor managed.** The donors and VIF signatures fixed most of
+  the flag misses (0x3C5.w: 4,824 to 1,383; 0x3F5.y: 1,604 to 172). What is
+  left is *computed data*: vf10, vf28-31, and B's inputs that A produced.
+  No value predictor can guess those. Segments covering whole objects would
+  need the runs before them done as well.
+
+**Decision:** speculative VU1 threads are dropped for Burnout 3. The exact
+side-by-side ceiling stays as measured on 2026-10-26 (1.06-1.28x).
+- Programs whose items are independent within a run, such as 06A0's
+  particles and 14E0's vertices (RUNTIME_PLAN, 2026-10-29), would be split
+  *inside* a run instead: SIMD across iterations, or a GPU path with roadmap
+  C. Or VU1 is made faster on one thread.
+- Kept as tools: `PS2HOST_VU_SPEC` (plus `_SEG`, `_PRED=program`, `_BACK`,
+  `_WRITES=0`, `_SIGNATURE=0`) and `vulivein.py`. Another game's stream may
+  be more independent, and the model answers that in one run.
+
 ### B, measured: the GS thread's hand-over (2026-10-27)
 
 The pile-up's replay (`--gs-replay`, bench.py; without the profile: the GS
