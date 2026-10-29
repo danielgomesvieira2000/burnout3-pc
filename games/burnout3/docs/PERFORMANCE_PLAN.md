@@ -1278,7 +1278,11 @@ FPS + CPU shows each heavy thread's share of a core and the GPU's busy share:
   with its render area the draws' own and the depth-stencil loaded and
   stored only where a draw read or wrote it (`LOAD_OP_NONE` through
   VK_EXT/KHR_load_store_op_none). The race: 86% of the targets' area, the
-  depth-stencil neither loaded nor stored in ~29% of the passes.
+  depth-stencil neither loaded nor stored in ~29% of the passes. Then the
+  work between draws kept beside the open pass rather than ending it - GS
+  memory uploads (no draw reads local memory) and texture decodes (renamed
+  into another image where the pass already sampled the texture): render
+  passes in the race 1,042,857 -> 611,574 (-41%), all exact.
   If GPU still shows near 100%, the levers next: the own-copy reads done inside
   the pass (VK_EXT_rasterization_order_attachment_access /
   dynamic_rendering_local_read where the driver has them), texture decodes
