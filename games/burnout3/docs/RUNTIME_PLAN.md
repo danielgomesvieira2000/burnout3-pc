@@ -330,6 +330,36 @@ the Intel UHD's fixed cost is the open question this phase answers.
   In the real-time worker no compiled block is over 2%: a program's time is
   spread over its many small blocks. Rewriting a program by hand would not
   pay.
+- **Again on 2026-10-29, three scenes.** Now keyed by microcode image and
+  entry (a game uploads several images at the same addresses). Fast mode,
+  20,000 runs each; the state hashes are unchanged.
+
+  | Program | Explosion (44.5 ms) | Pile-up (44.3 ms) | Race (38.7 ms) |
+  | --- | --- | --- | --- |
+  | 06A0 | 19% | - | - |
+  | 1910 | 15% | 17% | 11% |
+  | 1548 | 14% | 21% | 14% |
+  | 14E0 | 13% | 12% | 29% |
+  | 0000 (image F504D280) | 11% | 17% | 15% |
+  | 1318 | 6% | 8% | 8% |
+  | 1398 | 4% | 6% | 3% |
+  | **Top 5 / top 7** | **73% / 82%** | **66% / 80%** | **69% / 89%** |
+
+  - The same handful of programs leads in every scene. 06A0 appears only in
+    the explosion: 1,245 runs of about 6,100 pairs each.
+  - **0000 is a different kind of program.** It has few runs (144-225) of
+    about 20,000 pairs each, at 1.6 ns a pair, against 1.0-1.4 for the rest.
+  - Since C1 the cost per pair has fallen from 2-4 ns to 1.0-1.6 ns
+    (C2 and the VU recompiler).
+  - **What this decides** (the RENDERER_ROADMAP VU1 question): VU1's time is
+    concentrated in 5-7 programs, so a targeted path is possible.
+  - **The arithmetic:** making the top 5 three times faster would cut VU1
+    time by about 45-50%. Speculative multithreading (A) gives 2.3-4x
+    across all programs, and the two would combine.
+  - Next step either way: what each hot program draws, and whether its body
+    is a vertex loop with independent iterations. That is the condition both
+    for running vertices side by side in SIMD and for a GPU version.
+  - Command: `PS2HOST_VU_BY_PROGRAM=1 burnout3-sse4.exe <elf> --vu-fast --vu-bench <snapshot>`.
 - **What a pair costs** (the bench with one cost removed; measurements, not
   exact code):
   - the stall checks and ready-cycle bookkeeping: about 10%;
