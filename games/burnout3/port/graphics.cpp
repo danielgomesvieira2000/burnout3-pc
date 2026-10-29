@@ -105,7 +105,7 @@ Switch g_bloom{kBloomOn}, g_blur{kBlurOn}, g_shadows{kShadowsOn};
    "graphics" setting is "original" - the game's own pictures by default
    (the recorded runs' --setting graphics=original). */
 /* An integrated GPU (a laptop's Intel UHD, Iris, an AMD APU's Radeon): the
-   effects that cost it most - AO and the sun's shadows, the camera's blur -
+   effects that cost it most - AO and the sun's shadows -
    off by default there; the glow and the grade stay (MODERN's glow is
    lighter than the game's). */
 bool IntegratedGpu() {
@@ -131,7 +131,8 @@ const char* GraphicsPresetValue(const char* key, bool modern) {
     if (phone && (k == "lod" || k == "particles")) return "original";
     if (k == "ao") return original || light ? "off" : "on";
     if (light && k == "shadows") return original ? "original" : "soft";
-    if (light && k == "blur") return "original";
+    // (MOTION BLUR stays MODERN LOW everywhere: the game's own blur is
+    // wrong under MODERN lighting.)
     // TEXTURES: MODERN (mipmapped textures trilinear: no bands in motion) in
     // the MODERN preset; not on an integrated GPU (its cost).
     if (k == "textures") return original || light ? "original" : "modern";
