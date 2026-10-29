@@ -1370,3 +1370,58 @@ FPS + CPU shows each heavy thread's share of a core and the GPU's busy share:
   dynamic_rendering_local_read where the driver has them), texture decodes
   moved out of passes, barriers with exact stages instead of
   ALL_COMMANDS (a tiler drains its vertex/fragment overlap at each).
+
+## Weak machines, with the GPUs down (2026-10-29/30, night)
+
+Goal: a high frame rate held on weak machines. Both of this laptop's GPUs
+were stopped by Windows all night (Device Manager code 43; Vulkan saw only
+Microsoft's CPU device, Vulkan 1.2) - no real-time runs, no GPU
+regressions, no profile-guided training. So the night measured and changed
+CPU work alone, each step checked without a GPU: the VU benches' hashes,
+host tests (each new one shown to fail on a broken change), the software
+GS's car_select and race_training, and the GS replay's pictures.
+
+**Measuring the GS thread without a GPU of one's own** (engine c5b95af):
+Chrome's SwiftShader is a Vulkan 1.3 device (`VK_DRIVER_FILES` = its
+`vk_swiftshader_icd.json`, copied out of Chrome's folder - an update moves
+it). The pile-up's replay with `PS2HOST_GPU_NO_DRAW=1` (a measure: the
+primitives not drawn) and `PS2HOST_SPIN=0`; the replay now prints each
+pass's cycles (QueryThreadCycleTime): the GS thread's least of 20 passes
+repeats within 1% (~50 M cycles, ~17.5 ms - what the RTX 4070 measured).
+The renderer thread's number there is SwiftShader's own command recording:
+not a measure of ours. Pictures drawn on SwiftShader compare byte for byte
+between two builds.
+
+**Done** (engine, LOCAL):
+
+| | change | measured |
+| --- | --- | --- |
+| VU1 | CLIP without branches, its bits put together in the vector (da8aa95, a2929f7) | fast VU bench -5 to -7% (crash, pile-up, race), exact |
+| VIF | sub-word UNPACK formats (V3-16, S-16, V3-8, V2-8, S-8, V4-5) in UnpackRun's one loop, not a byte vector a word (db9cb53, b73ff30) | not measurable without the real-time run; host test against Word's byte buffer, in runs and split |
+| GS | CSM1 CLUT loads from a table of offsets, not 256 Memory::Read (e935646) | GS thread -3.7% on the pile-up's replay; pictures the same |
+
+**Tried, dropped:** VU stalls settled by the generator (~1%, mixed), the
+run's state as the blocks' arguments (+2.5%), DIV/SQRT results uncleaned
+(no change), OnDraw's slow path in a function of its own (+3%: the fast
+path's own vector work keeps its frame). Details in engine
+docs/VU_RECOMPILER.md.
+
+**Burn3** (github.com/UwUCammie/Burn3, read 2026-10-29): despite "no EE or
+VU emulation", an EE interpreter with translated blocks and VU emulation,
+with hand-written C++ for chosen game functions and for the car and strip
+VU1 programs (recognised by their microcode, a verify mode running the real
+VU1 beside them and comparing every word) and "mesh tokens" (a mesh sent
+once, a transform a frame; matched within 1/8 pixel - not exact). MIT,
+its renderer LGPL; it does not build from a clone. Its idea worth taking is
+the native VU1 program with a verify mode; here that would be program
+2678EB26 (entry 1548: 14-21% of VU1 in every scene) - a dispatcher of 83
+pairs into bodies of up to 435 pairs and ten loops, its results to be the
+compiled code's to the bit (registers left included).
+
+**Where it stands.** The CPU's levers measurable without a GPU are spent
+to a percent or two each: the VU1 code runs near four instructions a cycle,
+its clamps three times its arithmetic (VF registers through memory the one
+large lever left: VU_RECOMPILER.md); the GS thread's remaining parts are
+the bridge's bookkeeping, which needs the GPU regressions to change. With
+the GPUs back: lowbench (2 cores without HT, the crash's pile-up, the Intel
+GPU) before and after tonight's builds, then the profile refreshed.
