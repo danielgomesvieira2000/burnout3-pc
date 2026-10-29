@@ -392,12 +392,20 @@ the Intel UHD's fixed cost is the open question this phase answers.
       `maddz vf05` → `madd vf12, vf05, vf05`, and the next iteration reads
       that vf12z.
     - It is either one vertex's stages spread over two iterations
-      (pipelining) or a true vertex-to-vertex dependency. Settle it with a
-      perturbation test: change vf12z at iteration i and see whether vertex
-      i+1's output changes.
+      (pipelining) or a true vertex-to-vertex dependency.
+    - **Settled 2026-10-29: no recurrence.** `PS2HOST_VU_PERTURB=14E0,C20,5,12,2,1`
+      on the race snapshot scales vf12z by 1.25 at the 5th iteration
+      (vi1 = 0x30). Only quadword 0x37 changed (that vertex's own record),
+      plus 0x210 (one quadword written later in the program). Nothing in the
+      later records (0x43 .. 0x9B) changed, and another run gave the same.
+      The control, vf16x, changed 0x3D and 0x216.
+    - Why the static chain was false: `rsqrt Q` at 0C40 takes about 13
+      cycles, so `addaq.z ACC, vf00, Q` right after it reads the previous
+      division's Q (`sqrt Q, vf07z` at 0D80). vuloops.py doesn't model that
+      latency.
   - **What this means.**
     - Both programs are loops over independent items, apart from the
-      output compaction (06A0) and the one open chain (14E0's 0C20). So
+      output compaction (06A0); 14E0's vf12z chain turned out not to be one. So
       running items side by side is legal.
     - It isn't a plain loop to vectorise. Each loop is already unrolled
       and software-pipelined by hand, iterations are few (about 11 a batch
