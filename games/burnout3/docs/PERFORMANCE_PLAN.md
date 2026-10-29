@@ -1128,6 +1128,31 @@ checks, the record and Drew, and ~3 ms in the whole-way path.
   end; changing when it applies changes the bookkeeping, not only its
   speed.
 
+### B, tried: a stretch handed over as one (2026-10-29)
+
+Two forms, both exact (car_select, race_training, race, crash as recorded),
+both slower on the replays (no PGO, 5-7 passes; before: pile-up GS thread
+17.50 ms, explosion 5.62):
+
+- *The GS model holding the stretch* (its primitives' vertices copied, handed
+  over at the next register, image data, privileged write, frame end, or
+  when the GS thread caught up with its ring; the bridge then one primitive
+  at a time): 19.38 / 6.41 ms (+11%, +14%) - the copy alone is ~7 ns a
+  primitive, ~2 ms of 280,000.
+- *The bridge holding its fast path's vertices* (the GS model only saying
+  where a stretch ends; one DrawTrianglesAgainRun record a run): 18.28 /
+  6.25 ms (+4.5%, +11%). The threaded renderer already merges a run's
+  primitives into one record (Same, 2026-10-24), so a record a stretch saves
+  only an append's bookkeeping, while holding the vertices copies them twice.
+
+Reverted. What is left of B is the per-primitive work itself (conversion,
+bounds, checks, Drew): a tight loop over a stretch only pays where it does
+less per primitive - each strip vertex converted once rather than three
+times (~0.7 ms of conversion's 1.1), the frame's and scissor's constants and
+the fast checks once a stretch - and needs the stretch's vertices without a
+copy (the GS model's strip kept as a stream). An estimate of 1-1.5 ms (5-8%),
+not measured.
+
 ## Hitches: a census, and the GPU's clocks (2026-10-27)
 
 True real time, windowed, the scripted race and crash runs (hf.sh), the
