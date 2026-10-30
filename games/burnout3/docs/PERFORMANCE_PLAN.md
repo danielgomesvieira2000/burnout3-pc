@@ -1572,3 +1572,32 @@ Python, well under a millisecond in C++. Go on to step 1. For it: the
 textures are uploaded again every picture - an in-between picture should
 leave out those the same as the last picture's, which holds only where a
 picture does not reuse texture memory within itself (to check).
+
+### Option 2, step 1a: pictures made between, from a replay (2026-10-30)
+
+`engine/host/src/gs_blend.cpp` (ps2host/gs_blend.h): each path's words cut
+into GIF packets, the two pictures' packets lined up by shape with patience
+alignment (equal ends, shapes found once in each as anchors, the longest run
+of them in order, the gaps the same way, a small gap without anchors by the
+longest common subsequence - as difflib's to a few vertices; a nearest-way-
+back walk lost a third), matched PACKED packets' XYZ (ADC kept), Z, ST/Q, UV,
+RGBA and FOG blended, a packet moving over 256 pixels the newer's.
+`PS2HOST_REPLAY_GPU=1 PS2HOST_REPLAY_BLEND= <exe> --gs-replay replay.bin out`:
+a multi-picture capture replayed with a picture made between each two.
+
+| | blended | not matched | in packets that jump | the blend's time |
+|---|---|---|---|---|
+| race | 86% of vertices | 3.6% | 10.1% | ~2.2 ms |
+| pile-up | 89% | 8.6% | 2.7% | ~2.2 ms |
+| explosion | 96% | 2.7% | 1.7% | ~2.2 ms |
+
+The time: copying the newer picture ~1.0 ms (textures and all - the live
+one need not), lining up ~0.5, blending ~0.7 (integers in 256ths: with a
+double's rounding each it was 4-5 ms). By eye (a plain replay's real
+pictures either side of the replay's made one): the cars, the dust, a fence
+post passing - each halfway; no torn or thrown triangles; the HUD whole.
+The real pictures replayed after a made one differ from a plain replay's (10-18 levels
+on average): the speed blur reads the picture before, which was the made
+one - step 2 (the targets put back) is needed, as sketched. Open: the race's
+jumped packets (10% of its vertices: some vertex moving 256 pixels or more -
+off-screen ones in the guard band, likely) are shown as the newer's.
