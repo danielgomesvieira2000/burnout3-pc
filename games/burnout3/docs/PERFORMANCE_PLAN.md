@@ -1777,3 +1777,30 @@ renderer's records blended, no GIF decoding and no bridge for it (the
 sketch's later stage) - or on a thread of its own. Neither is small. Kept
 as built, off. The cheap lever found on the way: VIF1's worker's spinning
 wait for room in the GS ring (both modes, on two cores).
+
+### The GS ring's waits asleep (2026-10-30)
+
+A producer waiting for room in the GS thread's ring (VIF1's worker, the EE)
+or for it to empty (Sync) spun the whole wait (`yield`); now it spins a
+moment (256 pauses, 16 yields), then sleeps until the GS thread, taking
+entries, wakes it (`Feed::Await`/`Room`; 1 ms at most asleep). GPU
+regressions car_select, race_training and race as recorded.
+
+Two cores (0x5), the Intel UHD, the crash's pile-up, the builds alternated:
+
+| | before | after |
+|---|---|---|
+| 120 (the game's own) | 0 dropped, 3 / 0 late, 1 / 0 step-downs | 0 dropped, 2 / 1 late, 0 step-downs |
+| 60 | 0 dropped, 1 / 3 late | 0 dropped, 1 / 0 late |
+| pictures between (option 2, GS thread full) | 99 presents/s, 222 late; VIF1's worker 51% CPU | 98/s, 269 late; VIF1's worker 17% CPU |
+
+Where the GS thread is not full it changes nothing (the worker seldom
+waits); where it is, a third of a core of spinning is gone - but the GS
+thread, busy 100% of the time on ~64% of a core, was not short of CPU:
+its waits are the renderer's and the GPU's. Kept (less heat and power on a
+laptop, the core free for anything else).
+
+After the reboot the two-core machine holds the game's own 120 on the Intel
+UHD (0-3 late in 1,500, no step-down) - the 45 late and the step-downs
+measured before it (and the Intel driver's crashes at the window's start)
+were the machine's trouble that day, not the port.
