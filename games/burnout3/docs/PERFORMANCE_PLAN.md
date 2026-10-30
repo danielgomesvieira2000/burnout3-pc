@@ -1804,3 +1804,24 @@ After the reboot the two-core machine holds the game's own 120 on the Intel
 UHD (0-3 late in 1,500, no step-down) - the 45 late and the step-downs
 measured before it (and the Intel driver's crashes at the window's start)
 were the machine's trouble that day, not the port.
+
+### Two cores at 120, more scenes (2026-10-30)
+
+Two cores without hyperthreading (0x5), the Intel UHD, the PS2's resolution,
+the game's own 120 (`PS2HOST_FRAME_RATE=120`), two runs each (late/dropped
+in the measured stretch; median and 99% interval):
+
+| scene | run 1 | run 2 |
+|---|---|---|
+| race start (race, 11,600-12,800) | 4 late, 0 dropped; 8.38 / 11.09 ms | 1 late, 0 dropped; 8.30 / 8.97 |
+| mid-race (12,600-15,300) | 18 late, 0 dropped; 8.34 / 11.05 | 10 late, 0 dropped; 8.33 / 9.13 |
+| the crash's explosion (14,300-15,400) | 0 late; 8.33 / 8.82 | 2 late; 8.30 / 8.98 |
+| the crash's pile-up (above) | 0-3 late | |
+| splitscreen (9,900-12,900) | stepped down: 63 of 240 late at 120; then 60, 40 late, 4 dropped | stepped down (226 of 240 late); 60, 42 late, 40 dropped |
+
+(The explosion's one step-down each run came before its real time, in the
+virtual-time lead-in, and went back up.) One player holds 120 on two cores
+and the integrated GPU. Splitscreen does not: two views are twice the
+drawing - at 120 the GS thread 91% and VIF1's worker 76% busy - and even at
+60 two cores are at their edge there (40 dropped in one run). Splitscreen on
+two cores is the weak machine's limit now.
