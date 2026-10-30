@@ -1547,3 +1547,28 @@ now; shown at the same times, it may need one more picture of lead.
    the 120 run's real frames against the 60 recording.
 2. The persistent targets saved and restored around an in-between.
 3. lowbench at 120 on two cores (the crash, the race), against now.
+
+### Option 2, step 0: the packets match (2026-10-30)
+
+Captured 16 pictures each (`PS2HOST_CAPTURE_FRAME=N PS2HOST_CAPTURE_FRAMES=16`,
+virtual time, the GPU; replay.bin now has a 'V' at each frame's mark) of the
+race (13,500), the crash's pile-up (13,080) and its explosion (14,560), and
+lined each picture's GIF packets up with the last's by shape (path, FLG,
+NLOOP, NREG, REGS, PRIM): `engine/tools/gsmatch.py <capture>/replay.bin`.
+A picture: ~3,000 packets, 55-75 K vertices, 0.6-0.9 M words of PATH1 (VU1's
+XGKICKs) and 0.5-0.7 M of PATH3 (textures, sent again every picture).
+
+| | blendable (matched, only vertex values changed) | new | matched vertices moving < 64 px | >= 256 px |
+|---|---|---|---|---|
+| race | 96.8% of vertices | 3.2% | 94% | 3.4% |
+| pile-up | 94.9% | 5.1% | 97% | 0.8% |
+| explosion | 97.3% | 2.7% | 99% | 0.4% |
+
+No matched packet with vertices changed its state (texture, blend: those
+are packets of their own, without vertices). VU1's clipper costs 3-5% of the
+vertices a picture (new, shown unblended); the few moves of 256 px or more
+are the jumps the rule leaves unblended. Matching ~3,000 packets: 0.05 s in
+Python, well under a millisecond in C++. Go on to step 1. For it: the
+textures are uploaded again every picture - an in-between picture should
+leave out those the same as the last picture's, which holds only where a
+picture does not reuse texture memory within itself (to check).
