@@ -55,6 +55,9 @@ void F_001F2408(lifted::Context& c);
 void F_00228040(lifted::Context& c);
 void F_002AF340(lifted::Context& c);
 void F_002AEFC0(lifted::Context& c);
+void F_002A2C90(lifted::Context& c);
+void F_002ACC70(lifted::Context& c);
+void F_002ACBD0(lifted::Context& c);
 void F_003FB0F0(lifted::Context& c);
 void F_001322B0(lifted::Context& c);
 // The frontend: its string lookup, the main menu's input, a message box.
@@ -201,7 +204,13 @@ void Record(bool answer, const u32 (&words)[6]) {
 /* 0x002AEFC0(a0, a1, a2, type, t0..t3): RenderWare Audio's command to the
    IOP (a record of user command 0). */
 void RwaCommand(lifted::Context& c) {
-    const u32 words[6] = {u32(c.r[7]), u32(c.r[4]), u32(c.r[5]), u32(c.r[6]), u32(c.r[8]), u32(c.r[9])};
+    u32 words[6] = {u32(c.r[7]), u32(c.r[4]), u32(c.r[5]), u32(c.r[6]), u32(c.r[8]), u32(c.r[9])};
+    // A stream's block for the SPU (0x46, from 0x002B51F0): what it carries
+    // (its 0x14 bytes at a1 - the block's place in the buffer, the SPU's
+    // address, the IOP's buffer, its size, the stream's +0x34), not the
+    // command's words, the same each time.
+    if (words[0] == 0x46)
+        for (int k = 0; k < 5; ++k) words[1 + k] = u32(generated::ReadU32(u32(c.r[5]) + 4u * u32(k)));
     // The status poll (0x14, every frame, its answer between) only counted:
     // kept, it and its answer filled the ring in eight seconds.
     ++g_rwa_command_types[words[0]];
@@ -228,6 +237,122 @@ void RwaAnswer(lifted::Context& c) {
     F_002AF340(c);
 }
 
+/* The music's timeline (#16: a stream stuck stopping, RenderWare Audio's
+   state 4, and the load after waiting on it): what the snapshots could not
+   tell - in what order things went. Each change, looked at every blank
+   (MusicWatchdog): the EA Trax player's state (+0x170, +0xC8), its stream's
+   (+0x1D0), RenderWare Audio's (+0x24C, the IOP's word for it), and the
+   IOP's two streams' flags (0x0001D140, 0x0001D1AC +0x58: 8 on, 0x10
+   stopping); and as they come, the stream's
+   state asked for (0x002A2C90: 1 stop, 2 play, 3 ready). The last 256, to
+   the log with the rest (SayAudio). */
+struct MusicNote {
+    u64 frame, us;
+    char text[112];
+};
+std::array<MusicNote, 256> g_music_notes{};
+size_t g_music_next = 0;
+
+void NoteMusic(const char* text) {
+    MusicNote& n = g_music_notes[g_music_next++ % g_music_notes.size()];
+    n.frame = ps2host::FrameNumber();
+    n.us = ps2host::ClockNs() / 1000;
+    std::snprintf(n.text, sizeof n.text, "%s", text);
+    // PS2HOST_MUSIC_LOG=1: each as it comes, too.
+    static const bool live = std::getenv("PS2HOST_MUSIC_LOG") != nullptr;
+    if (live) std::fprintf(stderr, "[music] %s\n", text);
+}
+
+/* 0x002A2C90(stream, state): RenderWare Audio's stream asked into a state. */
+void RwaStreamAsk(lifted::Context& c) {
+    const u32 stream = u32(c.r[4]), state = u32(c.r[5]);
+    char text[112];
+    std::snprintf(text, sizeof text, "stream %08X asked for %u (it is %u), from 0x%08X", stream, state,
+                  unsigned(generated::ReadU32(stream + 0x24Cu)), u32(c.r[31]));
+    NoteMusic(text);
+    F_002A2C90(c);
+}
+
+void WatchMusic() {
+    const u32 music = 0x01E7A888u, handle = u32(generated::ReadU32(music + 0xC0u));
+    const u32 stream = handle ? u32(generated::ReadU32(handle + 0x1CCu)) : 0;
+    u32 now[7] = {};
+    now[0] = u32(generated::ReadU32(music + 0x170u));
+    now[1] = u32(generated::ReadU32(music + 0xC8u));
+    now[2] = handle;
+    now[3] = handle ? u32(generated::ReadU32(handle + 0x1D0u)) : 0;
+    now[4] = stream ? u32(generated::ReadU32(stream + 0x24Cu)) : 0;
+    // The IOP's two streams' flags (0x0001D140, 0x0001D1AC) - not their
+    // buffers, which change (and are both empty a moment) every half a buffer.
+    for (u32 k = 0; k < 2; ++k)
+        if (const u8* at = ps2host::GuestMemory().Translate(ps2host::kIopRamBase + 0x0001D140u + 0x6Cu * k, 0x6C))
+            std::memcpy(&now[5 + k], at + 0x58, 4);
+    static u32 before[7] = {~0u};
+    if (std::memcmp(now, before, sizeof now) == 0) return;
+    std::memcpy(before, now, sizeof now);
+    char text[112];
+    std::snprintf(text, sizeof text, "player %u/%u, stream %08X %u, RWA %u; IOP's flags %X, %X", now[0], now[1], now[2],
+                  now[3], now[4], now[5], now[6]);
+    NoteMusic(text);
+}
+
+/* While RenderWare Audio's stream gets ready (its state 4, a few frames as
+   a song starts - the hang's state): how its feeder goes (the list at the
+   stream's +0x124, the feeder 4 before its node): +0x38 the piece of the
+   song it is at (0x14 bytes each), the room, +0x44 the blocks sent for the
+   SPU, +0xA8 the next, +0x8C its flags, and the one block in flight (gp
+   -0x597C: 0x46 sent, its answer not yet in). */
+/* The music's feeder (WatchFeeder) as RenderWare Audio's tick looks at it:
+   0x002ACC70 the room in its SPU ring (in blocks), 0x002ACBD0 whether a
+   block is in flight (any stream's: then it sends none). Counted: a stream
+   stuck getting ready tells being held back (blocked) from never ticked. */
+struct FeederCounts {
+    u32 feeder = 0, room = 0;
+    u64 ticks = 0, blocked = 0;
+} g_feeder;
+
+void FeederRoom(lifted::Context& c) {
+    const u32 feeder = u32(c.r[4]);
+    F_002ACC70(c);
+    if (feeder == g_feeder.feeder) g_feeder.room = u32(c.r[2]);
+}
+
+void FeederBlocked(lifted::Context& c) {
+    const u32 feeder = u32(c.r[4]);
+    F_002ACBD0(c);
+    if (feeder == g_feeder.feeder) {
+        ++g_feeder.ticks;
+        if (u32(c.r[2])) ++g_feeder.blocked;
+    }
+}
+
+u32 MusicFeeder() {
+    const u32 music = 0x01E7A888u, handle = u32(generated::ReadU32(music + 0xC0u));
+    const u32 stream = handle ? u32(generated::ReadU32(handle + 0x1CCu)) : 0;
+    if (!stream) return 0;
+    const u32 node = u32(generated::ReadU32(stream + 0x124u));
+    return node == stream + 0x124u ? 0 : node - 4;
+}
+
+void WatchFeeder() {
+    const u32 music = 0x01E7A888u, handle = u32(generated::ReadU32(music + 0xC0u));
+    const u32 stream = handle ? u32(generated::ReadU32(handle + 0x1CCu)) : 0;
+    const u32 feeder = MusicFeeder();
+    if (feeder != g_feeder.feeder) g_feeder = {feeder};
+    if (!feeder || generated::ReadU32(stream + 0x24Cu) != 4) return;
+    const u32 read = u32(generated::ReadU32(feeder + 0x38u));
+    const u32 now[6] = {read, g_feeder.room, u32(generated::ReadU32(feeder + 0x44u)),
+                        u32(generated::ReadU32(feeder + 0xA8u)), u32(generated::ReadU32(feeder + 0x8Cu)),
+                        u32(generated::ReadU32(0x004E8670u - 0x597Cu))};
+    static u32 before[6] = {~0u};
+    if (std::memcmp(now, before, sizeof now) == 0) return;
+    std::memcpy(before, now, sizeof now);
+    char text[112];
+    std::snprintf(text, sizeof text, "  feeder %08X: read %08X, sent %u, next %u, flags %X, one in flight %u, room %u",
+                  feeder, now[0], now[2], now[3], now[4], now[5], g_feeder.room);
+    NoteMusic(text);
+}
+
 void SayAudio();
 
 /* The EE's 32 MB and the IOP's 2 MB of memory, as they are, to two files
@@ -246,10 +371,11 @@ void SaveMemories(const char* ee, const char* iop) {
 
 /* 0x003FB0F0(music, 1): the EA Trax player's step - from the frontend's
    load (0x00131480, phase 10, returning to 0x001316D0) until it says the
-   music has started. Its stream (RenderWare Audio's) has been seen to wait
-   for ever for the last track's to stop (the IOP's state 4, after a
-   finished race went on to the next event, at 120 pictures a second) - the
-   loading screen with it. Given up after 3 s: the load goes on, without the
+   music has started. Its stream (RenderWare Audio's) has been seen to stay
+   getting ready for ever (state 4: asked for 3, it fills its SPU ring
+   before it can play - 2 -> 3 -> 4 -> 5 -> 6 in a song's start; its
+   feeder sent nothing), after a finished race went on to the next event,
+   at 120 and 144 pictures a second - the loading screen with it. Given up after 3 s: the load goes on, without the
    music for now, and what RenderWare Audio said last goes to the log. */
 void MusicStart(lifted::Context& c) {
     // The loads that wait for it: the frontend's (0x00131480, phase 10) and a
@@ -257,7 +383,7 @@ void MusicStart(lifted::Context& c) {
     // manager (0x00289EE0, 0x01E77540, state 24), which waits for this
     // (seen 2026-10-22: the infinite loading screen again, from here).
     // Any other caller too (the screen after a race, a car unlocked, waited
-    // so as well), while the stream is stuck stopping (state 4).
+    // so as well), while the stream is stuck getting ready (state 4).
     static std::map<u32, u64> waiting_since;
     const u32 from = u32(c.r[31]);
     const u32 music = u32(c.r[4]);
@@ -312,6 +438,16 @@ void SayAudio() {
                          static_cast<unsigned long long>(r.last));
         std::fprintf(stderr, "\n");
     }
+    std::fprintf(stderr, "  the music's timeline (frame, ms):\n");
+    for (size_t k = 0; k < g_music_notes.size(); ++k) {
+        const MusicNote& n = g_music_notes[(g_music_next + k) % g_music_notes.size()];
+        if (!n.frame) continue;
+        std::fprintf(stderr, "  %8llu %10llu  %s\n", static_cast<unsigned long long>(n.frame),
+                     static_cast<unsigned long long>(n.us / 1000), n.text);
+    }
+    std::fprintf(stderr, "  the music's feeder %08X: ticked %llu times, %llu of them held back by a block in flight; room "
+                 "%u\n", g_feeder.feeder, static_cast<unsigned long long>(g_feeder.ticks),
+                 static_cast<unsigned long long>(g_feeder.blocked), g_feeder.room);
     for (const auto& [type, count] : g_rwa_answer_types)
         std::fprintf(stderr, "  answers of type %08X: %llu\n", type, static_cast<unsigned long long>(count));
     for (const auto& [type, count] : g_rwa_command_types)
@@ -1580,6 +1716,9 @@ void RegisterGameOverrides() {
     ps2host::Override(0x001F2408u, WaitsForInterrupt<F_001F2408>, "RenderWare's packet wait: asleep in real time");
     ps2host::Override(0x002AF340u, RwaAnswer, "RenderWare Audio's answers: a dropped one said, the last kept");
     ps2host::Override(0x002AEFC0u, RwaCommand, "RenderWare Audio's commands: the last kept");
+    ps2host::Override(0x002A2C90u, RwaStreamAsk, "RenderWare Audio's stream asked into a state: the music's timeline");
+    ps2host::Override(0x002ACC70u, FeederRoom, "RenderWare Audio's feeder: the music's room kept");
+    ps2host::Override(0x002ACBD0u, FeederBlocked, "RenderWare Audio's feeder: the music's held back counted");
     ps2host::Override(0x003FB0F0u, MusicStart, "the EA Trax player's step: a load's wait for its start given up after 3 s");
     ps2host::Override(0x00228040u, PacketWaitTurn, "the packet wait's turn: asleep until an event in real time");
     ps2host::Override(0x001156C0u, KernelStore, "kernel-mode store");
@@ -1606,6 +1745,8 @@ void RegisterGameOverrides() {
    looked at. Only where that wait is (the jal to WaitSema's stub), should
    the module ever load elsewhere. */
 void MusicWatchdog() {
+    WatchMusic();
+    WatchFeeder();
     static u64 last = 0;
     const u64 blank = ps2host::FrameNumber();
     if (blank - last < 60) return;
