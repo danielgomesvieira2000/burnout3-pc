@@ -1689,3 +1689,36 @@ Left: in the pile-up, long thin lines across the screen by the truck (its
 skid marks or tyre trail - strips that move their vertices along, or
 triangles whose far corners off the screen swing), and the cost (3.4-6.6 ms
 a picture now). Then the live picture (1b).
+
+### Option 2: the thin lines (2026-10-30, later)
+
+The lines across the pile-up's road (picture 9, the made stream's trace:
+three triangles from x -1500 to +490 that the real stream does not have)
+were strips reaching far off the screen on both sides (x -1710 and +2356,
+a road's line) whose far ends swapped places between the pictures: off the
+screen in both, they passed the jump test (the screen only) and the motion
+test (the vertices on it only); blended, a corner crossed the screen.
+- A vertex off the screen in both pictures but on its other side, in front
+  of the camera both times (Q > 0: behind it, the projection itself throws a
+  vertex over - the road under the car), keeps the newer's place; the rest
+  of its packet blends. (As a jump of the whole packet instead: the race
+  stepped 16-17% of its vertices, not 8%.)
+- Vertices with their Q (ST's third, 1/w) blended in perspective: (x -
+  centre) * w with w, then divided; S and T as the vertex's s = S/Q on the
+  blended Q; Z along Q. Corners near the camera swing on the screen by
+  hundreds of pixels as w nears 0 - linear on the screen they were wrong.
+- Tried, dropped: an off-screen vertex jumping past half (or all) of its
+  way from the screen - the race stepped 18-19%.
+
+| | blended | stepped | strays |
+|---|---|---|---|
+| race | 84% | 8% | 0.021% (from 0.043) |
+| pile-up | 84% | 10% | 0.30% (from 0.38; picture 9 4,840 -> 1,697) |
+| explosion | 95% | 1% | 0.049% |
+
+What the measure still marks is mostly the edges of fast-moving things
+(the camera swings 30+ pixels a picture: past the 9x9 envelope) - the
+pile-up's picture 13 marks a lamp post's and buildings' outlines and is
+clean to the eye; left by eye: faint hairlines across the road by the
+truck, a traffic light's glow brighter. Next: the cost (3.4-6.6 ms a
+picture), then the live picture (1b).
