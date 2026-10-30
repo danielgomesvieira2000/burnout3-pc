@@ -1601,3 +1601,31 @@ on average): the speed blur reads the picture before, which was the made
 one - step 2 (the targets put back) is needed, as sketched. Open: the race's
 jumped packets (10% of its vertices: some vertex moving 256 pixels or more -
 off-screen ones in the guard band, likely) are shown as the newer's.
+
+### Option 2, step 1a corrected (2026-10-30, later)
+
+**The pictures above were the wrong ones.** Burnout draws a frame into 0x46
+and copies it to the displayed buffer (0) in the next blank - at the start
+of the next frame's GS input - so a replay's capture after a stream shows
+the drawing of the stream before it. In a blended replay the capture after a
+made picture's stream is the real picture before it (0.05-0.33 levels from
+the plain replay's), and the made picture is the capture after the next real
+stream. So: the real pictures are not changed by the made ones (0.04-0.32,
+one picture 1.06) - step 2 (targets put back) may not be needed; and the
+made pictures, looked at rightly (plain k, made, plain k+1), are between
+their neighbours but not clean:
+- the race: right (the fence post halfway), a small sliver at the bottom.
+- the pile-up: a bright vertical strip where the white car comes into the
+  picture from the bottom left (found in pass 127 of the made stream with
+  `PS2HOST_GPU_DUMP_FRAME`: a strip textured with the HUD's "BR" letters,
+  stretched up the screen) - present with every kind of packet hidden in
+  turn (`PS2HOST_BLEND_HIDE`: 1 not matched, 2 jumped, 4 blended, 8 still),
+  so not simply a pairing of two things; not yet understood.
+Tried for it, no good: blending only under a state packet that matched and
+was the same (the race and the explosion lost 36-50% of their vertices:
+their state changes picture to picture), and a jump relative to a packet's
+size (16 pixels and half its side: 73-78% blended, the strip still there).
+Kept: a vertex packet whose A+D or PRIM among its vertices differs is the
+newer's. Blended 86% / 89% / 96% of vertices (race, pile-up, explosion),
+~2 ms. Next: the strip (which packets draw it - a dump of the made stream's
+primitives over that rectangle), then the live picture (1b).
