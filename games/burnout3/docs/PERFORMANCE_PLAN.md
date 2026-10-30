@@ -1484,3 +1484,11 @@ longest 6.4 ms, `PS2HOST_PIPELINE_LOG`), not the 4,096-texture count
 worker 0.06 s, the EE 0.22 s waiting in 25 s), so they were left as they
 are; catching it needs the renderer thread's work on the timeline or a
 stack taken when the GS thread is busy over a second.
+
+**Option 1, native VU1 code (Burn3's idea), measured (2026-10-30).** The
+hottest loop by pairs of 2678EB26:1548 (0x08E0, the strip vertices) written
+natively and called from the compiled block: exact (every snapshot's hash),
+but no faster - the compiled loop already runs at ~0.26 ns a pair, a quarter
+of the program's average, and is ~4% of the VU work, not the 6% its pairs
+suggested. The program's time is in branchy code spread over dozens of
+blocks. Dropped; details in engine docs/VU_RECOMPILER.md.
