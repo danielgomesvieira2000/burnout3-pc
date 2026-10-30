@@ -1629,3 +1629,29 @@ Kept: a vertex packet whose A+D or PRIM among its vertices differs is the
 newer's. Blended 86% / 89% / 96% of vertices (race, pile-up, explosion),
 ~2 ms. Next: the strip (which packets draw it - a dump of the made stream's
 primitives over that rectangle), then the live picture (1b).
+
+### Option 2: the strip found and gone (2026-10-30, later)
+
+Found with `PS2HOST_GPU_DUMP_FRAME` (the made stream's passes against the
+real one's: first in pass 127), the GS trace (no full-screen column sprite
+differs) and `PS2HOST_BLEND_HIDE` looked at closely (zoomed): a piece of the
+road with no match, cut anew by VU1's clipper at the screen's left edge,
+drawn where it was in the newer picture while the road round it was
+blended - its texture (the crossing's stripes) out of line. Also behind it:
+large polygons near the camera counted as jumps by off-screen corners
+swinging thousands of pixels. Three changes in gs_blend:
+- only a vertex on the screen (64 pixels round, from XYOFFSET) can jump;
+- a packet with no match is *carried*: moved back `t` of the way along the
+  affine map (least squares, newer to older) of the nearest blended packet
+  within four in the list - mostly the same mesh's next piece;
+- a matched packet whose vertices' moves are not one affine motion (to 4
+  pixels or a quarter of the mean move) is *loose* - the clipper cut it at
+  other points with as many vertices, its texture coordinates blended across
+  the texture - and is carried the same way.
+Blended: race 82-86% of vertices plus ~150 packets carried, pile-up 93-94%
+plus ~125, explosion 94% plus ~87. The pile-up's strip is gone (picture 8);
+picture 12 keeps a small bright patch above the white car coming in, thin
+seams remain here and there; the race is right. The real pictures still as
+a plain replay's (0.05-1.7 levels). The time grew to 3.2-4.5 ms a picture
+(the motion test's vectors a packet: to be made cheaper). Next: the bright
+patch, the seams, the time back to ~1-2 ms; then the live picture (1b).
