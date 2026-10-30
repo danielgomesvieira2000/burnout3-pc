@@ -1432,3 +1432,28 @@ the Intel GPU) with `BIN=` b3_night_before_np.exe and b3_night_after_np.exe
 The profile-guided build of tonight's code (the old profile) on the VU
 benches against the night's first: crash 40.5 -> 39.5 ms, pile-up 41.4 ->
 37.8, race 35.8 -> 35.1; the pile-up's GS replay ~43.5 M cycles a pass.
+
+**With the GPUs back (2026-10-30, after a reboot).** GPU regressions on
+tonight's build: car_select 44/44, race_training 55/55, race 67/67. The
+crash's pile-up on two cores without hyperthreading (`PS2HOST_CORES=0x5`,
+the Intel GPU, the PS2's resolution, real time from 12,500, frames
+12,900-14,400), both builds without the profile, run alternately (the
+first run after the reboot, 3.8 s held on a cold pipeline cache, left out):
+
+| | dropped | late in 1,500 | VIF1 worker busy | GS thread busy |
+|---|---|---|---|---|
+| before the night | 2, 0 | 12, 4 | 40.4%, 36.0% | 37.0%, 39.4% |
+| after | 0, 0, 0 | 4, 7, 3 | 37.2%, 33.4%, 33.8% | 36.2%, 35.8%, 36.8% |
+
+About 9% off the VIF1 worker (VU1 and the unpacking) and 5% off the GS
+thread, and fewer late pictures.
+
+**The dropped tries, added up.** Each was dropped because it measured no
+change or worse, so together they add nothing: the ones that measured
+nothing stay nothing, the ones that measured worse (+2.5%, +3%, the
+clamp-free and clean-edge versions +5-12%) would subtract. The one mixed
+(stalls settled by the generator: pile-up -3%, race +1-4%) nets about
+zero. The unbuilt estimates are the headroom: VF in host registers ~4%,
+steady-state loops ~3-5%, SIMD across iterations ~5-7% of VU1 - they cut
+the same loads and checks, so perhaps 10-12% of VU1 together, a few
+percent of a two-core machine's frame.
