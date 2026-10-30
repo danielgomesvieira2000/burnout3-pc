@@ -1741,3 +1741,39 @@ packets 3-4 -> 1.4-1.8 ms. No vector made a packet (kept, thread_local).
 
 The copy is the replay's (the newer picture whole, textures and all); the
 live one copies the vertex packets only. Next: the live picture (1b).
+
+### Option 2, step 1b: live, and measured against the 120 we have (2026-10-30)
+
+Built (engine, behind `PS2HOST_GS_BETWEEN=1`; off, nothing changes - GPU
+regressions car_select 44/44, race_training as recorded): each frame's GS
+input kept (Gs::KeepInput); at its end the frame's copy to the shown buffer
+(the input up to its first FRAME set elsewhere: GsFrameCut) played and the
+picture held (Display::HoldImage), the picture between made, its known
+image transfers left out (DropKnownUploads: ~85% of ~590 a picture - ~15%
+go to texture memory used again within the picture and stay), played, the
+copy played again (the game's own trail blend), presented half a frame
+before the held one; the GS's registers put back (Gs::Save/Restore). The
+game stays at 60; 119.9 presents a second on all cores, 14 late in 3,600.
+
+But on two cores it loses to the 120 we have (the game drawing each picture
+between itself), the crash's pile-up, two runs each:
+
+| two cores | pictures between from the GS input | the game's own 120 |
+|---|---|---|
+| Intel UHD | ~97 presents/s, 173 dropped, 179 late; GS thread 100% busy | 120/s, 12 dropped, 45 late; GS 59% |
+| RTX 4070 | ~104/s, 62 dropped, 275 late, 418 blanks lost; GS 100% | 120/s, 0 dropped, 6 late; GS 43% |
+
+Why: a picture between costs the GS thread about what a real one does (its
+decoding and the bridge, plus the ~2-3 ms blend) and all of it lands on the
+GS thread, the one already fullest; the game's own 120 spreads its extra
+picture over the EE, VIF1's worker and the GS thread. And VIF1's worker
+spins (yield) while the GS thread is full: 53-62% of a core on two cores,
+taken from the GS thread. The saving it was for (no VU1, no EE draw for the
+picture between) is real (~0.3 cores on all cores) but on two cores the GS
+thread is the wall.
+
+What would make it pay: the picture between made after the bridge - the
+renderer's records blended, no GIF decoding and no bridge for it (the
+sketch's later stage) - or on a thread of its own. Neither is small. Kept
+as built, off. The cheap lever found on the way: VIF1's worker's spinning
+wait for room in the GS ring (both modes, on two cores).
