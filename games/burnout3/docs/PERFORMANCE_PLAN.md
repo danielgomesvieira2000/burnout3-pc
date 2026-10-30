@@ -1655,3 +1655,37 @@ seams remain here and there; the race is right. The real pictures still as
 a plain replay's (0.05-1.7 levels). The time grew to 3.2-4.5 ms a picture
 (the motion test's vectors a packet: to be made cheaper). Next: the bright
 patch, the seams, the time back to ~1-2 ms; then the live picture (1b).
+
+### Option 2: the patch and the edges (2026-10-30, later)
+
+A measure first: `artifacts.py` (session scratchpad) counts the pixels of
+each made picture more than 40 levels outside the envelope of its two
+neighbours (their min and max over 9x9) - what a picture between them should
+not have. Before this round: race 0.35%, pile-up 1.35%, explosion 0.29% of
+the made pictures' pixels. It favours stepping (the newer picture is always
+inside), so the share of vertices left unblended is kept beside it.
+
+What was found, each by pass dumps, the trace and PS2HOST_BLEND_HIDE:
+- a carried packet moved by a neighbour that was another thing: carried only
+  by a neighbour under the same state, the nearest on the screen within
+  eight, and only where it lies within that one's box widened by its own
+  size (an affine map taken past its points threw pavement over the kerb).
+  Race 0.35 -> 0.044%, explosion 0.29 -> 0.11%, pile-up 1.35 -> 0.92%.
+- the older's packets with no match added, moved forward (for the edges):
+  no better by the measure, kept (`PS2HOST_BLEND_HIDE=32` leaves them out).
+- the patch and the white blocks at the left edge: the white car coming in
+  fast at the corner, its pieces blended, carried, loose and new together -
+  torn over the road (pass 128 of the made stream). A thing (a run of vertex
+  packets under one state) with under 70% of its vertices blended or still
+  is now the newer's whole (`PS2HOST_BLEND_SNAP`, percent):
+
+| need | race: strays (stepped) | pile-up | explosion |
+|---|---|---|---|
+| 0 | 0.052% (0%) | 0.97% (0%) | 0.11% (0%) |
+| 70 (kept) | 0.043% (8%) | 0.38% (10%) | 0.049% (1%) |
+| 90 | 0.004% (41%) | 0.27% (50%) | 0.043% (9%) |
+
+Left: in the pile-up, long thin lines across the screen by the truck (its
+skid marks or tyre trail - strips that move their vertices along, or
+triangles whose far corners off the screen swing), and the cost (3.4-6.6 ms
+a picture now). Then the live picture (1b).
