@@ -1403,7 +1403,9 @@ between two builds.
 **Tried, dropped:** VU stalls settled by the generator (~1%, mixed), the
 run's state as the blocks' arguments (+2.5%), DIV/SQRT results uncleaned
 (no change), OnDraw's slow path in a function of its own (+3%: the fast
-path's own vector work keeps its frame). Details in engine
+path's own vector work keeps its frame), a CLUT load the model made
+itself left out of the bridge's mutations when its entries and rows were
+as before (GS thread the same: 47.1 against 47.2 M cycles). Details in engine
 docs/VU_RECOMPILER.md.
 
 **Burn3** (github.com/UwUCammie/Burn3, read 2026-10-29): despite "no EE or
