@@ -1825,3 +1825,34 @@ and the integrated GPU. Splitscreen does not: two views are twice the
 drawing - at 120 the GS thread 91% and VIF1's worker 76% busy - and even at
 60 two cores are at their edge there (40 dropped in one run). Splitscreen on
 two cores is the weak machine's limit now.
+
+### Splitscreen at 60 on two cores: the stalls of seconds found (2026-10-30)
+
+Splitscreen at 60 on two cores (0x5) and the Intel UHD ran clean but now and
+then stopped dead: 1 run in 4 had a stall (1.75 s here; 4 s twice before in
+the pile-up) - the GS thread "busy" with no span of its own, VIF1's worker
+and the EE waiting for it, 99 blanks lost.
+
+Caught with a new watchdog (`PS2HOST_STALL_WATCH=<ms>`, profile.cpp: while
+the GS thread has been on one batch longer than that, its and the renderer's
+stacks taken, named, 40 frames deep): the GS thread in VulkanDisplay::
+BeginPresent <- PresentImage <- PresentWaiting - the *unpaced* present
+(Burnout's default: frame pacing off), done on the GS thread itself, waiting
+for the swapchain without a bound. A hiccup of the compositor's or the
+driver's held the whole game.
+
+Fixed: PresentImage's waits for its slot and for the swapchain's image are
+bounded (25 ms; past it the picture is not shown, the GS thread goes on); the
+display thread's (paced) waits stay unbounded. `PS2HOST_PRESENT_WAIT_LOG=1`
+logs any of BeginPresent's waits over 100 ms. Tried first and dropped:
+presenting unpaced pictures through the display's thread, due at once - no
+stalls, but without the swapchain's back-pressure the pile-up at 120 fell to
+60 twice (69 of 240 late), where the blocking present held it.
+
+Splitscreen at 60, two cores, the Intel UHD, four runs after it: 0 dropped,
+6-12 late in 3,000, longest 31-46 ms; no stall and no slow present wait
+after real time began. (Four more runs with the first variant: 0 stalls.)
+The pile-up at 120 holds as before (median 8.27 ms, 10-21 late). GPU
+regressions as recorded. (The watchdog's catches in the virtual-time
+lead-in are not stalls: there the GS thread takes many frames in one batch,
+each present's own vsync wait between them.)
