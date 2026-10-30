@@ -1722,3 +1722,22 @@ pile-up's picture 13 marks a lamp post's and buildings' outlines and is
 clean to the eye; left by eye: faint hairlines across the road by the
 truck, a traffic light's glow brighter. Next: the cost (3.4-6.6 ms a
 picture), then the live picture (1b).
+
+### Option 2: the cost (2026-10-30, later)
+
+Timed by part (the replay's line: copy, align, blend - packets, snap,
+carry, add): the pile-up 7-8 ms a picture, of it the older's unmatched
+packets added 2.2 ms and the packets' blend 3-4 ms. The adding is off now
+(`PS2HOST_BLEND_ADD=1` on): with it off the strays are *fewer* (pile-up
+0.30 -> 0.21%) - it drew things twice. The perspective blend divided per
+vertex where a multiply by the blended Q does, and rounded with lround:
+packets 3-4 -> 1.4-1.8 ms. No vector made a packet (kept, thread_local).
+
+| | strays | blended / stepped | a picture (of it the copy) |
+|---|---|---|---|
+| race | 0.013% | 84% / 8% | 2.6 ms (0.7) |
+| pile-up | 0.21% | 84% / 10% | 3.3-3.7 ms (1.0) |
+| explosion | 0.048% | 95% / 1% | 2.9 ms (0.9) |
+
+The copy is the replay's (the newer picture whole, textures and all); the
+live one copies the vertex packets only. Next: the live picture (1b).
