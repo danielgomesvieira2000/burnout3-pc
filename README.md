@@ -219,7 +219,7 @@ python engine/tools/analyze.py --game games/burnout3
 python engine/tools/derive.py  --game games/burnout3 --emit --csv
 python engine/tools/lift.py    --game games/burnout3 --structure --emit --csv
 python engine/tools/port.py    --game games/burnout3 build
-python games/burnout3/port/tools/package.py        # the release zip
+python engine/tools/package.py --game games/burnout3   # the release zip
 ```
 
 For full speed, record the game's VU microprograms once and build again - they

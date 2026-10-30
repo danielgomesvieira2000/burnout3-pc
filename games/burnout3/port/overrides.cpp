@@ -24,6 +24,7 @@
 
 #include "controls.h"
 #include "gpu_pipelines.h"
+#include "ps2host/hang_report.h"
 #include "ps2host/host.h"
 #include "ps2host/iop_vm.h"
 #include "ps2host/memory.h"
@@ -81,26 +82,6 @@ int ParticlesLevel();
 bool OrbitCameraOn();                  // orbit_camera.cpp
 
 namespace {
-
-/* 0x001156C0, the SDK's kernel-mode store: it disables interrupts, enters kernel
-   mode, stores $a1 at $a0 and returns through `eret` with interrupts restored. The
-   timer-register setters (0x00115730 and its two neighbours) tail-call it. The
-   host has no modes, so the store is all there is to it. */
-void KernelStore(lifted::Context& c) {
-    generated::Write32(u32(c.r[4]), u32(c.r[5]));
-}
-
-/* 0x0010D3E8, the SDK's TTY write over DECI2 (buffer $a0, length $a1): what the
-   game prints with printf. A retail console has no debugger to send it to; the
-   port logs it, since it is the game telling what it is doing. */
-void TtyWrite(lifted::Context& c) {
-    const u32 buffer = u32(c.r[4]), length = u32(c.r[5]);
-    std::string text;
-    for (u32 i = 0; i < length && i < 4096; ++i) text += char(generated::ReadU8(buffer + i));
-    while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) text.pop_back();
-    if (!text.empty()) std::fprintf(stderr, "[tty] %s\n", text.c_str());
-    c.r[2] = length;
-}
 
 /* libmc2's command handlers (FINDINGS: "Memory cards"): with --memcard the
    host's card answers them (ps2host/mc2.h); without one the game's own run,
@@ -357,18 +338,6 @@ void SayAudio();
 
 /* The EE's 32 MB and the IOP's 2 MB of memory, as they are, to two files
    beside the log (for looking into a hang afterwards). */
-void SaveMemories(const char* ee, const char* iop) {
-    ps2host::Memory& m = ps2host::GuestMemory();
-    if (std::FILE* f = std::fopen(ee, "wb")) {
-        std::fwrite(m.rdram(), 1, ps2host::kRdramSize, f);
-        std::fclose(f);
-    }
-    if (std::FILE* f = std::fopen(iop, "wb")) {
-        std::fwrite(m.Translate(ps2host::kIopRamBase, ps2host::kIopRamSize), 1, ps2host::kIopRamSize, f);
-        std::fclose(f);
-    }
-}
-
 /* 0x003FB0F0(music, 1): the EA Trax player's step - from the frontend's
    load (0x00131480, phase 10, returning to 0x001316D0) until it says the
    music has started. Its stream (RenderWare Audio's) has been seen to stay
@@ -414,7 +383,7 @@ void MusicStart(lifted::Context& c) {
     if (!saved) {
         saved = true;
         std::fprintf(stderr, "%s%s", ps2host::ThreadReport().c_str(), ps2host::iop::Report().c_str());
-        SaveMemories("music_ee.bin", "music_iop.bin");
+        ps2host::SaveMemories("music_ee.bin", "music_iop.bin");
     }
     std::fflush(stderr);
 }
@@ -472,62 +441,10 @@ void WaitsForInterrupt(lifted::Context& c) {
    blanks - and the loading screen's spinner, the music - keep their pace.
    A race's load 6.3 s -> 2.6 s, the boot's 5.9 s -> 2.4 s (what is left is
    mostly the race's sound streams, which fill as the sound plays).
-   PS2HOST_LOAD_SPEED=1: a step a frame, as the console. */
-/* A load that has not finished in 20 s (the infinite loading screen, #16,
-   seen again after the EA Trax wait's way out): once, to the log, what the
-   threads and RenderWare Audio are doing, and the EE's and IOP's memories
-   beside it (stuck_ee.bin, stuck_iop.bin) - for finding what it waits on. */
-void StuckLoad(u32 load, u32 caller) {
-    std::fprintf(stderr, "[load] 0x%08X (from 0x%08X) not done after 20 s, frame %llu: the threads, RenderWare Audio "
-                 "and stuck_ee.bin / stuck_iop.bin beside the log\n%s%s",
-                 load, caller, static_cast<unsigned long long>(ps2host::FrameNumber()), ps2host::ThreadReport().c_str(),
-                 ps2host::iop::Report().c_str());
-    SayAudio();
-    SaveMemories("stuck_ee.bin", "stuck_iop.bin");
-    std::fflush(stderr);
-}
-
-/* F12 (a capture): also the threads, RenderWare Audio's last words, the
-   SPU2's interrupts (report.txt) and both memories (ee.bin, iop.bin) in its
-   folder - any hang looked into from the moment the player saw it. */
-void CaptureHang(const std::string& dir) {
-    std::fprintf(stderr, "[capture] the threads, the sound and both memories too\n%s%s",
-                 ps2host::ThreadReport().c_str(), ps2host::iop::Report().c_str());
-    SayAudio();
-    std::fflush(stderr);
-    SaveMemories((dir + "/ee.bin").c_str(), (dir + "/iop.bin").c_str());
-}
-
-template <void (*Load)(lifted::Context&), u32 kAddress>
-void FastLoading(lifted::Context& c) {
-    static const bool console = [] {
-        const char* speed = std::getenv("PS2HOST_LOAD_SPEED");
-        return speed && std::atoi(speed) <= 1;
-    }();
-    static u64 waiting_since = 0;
-    static bool said = false;
-    constexpr u64 kStepsNs = 8'000'000;         // half a frame
-    const u32 caller = u32(c.r[31]);
-    u64 args[32];
-    std::memcpy(args, c.r, sizeof args);
-    const u64 from = ps2host::ClockNs();
-    Load(c);
-    if (!console)
-        while (!u32(c.r[2]) && !ps2host::BlankDue() && ps2host::ClockNs() - from < kStepsNs &&
-               ps2host::RunIopBetweenSteps()) {
-            std::memcpy(c.r, args, sizeof args);
-            Load(c);
-        }
-    if (u32(c.r[2])) {
-        waiting_since = 0;
-        said = false;
-    } else if (!waiting_since) {
-        waiting_since = from;
-    } else if (!said && from - waiting_since > 20'000'000'000ull) {
-        said = true;
-        StuckLoad(kAddress, caller);
-    }
-}
+   PS2HOST_LOAD_SPEED=1: a step a frame, as the console. (ps2host::FastLoading:
+   ps2host/hang_report.h; a load unfinished after 20 s - the infinite loading
+   screen, #16 - says what the threads and RenderWare Audio are doing, with
+   the memories beside it, stuck_ee.bin and stuck_iop.bin.) */
 
 // ------------------------------------------------------------ PC SETTINGS
 //
@@ -1669,7 +1586,9 @@ void RegisterGameOverrides() {
     // VU does (regress.py --vu-fast), for ~15% less of VIF1's worker - the
     // busiest thread on a slow machine.
     ps2host::SetVuFastDefault(true);
-    ps2host::SetCaptureHook(CaptureHang);
+    // F12 and a stuck load: RenderWare Audio's last words in the hang report.
+    ps2host::SetHangReportExtra(SayAudio);
+    ps2host::EnableCaptureHangReport();
     // Frame pacing off (no PC SETTINGS row): the least delay; frame_pacing=on
     // in the settings file still turns it on.
     ps2host::SetFramePacingDefault(false);
@@ -1721,11 +1640,9 @@ void RegisterGameOverrides() {
     ps2host::Override(0x002ACBD0u, FeederBlocked, "RenderWare Audio's feeder: the music's held back counted");
     ps2host::Override(0x003FB0F0u, MusicStart, "the EA Trax player's step: a load's wait for its start given up after 3 s");
     ps2host::Override(0x00228040u, PacketWaitTurn, "the packet wait's turn: asleep until an event in real time");
-    ps2host::Override(0x001156C0u, KernelStore, "kernel-mode store");
-    ps2host::Override(0x0010D3E8u, TtyWrite, "TTY write (printf)");
     ps2host::Override(0x001313C0u, SkipMovie, "a movie screen's update: Start skips the movie");
-    ps2host::Override(0x0019A950u, FastLoading<F_0019A950, 0x0019A950u>, "a race's loading: fast-forwarded while it waits");
-    ps2host::Override(0x001322B0u, FastLoading<F_001322B0, 0x001322B0u>, "the game's loading: fast-forwarded while it waits");
+    ps2host::Override(0x0019A950u, ps2host::FastLoading<F_0019A950, 0x0019A950u>, "a race's loading: fast-forwarded while it waits");
+    ps2host::Override(0x001322B0u, ps2host::FastLoading<F_001322B0, 0x001322B0u>, "the game's loading: fast-forwarded while it waits");
     ps2host::Override(0x00271A00u, GetString, "the string lookup: PC SETTINGS' words");
     ps2host::Override(0x003181E0u, MainMenuInput, "the main menu's input: PC SETTINGS, QUIT GAME");
     ps2host::Override(0x00318100u, MainMenu, "the main menu: QUIT GAME's message box");
@@ -1768,7 +1685,7 @@ void MusicWatchdog() {
         static bool saved = false;
         if (!saved) {
             saved = true;
-            SaveMemories("stall_ee.bin", "stall_iop.bin");
+            ps2host::SaveMemories("stall_ee.bin", "stall_iop.bin");
         }
         static int times = 0;
         if (++times <= 20)

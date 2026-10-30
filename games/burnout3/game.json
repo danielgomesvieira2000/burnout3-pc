@@ -17,5 +17,12 @@
   },
   "pgo_runs": ["race", "splitscreen", "car_select", "crash", "road_rage", "race_modern"],
   "pgo_env": {"race_modern": {"PS2HOST_TEXTURE_PACK": "{game}/../../replacements"}},
-  "lto": true
+  "lto": true,
+  "release": {
+    "name": "Burnout3-PC",
+    "extras": {
+      "texture pack/README.txt": "port/release/texture_pack_README.txt",
+      "custom_songs/README.txt": "port/release/custom_songs_README.txt"
+    }
+  }
 }

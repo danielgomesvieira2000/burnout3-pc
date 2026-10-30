@@ -245,7 +245,7 @@ last runs' list (after a shader change it took 12.8 s on the Intel UHD,
 the worker has them in the background). A cold driver takes 0.3-0.7 s a
 pipeline, so a player's first run would make them as the race meets them:
 the port gives the engine the 118 keys its scripted runs draw with
-(`port/gpu_pipelines.h`, `tools/make_pipeline_hints.py`), made during the
+(`port/gpu_pipelines.h`, `engine/tools/make_pipeline_hints.py`), made during the
 boot - from an empty cache, one pipeline made on the GS thread (at start),
 the rest ready 0.6 s in.
 
