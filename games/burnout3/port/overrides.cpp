@@ -1610,9 +1610,17 @@ void MusicWatchdog() {
     const u64 blank = ps2host::FrameNumber();
     if (blank - last < 60) return;
     last = blank;
+    static bool said = false;
     const u8* at = ps2host::GuestMemory().Translate(ps2host::kIopRamBase + 0x00014848u, 4);
     if (!at || at[0] != 0xF4 || at[1] != 0x62 || at[2] != 0x00 || at[3] != 0x0C) return;     // jal 0x00018BD0
-    if (const int woken = ps2host::iop::WakeLongWaiters(0x00014850u, 2'000'000)) {
+    if (!said) {
+        said = true;
+        std::fprintf(stderr, "[music] the stream threads' watchdog is on (RenderWare Audio's wait found at 0x00014848)\n");
+    }
+    // PS2HOST_MUSIC_WATCH_US: the wait (microseconds) before a wake (2 s; a test's lower).
+    static const u64 wait_us = std::getenv("PS2HOST_MUSIC_WATCH_US") ? std::strtoull(std::getenv("PS2HOST_MUSIC_WATCH_US"), nullptr, 10)
+                                                                     : 2'000'000ull;
+    if (const int woken = ps2host::iop::WakeLongWaiters(0x00014850u, wait_us)) {
         // The first time, the memories as the stall is (stall_ee.bin,
         // stall_iop.bin beside the log): the streams' objects (+0x44 the
         // buffer waiting, +0x58 the flags, +0x4C the semaphore) as they were.
