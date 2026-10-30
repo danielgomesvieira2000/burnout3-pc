@@ -1457,3 +1457,30 @@ zero. The unbuilt estimates are the headroom: VF in host registers ~4%,
 steady-state loops ~3-5%, SIMD across iterations ~5-7% of VU1 - they cut
 the same loads and checks, so perhaps 10-12% of VU1 together, a few
 percent of a two-core machine's frame.
+
+**Two cores, after the refreshed profile** (same bench, two runs each):
+the default 5 and 1 late, VIF1 31.6-33.0%, GS 31.6-35.0%;
+`PS2HOST_GPU_THREAD=0` 5 and 4 late, the GS thread 49%; `--vif1-sync` 9
+and 5 late. D's thread moves are no better than the threads as they are;
+at 60 two cores without hyperthreading are done (0 dropped, 1-5 late in
+1,500, ~1.1 cores used).
+
+**120 a second on two cores** (`PS2HOST_FRAME_RATE=120`, real time from
+10,600 so the judgement sees play): 17-46 of 240 late, stepped down to
+60 each time. In the 120 stretch the CPU: EE 36-41%, GS 33-41%, VIF1's
+worker 36-40%, the renderer 16-18% (~1.4 cores, with the driver's on top),
+the Intel GPU 61-64% busy; the GS thread is busy 65-79% of the wall time
+on 33-41% of a core - waiting for a core, not for work. Every picture at
+120 is the whole picture again (VU1's transforms, the GS's primitives):
+what would hold 120 here is less per picture, not other threads.
+
+**Open: a 4 s stall, 2 runs in 12** (before1 after the reboot, frame
+~13,830; hf120_1, frame ~13,970 - the same moment of the crash): the GS
+thread "busy" 4.0 s with ~27 ms of it in its own spans, VIF1's worker and
+the EE waiting for it, the process at 1.8 cores - Windows' ~4 s lift of a
+starved thread is the likeliest end of it. Not the pipelines (56 made, the
+longest 6.4 ms, `PS2HOST_PIPELINE_LOG`), not the 4,096-texture count
+(every run reaches it). Normally the spinning waits cost nothing (VIF1's
+worker 0.06 s, the EE 0.22 s waiting in 25 s), so they were left as they
+are; catching it needs the renderer thread's work on the timeline or a
+stack taken when the GS thread is busy over a second.
