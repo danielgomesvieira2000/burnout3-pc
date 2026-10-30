@@ -1492,3 +1492,58 @@ but no faster - the compiled loop already runs at ~0.26 ns a pair, a quarter
 of the program's average, and is ~4% of the VU work, not the 6% its pairs
 suggested. The program's time is in branchy code spread over dozens of
 blocks. Dropped; details in engine docs/VU_RECOMPILER.md.
+
+## Option 2, sketched: in-between pictures made from the GS stream (2026-10-30)
+
+**Now.** At 120 each in-between picture is a whole picture again: the game
+draws with its camera and transforms placed between two steps (high_fps.cpp),
+then VIF1, VU1, the GS thread and the renderer do all of it. Two cores at
+120: EE 36-41%, VU1's worker 36-40%, GS 33-41%, renderer 16-18% - ~1.4
+cores, and late pictures.
+
+**The idea.** The game runs as at 60 (one draw a step). The GS thread's
+input for each real picture - its feed ring's entries, after VU1: the GIF
+packets of PATH1/2/3, the registers, the frame marks - is kept for the last
+two steps. An in-between picture is made from those two, matched and
+blended, and fed to the GS thread like a real one: no game draw, no VIF1, no
+VU1 for it. The engine's display-list blending (display_list.h) does this
+one stage earlier (VIF1 chains), which saves only the EE - not what is full.
+
+**Matching.** Packet by packet in order: the same GIF tag (NLOOP, FLG,
+registers) and the same non-vertex registers (TEX0, ALPHA, TEST, FRAME...)
+are a pair; out of place, the nearest by first vertex (as display_list.cpp
+does for moved segments). In a pair, XYZ (and Z), STQ/UV and fog blended;
+colours, texture and state the newer's. Not matched (VU1's clipper gives
+strips at a screen edge or the near plane another vertex count; sparks that
+came or went): the newer's, unblended. A camera cut (Burnout's crash camera
+shots, replays): the newer picture whole (the step's own rule now).
+
+**What must not change.** Real pictures stay the game's own (at 120 the same
+as at 60 - a new regression check: the real frames of a 120 run against the
+60 recording). An in-between picture changes nothing the game can see: no
+read-backs for the EE, no IMAGE transfers into GS memory it keeps, and the
+persistent targets (the picture the speed blur reads back, the glow's)
+saved before it and put back after (GPU copies), so the next real picture
+starts where the last real one left off.
+
+**Cost, expected.** An in-between picture: the match and blend (a pass over
+~50-100 K words, ~1 ms) plus the GS thread and the renderer. Two cores at
+120: about -0.25 cores (VU1's half of the worker, the game's extra draw) -
+~1.15 cores, near what 60 takes now. A later stage could blend the
+renderer's records instead and save the GS thread's half too (~-0.2 more),
+at the cost of handling texture uploads and target state at that level.
+
+**Latency.** A real picture must be through the GS before the in-between
+before it can be made: on a weak machine the in-between is ready later than
+now; shown at the same times, it may need one more picture of lead.
+
+**Steps, each measured before the next.**
+0. Offline, from two real pictures' GS dumps (crash, race, pile-up): how
+   many packets match, how many words would blend, the matcher's time. Go
+   on only if nearly everything that moves matches.
+1. The feed recorded a step at a time, a blended in-between injected at 120
+   (Burnout only, behind a switch), the game's own in-between draws off.
+   Checked by eye on recorded runs (high_fps_trace.py, frame dumps) and by
+   the 120 run's real frames against the 60 recording.
+2. The persistent targets saved and restored around an in-between.
+3. lowbench at 120 on two cores (the crash, the race), against now.
