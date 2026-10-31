@@ -2,8 +2,9 @@ Burnout 3: Takedown - PC port, version {version}
 =================================================
 
 An unofficial, fan-made native Windows port of Burnout 3: Takedown (PS2,
-NTSC-U). The game's PS2 program was translated to C++ and compiled for the
-PC; it runs on your computer directly, not in an emulator.
+NTSC-U) - with, new and EXPERIMENTAL, a Linux build (Steam Deck too) and an
+Android APK. The game's PS2 program was translated to C++ and compiled for
+the PC; it runs on your computer directly, not in an emulator.
 
 This download contains NO game content. You need your own copy of the
 game: an ISO disc image you made from your own Burnout 3: Takedown disc.
@@ -54,6 +55,9 @@ the screen's own rate (144).
 On Linux
 --------
 
+EXPERIMENTAL in this release: tested in a build machine, not yet on many
+real Linux PCs - tell us how it runs (with burnout3.log).
+
 The linux-x64 download is the same game for Linux on a 64-bit PC:
 
 * A Linux from 2022 or later (glibc 2.35: Ubuntu 22.04, Debian 12,
@@ -66,6 +70,23 @@ The linux-x64 download is the same game for Linux on a 64-bit PC:
   ~/.local/share/burnout3). For choosing the disc image it uses zenity or
   kdialog when there is one; otherwise put the .iso in its folder, or
   start it with --disc <your .iso>.
+
+Steam Deck: unpack it in Desktop Mode (in your home folder), then in Steam
+"Add a Non-Steam Game" and choose burnout3. In the game's Properties, put
+in LAUNCH OPTIONS:  --disc "/home/deck/<folder>/<your .iso>"
+(or start it once in Desktop Mode and choose the disc: it remembers it).
+The Deck's controls work as a controller in Game Mode.
+
+
+On Android
+----------
+
+EXPERIMENTAL in this release. The APK needs Android 10 or later, a 64-bit
+ARM phone or tablet with Vulkan 1.1, and your disc image on the device: the
+first start asks for it in Android's file picker. The on-screen controls
+show and hide with the button at the top; a controller works too. The
+first start prepares the graphics for a while. Phones are not yet at full
+speed: races ran at about 30 frames a second on a Pixel 7 Pro.
 
 
 Controls

@@ -1,7 +1,7 @@
 {
   "name": "Burnout 3: Takedown (NTSC-U)",
   "title": "Burnout 3: Takedown",
-  "version": "0.7.3-alpha",
+  "version": "0.8.0-alpha",
   "android_package": "io.github.danielgomesvieira2000.burnout3",
   "android_label": "Burnout 3",
   "iso": "../../Burnout 3 - Takedown.iso",
