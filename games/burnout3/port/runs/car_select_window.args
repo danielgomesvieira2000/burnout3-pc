@@ -1,0 +1,1 @@
+--window --virtual-time --press up@1200 --press cross@1350 --press start@3700 --press start@3900 --press down@4300 --press cross@4450 --press cross@5000 --press cross@5400 --press up@5800 --press cross@5950 --press cross@6700 --press cross@7300 --press cross@7900 --press cross@8500 --until-frame 8900 --setting graphics=original
