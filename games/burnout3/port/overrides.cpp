@@ -656,6 +656,11 @@ void SetSharpen(int which) { ps2host::SetSetting("sharpen", kModerns[which]); }
 const char* const kAspects[] = {"4:3", "16:9", "auto"};
 int Aspect() { return Among("aspect", kAspects); }
 void SetAspect(int which) { ps2host::SetWindowAspect(kAspects[which]); }
+// RENDERER (the engine's window.cpp): Vulkan, Direct3D 11, or the first that
+// works - from the next start.
+const char* const kRenderers[] = {"auto", "vulkan", "d3d11"};
+int Renderer() { return Among("renderer", kRenderers); }
+void SetRenderer(int which) { ps2host::SetSetting("renderer", kRenderers[which]); }
 const char* const kAntiAliasings[] = {"off", "fxaa", "smaa", "ssaa2"};
 int AntiAliasing() { return Among("antialiasing", kAntiAliasings); }
 void SetAntiAliasing(int which) { ps2host::SetWindowAntiAliasing(kAntiAliasings[which]); }
@@ -708,6 +713,10 @@ const Option kOptions[] = {
      Vrr, SetVrr, {"OFF", "ON"}, 2},
     {Page::kVideo, "GPU BOOST", "THE GPU KEPT CLOCKED UP: NO HITCH AT A NEW SCENE. OFF SAVES BATTERY", GpuBoost, SetGpuBoost,
      {"OFF", "ON"}, 2},
+#ifdef _WIN32
+    {Page::kVideo, "RENDERER", "HOW THE GPU DRAWS: VULKAN, OR DIRECT3D 11 FOR OLDER GPUS. AT THE NEXT START", Renderer,
+     SetRenderer, {"AUTO", "VULKAN", "DIRECT3D 11"}, 3},
+#endif
     {Page::kVideo, "FRAME RATE", "RACES AT 60 PICTURES A SECOND, 120, OR THE SCREEN'S RATE", FrameRate, SetFrameRate,
      {"60", "120", "DISPLAY"}, 3},
     {Page::kVideo, "RESOLUTION", "DRAWN AS THE PS2 DID, TWICE AS SHARP, OR AS SHARP AS THE SCREEN", Resolution,

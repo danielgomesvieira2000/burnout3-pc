@@ -27,8 +27,10 @@ What you need
   processors with AVX2 (Intel Haswell / AMD Ryzen or newer); on one
   without it (Intel Pentium and Celeron before 2021) it starts
   burnout3-sse4.exe, beside it, by itself
-* A graphics card with a Vulkan 1.3 driver (NVIDIA GTX 900 series, AMD
-  RX 400 series, Intel UHD 600 series or newer, with current drivers)
+* A graphics card with a Vulkan 1.2 or Direct3D 11 driver: NVIDIA GTX 600
+  series, AMD HD 7000 series, Intel HD 4000 or newer, with current drivers
+  (Vulkan where the driver has it, Direct3D 11 otherwise: the same
+  pictures)
 * Your own disc image of Burnout 3: Takedown, the North American (NTSC-U)
   release: SLUS-21050. Other regions are not supported yet.
 
@@ -135,7 +137,8 @@ long gone) has four pages and the game's hidden menu (Triangle goes back):
              the heaviest on the GPU), and GPU BOOST (on by default, an
              NVIDIA GPU's: its clocks kept up through menus and loading
              screens, so a race's start does not stutter while it wakes up;
-             OFF saves a laptop's battery)
+             OFF saves a laptop's battery), and RENDERER: AUTO (Vulkan,
+             else Direct3D 11), VULKAN or DIRECT3D 11 - from the next start
   GRAPHICS   how the game looks: PRESET on top (ORIGINAL, the game as it
              was, or MODERN - every row at once; CUSTOM once one is
              changed), then each on its own - MODERN by default (on a
