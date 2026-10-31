@@ -436,7 +436,7 @@ void MovieProbe(lifted::Context& c) {
     if (key != last) {
         char text[128];
         std::snprintf(text, sizeof text, "probe movie %08X from %08X: state %u -> %u, returned %d", movie,
-                      caller, before, generated::ReadU32(movie + 0x2F8), int(s32(c.r[2])));
+                      caller, before, u32(generated::ReadU32(movie + 0x2F8)), int(s32(c.r[2])));
         Log(text);
         last = key;
     }
@@ -595,8 +595,8 @@ std::string RpcState() {
     std::snprintf(text, sizeof text,
                   "tail %u head %u alarms %d/%d | req %08X seq %08X | rep %08X w1 %08X w5 %08X seq %08X", tail, head,
                   int(s32(generated::ReadU32(kRpc + 0x4DF0))), int(s32(generated::ReadU32(kRpc + 0x4DF4))), req,
-                  generated::ReadU32(req + 0x1C), rep, generated::ReadU32(rep + 4), generated::ReadU32(rep + 0x14),
-                  generated::ReadU32(rep + 0x1C));
+                  u32(generated::ReadU32(req + 0x1C)), rep, u32(generated::ReadU32(rep + 4)), u32(generated::ReadU32(rep + 0x14)),
+                  u32(generated::ReadU32(rep + 0x1C)));
     return text;
 }
 
@@ -674,8 +674,8 @@ void MessageProbe(lifted::Context& c) {
         char text[200];
         std::snprintf(text, sizeof text, "probe message type %u code %u reason %u from %08X, stack %08X %08X %08X %08X",
                       u32(c.r[5]), u32(c.r[7]), u32(c.r[8]), u32(c.r[31]),
-                      generated::ReadU32(u32(c.r[29]) + 0x0), generated::ReadU32(u32(c.r[29]) + 0x8),
-                      generated::ReadU32(u32(c.r[29]) + 0x18), generated::ReadU32(u32(c.r[29]) + 0x28));
+                      u32(generated::ReadU32(u32(c.r[29]) + 0x0)), u32(generated::ReadU32(u32(c.r[29]) + 0x8)),
+                      u32(generated::ReadU32(u32(c.r[29]) + 0x18)), u32(generated::ReadU32(u32(c.r[29]) + 0x28)));
         Log(text);
     }
     F_0030F620(c);

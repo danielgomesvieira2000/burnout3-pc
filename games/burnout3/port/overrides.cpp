@@ -130,7 +130,7 @@ void SkipMovie(lifted::Context& c) {
                          unsigned(generated::ReadU8(movie + 0x4F)));
     }
     if (playing && start && !loops) {
-        if (log) std::fprintf(stderr, "[movie] skipped: screen %08X movie %u\n", screen, generated::ReadU32(screen + 0x2FC));
+        if (log) std::fprintf(stderr, "[movie] skipped: screen %08X movie %u\n", screen, u32(generated::ReadU32(screen + 0x2FC)));
         generated::Write8(movie + 0x4A, 1);
     }
     F_001313C0(c);
