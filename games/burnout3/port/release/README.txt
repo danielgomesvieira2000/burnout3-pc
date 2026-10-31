@@ -51,6 +51,23 @@ frames a second show evenly - unless FRAME RATE is DISPLAY: then it keeps
 the screen's own rate (144).
 
 
+On Linux
+--------
+
+The linux-x64 download is the same game for Linux on a 64-bit PC:
+
+* A Linux from 2022 or later (glibc 2.35: Ubuntu 22.04, Debian 12,
+  SteamOS 3, Fedora 36 and later) on a processor with AVX2 (Intel Haswell
+  / AMD Ryzen or newer); X11 or Wayland
+* A Vulkan driver (1.1 or later): Mesa's for AMD and Intel (most
+  distributions have it), NVIDIA's own for NVIDIA
+* Unpack it somewhere you can write to and run ./burnout3. It keeps its
+  saves and settings beside itself (or, where it cannot write there, in
+  ~/.local/share/burnout3). For choosing the disc image it uses zenity or
+  kdialog when there is one; otherwise put the .iso in its folder, or
+  start it with --disc <your .iso>.
+
+
 Controls
 --------
 
