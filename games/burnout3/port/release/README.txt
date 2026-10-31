@@ -27,7 +27,7 @@ What you need
   processors with AVX2 (Intel Haswell / AMD Ryzen or newer); on one
   without it (Intel Pentium and Celeron before 2021) it starts
   burnout3-sse4.exe, beside it, by itself
-* A graphics card with a Vulkan 1.2 or Direct3D 11 driver: NVIDIA GTX 600
+* A graphics card with a Vulkan (1.1 or later) or Direct3D 11 driver: NVIDIA GTX 600
   series, AMD HD 7000 series, Intel HD 4000 or newer, with current drivers
   (Vulkan where the driver has it, Direct3D 11 otherwise: the same
   pictures)
