@@ -38,7 +38,8 @@ and keeps saves and settings in `~/Library/Application Support/Burnout 3 Takedow
 
 Tested by its author on a MacBook Pro with an M1 Max (macOS 26): the intro, the
 menus, creating a profile, races, sound and music, and saving and loading all
-work, at about full speed. Not tried: other Macs, Intel Macs (Apple silicon
+work, at full speed - smooth with the profile-guided build (`macos.py pgo`, below),
+which is also a much smaller program. Not tried: other Macs, Intel Macs (Apple silicon
 only), other macOS versions, LAN play. The keyboard has the same keys as on
 Windows (arrows, X for Cross, C Circle, Z Square, V Triangle, Enter for Start;
 rebindable in PC SETTINGS > CONTROLS), and any controller macOS knows works.
@@ -261,6 +262,7 @@ python3 engine/tools/macos.py --game games/burnout3 all -- --window --gpu --audi
     --memcard games/burnout3/build/memcard --timeout 86400   # build, run, build again until no new code is found
 # record the VU microprograms for full speed (the paragraph above), then:
 python3 engine/tools/macos.py --game games/burnout3 build
+python3 engine/tools/macos.py --game games/burnout3 pgo      # optional, about an hour: a profile-guided build, smoother and smaller
 python3 engine/tools/macos.py --game games/burnout3 app      # "Burnout 3 Takedown.app", in games/burnout3/build/macos/
 ```
 
