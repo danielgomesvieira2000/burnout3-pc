@@ -27,6 +27,25 @@ This is an **alpha**: please report problems in Issues, with the
 wrong, press **F12** at that moment and attach the folder it writes to
 `captures/` beside the executable (it replays the frame exactly).
 
+### On a Mac (Apple silicon)
+
+It runs natively on Apple silicon Macs too (macOS 14.4 or later): built
+with Apple's clang, drawn through MoltenVK, at about full speed. There is no
+download for it yet: you build it on your own Mac from your own disc image
+(below), which makes `Burnout 3 Takedown.app`, a double-clickable app. It
+plays from your disc image - the first launch asks for it and remembers it -
+and keeps saves and settings in `~/Library/Application Support/Burnout 3 Takedown`.
+
+Tested by its author on a MacBook Pro with an M1 Max (macOS 26): the intro, the
+menus, creating a profile, races, sound and music, and saving and loading all
+work, at full speed - smooth with the profile-guided build (`macos.py pgo`, below),
+which is also a much smaller program. Not tried: other Macs, Intel Macs (Apple silicon
+only), other macOS versions, LAN play. The keyboard has the same keys as on
+Windows (arrows, X for Cross, C Circle, Z Square, V Triangle, Enter for Start;
+rebindable in PC SETTINGS > CONTROLS), and any controller macOS knows works.
+The app is signed ad hoc, so it runs on the Mac that made it; moving it to
+another Mac means a right-click, then Open.
+
 ## What it does
 
 - **The whole game, natively**: the PS2 program translated to C++ and
@@ -204,7 +223,7 @@ workflow it follows is in the engine's skills (`engine/.claude/skills`).
 - The World Tour map: pointing with the mouse.
 - The other releases of the game (PAL, NTSC-J).
 - Steering wheel support, with force feedback.
-- Linux, macOS and Android ports.
+- Linux and Android ports.
 
 ## Building it
 
@@ -230,6 +249,33 @@ VU1 about 1.5x slower): run `port/runs/car_select.args` and
 `port/runs/race_training.args` with `--vu-interpret --vu-record
 games/burnout3/build/vu_programs.txt` (the engine's docs/PORTING.md, "VU
 microprograms compiled ahead of time").
+
+### On a Mac
+
+Apple silicon, macOS 14.4+, Xcode's command line tools, Python 3.10+ and
+`brew install cmake ninja molten-vk vulkan-loader` (and `pip3 install pillow`
+for the app's icon). The first three steps are the same as above, with
+`python3`; then, instead of `port.py`:
+
+```sh
+python3 engine/tools/macos.py --game games/burnout3 all -- --window --gpu --audio \
+    --memcard games/burnout3/build/memcard --timeout 86400   # build, run, build again until no new code is found
+# record the VU microprograms for full speed (the paragraph above), then:
+python3 engine/tools/macos.py --game games/burnout3 build
+python3 engine/tools/macos.py --game games/burnout3 pgo      # optional, about an hour: a profile-guided build, smoother and smaller
+python3 engine/tools/macos.py --game games/burnout3 app      # "Burnout 3 Takedown.app", in games/burnout3/build/macos/
+```
+
+`derive` and `lift` take about 22 minutes and an hour and a half on an M1 Max;
+the first build about 5 minutes. The app's icon is the title logo read from
+your disc; `app --icon <your own picture, a file or https URL>` uses a picture
+of yours instead (kept in `build/`, never committed). The engine's
+[docs/MACOS.md](https://github.com/danielgomesvieira2000/ps2-port-engine/blob/master/docs/MACOS.md)
+has the details and the known issues.
+
+> macOS support is in the engine's pull request
+> [#8](https://github.com/danielgomesvieira2000/ps2-port-engine/pull/8); this
+> repository's `engine/` submodule points at it until it is merged.
 
 The game's code in C++ is generated on your machine from your disc image and
 never committed. Building needs Visual Studio 2022 with C++ (its MSVC, CMake
