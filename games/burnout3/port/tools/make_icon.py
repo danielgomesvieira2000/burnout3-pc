@@ -40,6 +40,8 @@ SMALL = (48, 32, 24, 16)    # the 3
 def title_screen(work):
     """The title frame's GS memory and trace, from a scripted run."""
     exe = os.path.join(GAME, "build", "port", "cmake", "burnout3.exe")
+    if not os.path.exists(exe):                 # a Mac's (engine/tools/macos.py build)
+        exe = os.path.join(GAME, "build", "macos", "burnout3", "burnout3")
     elf = os.path.join(GAME, "extracted", "SLUS_210.50")
     with open(os.path.join(GAME, "game.json"), encoding="utf-8") as f:
         iso = os.path.normpath(os.path.join(GAME, re.search(r'"iso":\s*"([^"]+)"', f.read()).group(1)))
