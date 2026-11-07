@@ -1589,6 +1589,7 @@ void RegisterMods();               // mods.cpp
 void RegisterGraphics();           // graphics.cpp
 void RegisterLan();                // lan.cpp
 void RegisterCustomSongs();        // custom_songs.cpp
+void RegisterVuNativeRw();        // vu_native_rw.cpp: RenderWare's VU1 programs drawn by the GPU (PS2HOST_NATIVE_RW)
 
 void RegisterGameOverrides() {
     // VU1's fast mode: every scripted run draws every picture as the exact
@@ -1627,6 +1628,7 @@ void RegisterGameOverrides() {
     RegisterGraphics();
     RegisterCustomSongs();
     RegisterLan();
+    RegisterVuNativeRw();
     using namespace ps2host::mc2;
     ps2host::Override(0x00244218, CardOr<GetInfo, F_00244218>, "libmc2 GetInfo (host card)");
     ps2host::Override(0x002445D0, CardOr<Format, F_002445D0>, "libmc2 Format (host card)");

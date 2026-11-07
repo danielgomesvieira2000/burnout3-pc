@@ -86,6 +86,7 @@ ps2_add_port(burnout3
             ${CMAKE_CURRENT_LIST_DIR}/lan.cpp
             ${CMAKE_CURRENT_LIST_DIR}/lan_libnet.cpp
             ${CMAKE_CURRENT_LIST_DIR}/lan_lobby.cpp
+            ${CMAKE_CURRENT_LIST_DIR}/vu_native_rw.cpp
             ${MODS_LIFTED}
             ${EXTRA_PICTURES})
 if(WIN32)
