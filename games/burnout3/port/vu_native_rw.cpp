@@ -41,7 +41,7 @@ using u64 = std::uint64_t;
 using s32 = std::int32_t;
 namespace rw = ps2host::rw_native;
 
-constexpr u64 kCarsHash = 0x1C18B5ADDF2729D4ull;   // FNV-1a 64 over instruction memory 0x0000-0x14EF
+constexpr u64 kCarsHash = 0x2DD10C0DBCB1806Cull;   // VuNativeHash of instruction memory 0x0000-0x14EF
 constexpr u32 kCarsEnd = 0x14F0;
 constexpr u32 kCarsResume = 0x14E0;                // (the E pair at 0x14D0: MSCNT continues at the stub)
 
@@ -58,9 +58,7 @@ Mode TheMode() {
 
 bool Holds(const Vu& vu) {
     if (TheMode() == Mode::kOff || (TheMode() == Mode::kOn && !ps2host::GsNativeDraws())) return false;
-    u64 h = 1469598103934665603ull;
-    for (u32 i = 0; i < kCarsEnd; ++i) h = (h ^ vu.micro.data()[i]) * 1099511628211ull;
-    return h == kCarsHash;
+    return ps2host::VuNativeHash(vu.micro.data(), kCarsEnd, 0) == kCarsHash;
 }
 
 u32 Lo(const u32* mem, u32 quad, int lane) { return mem[quad * 4 + lane] & 0xFFFF; }
@@ -84,9 +82,9 @@ int Decide(const Vu& vu, Cars* k) {
     if (Lo(mem, 1013, 2) != 0) return -1;                  // (the skinning)
     k->top = vu.top & 0x3FF;
     k->n = vu.itop & 0x3FF;
-    if (k->n == 0 || k->n > 52) return -1;
+    if (k->n == 0 || k->n > 52) return -2;
     k->n4 = (k->n + 3) & ~3u;
-    if (k->top + 3 * k->n4 + 1 > 1024) return -1;
+    if (k->top + 3 * k->n4 + 1 > 1024) return -3;
     k->rebuild = Lo(mem, 965, 3) == 0;
     k->path_a = Lo(mem, 1013, 1) == 0;
     k->prefix = Lo(mem, 1006, 0) != 0;
@@ -253,6 +251,8 @@ void Check(Vu& vu, u32 pc, u64* pairs) {
 
 // ---------------------------------------------------------------- the native run
 
+void Declined(const char* program, int reason);
+
 struct State {
     std::unordered_set<u64> uploaded;
     u64 uploaded_quads = 0;
@@ -260,10 +260,7 @@ struct State {
 };
 State& TheState() { static State s; return s; }
 
-u64 Hash(u64 h, const u32* p, size_t words) {
-    for (size_t i = 0; i < words; ++i) h = (h ^ p[i]) * 1099511628211ull;
-    return h;
-}
+u64 Hash(u64 h, const u32* p, size_t words) { return ps2host::VuNativeHash(p, words * 4, h); }
 
 void SendSized(const Cars& k, const float* header, u32 hq, u32 flags, u64 key, u64 prim, const u32* inputs) {
     const u32 ni = u32(k.indices.size());
@@ -288,10 +285,16 @@ void Send(const Cars& k, const float* header, u32 flags, u64 key, u64 prim, cons
 
 bool Native(Vu& vu, u64* pairs) {
     Cars k;
-    if (Decide(vu, &k) < 0) return false;
+    if (const int why = Decide(vu, &k); why < 0) {
+        Declined("cars", why);
+        return false;
+    }
     u32* mem = reinterpret_cast<u32*>(vu.data.data());
     const u32 vi13 = vu.regs.vc[13] & 0xFFFF, vi14 = vu.regs.vc[14] & 0xFFFF;
-    if (vi13 + 2 + 6 * k.n > 1024 || vi14 + 2 + 6 * k.n > 1024 || vi14 < 4) return false;
+    if (vi13 + 2 + 6 * k.n > 1024 || vi14 + 2 + 6 * k.n > 1024 || vi14 < 4) {
+        Declined("cars", -6);
+        return false;
+    }
     // what the run leaves: the transform, 965.w, the tags' words 1-3 in both buffers, the buffers swapped
     if (k.rebuild) {
         for (int col = 0; col < 4; ++col) std::memcpy(vu.regs.vf[28 + col], k.c[col], 16);
@@ -346,8 +349,14 @@ bool Native(Vu& vu, u64* pairs) {
 }
 
 bool Run(Vu& vu, u32 pc, u64* pairs) {
-    if (pc != 0x14E0 && pc != 0x0020) return false;
-    if (pc == 0x14E0 && (vu.regs.vc[15] & 0xFFFF) != 4) return false;
+    if (pc != 0x14E0 && pc != 0x0020) {
+        if (pc != 0) Declined("cars", -7);
+        return false;
+    }
+    if (pc == 0x14E0 && (vu.regs.vc[15] & 0xFFFF) != 4) {
+        Declined("cars", -8);
+        return false;
+    }
     if (TheMode() == Mode::kCheck) {
         Check(vu, pc, pairs);
         return true;
@@ -362,15 +371,13 @@ bool Run(Vu& vu, u32 pc, u64* pairs) {
 // the guard band's ADC) or C (932.y: the lighting); one packet an instance, the output buffers swapped after each.
 // Entered at 0x0020 (after the init at 0x0000) or 0x0EE8 (the next batch: 932.w = 0); ends at the E of 0x0ED8.
 
-constexpr u64 kInstancedHash = 0xBB40CD00AA6B0D13ull;  // FNV-1a 64 over instruction memory 0x0000-0x0EEF
+constexpr u64 kInstancedHash = 0xDEE6A6847ADC4DBFull;  // VuNativeHash of instruction memory 0x0000-0x0EEF
 constexpr u32 kInstancedEnd = 0xEF0;
 constexpr u32 kInstancedResume = 0x0EE8;
 
 bool HoldsInstanced(const Vu& vu) {
     if (TheMode() == Mode::kOff || (TheMode() == Mode::kOn && !ps2host::GsNativeDraws())) return false;
-    u64 h = 1469598103934665603ull;
-    for (u32 i = 0; i < kInstancedEnd; ++i) h = (h ^ vu.micro.data()[i]) * 1099511628211ull;
-    return h == kInstancedHash;
+    return ps2host::VuNativeHash(vu.micro.data(), kInstancedEnd, 0) == kInstancedHash;
 }
 
 struct Instance {
@@ -392,16 +399,16 @@ int DecideInstanced(const Vu& vu, Batch* b) {
     const u32* mem = reinterpret_cast<const u32*>(vu.data.data());
     b->top = vu.top & 0x3FF;
     b->n = vu.itop & 0x3FF;
-    if (b->n == 0 || b->n > 76) return -1;
+    if (b->n == 0 || b->n > 76) return -1;           // (the reasons: Declined's)
     b->n4 = (b->n + 3) & ~3u;
-    if (b->top + 3 * (b->n4 + 3) > 1024) return -1;
+    if (b->top + 3 * (b->n4 + 3) > 1024) return -2;
     const u32 tag1 = mem[933 * 4 + 1];
-    if (!((tag1 >> 14) & 1) || mem[933 * 4 + 2] != 0x412) return -1;   // (PRE, and ST RGBAQ XYZF2)
+    if (!((tag1 >> 14) & 1) || mem[933 * 4 + 2] != 0x412) return -3;   // (PRE, and ST RGBAQ XYZF2)
     b->prim = (tag1 >> 15) & 0x7FF;
     const bool lit = Lo(mem, 932, 1) != 0;
     const s32 last = S16(mem[932 * 4]);
     b->count = last > 0 ? u32(last) + 1 : 1;
-    if (b->count > 15) return -1;
+    if (b->count > 15) return -4;
     float V[4][4], S[4], off[4];
     for (int r = 0; r < 4; ++r) std::memcpy(V[r], mem + (1014 + r) * 4, 16);
     std::memcpy(S, mem + 1018 * 4, 16);
@@ -414,7 +421,7 @@ int DecideInstanced(const Vu& vu, Batch* b) {
     for (u32 i = 0; i < b->count; ++i) {
         const u32 block = 934 + 5 * i;
         const bool path_b = Lo(mem, block + 3, 2) != 0;
-        if (path_b && lit) return -1;                   // (C with B: never seen)
+        if (path_b && lit) return -5;                   // (C with B: never seen)
         if (path_b) last_b = s32(i);
         Instance& it = b->instances[i];
         float* h = it.header;
@@ -434,47 +441,63 @@ int DecideInstanced(const Vu& vu, Batch* b) {
     }
     if (last_b >= 0) {
         // Path B's judgements, CLIP as the microcode leaves it: two of vf00, then each vertex of the groups of four
-        // and three past them (the loop's pipelining) - which read memory as the run has written it by then (a full
-        // buffer's are this run's own packet: its tag, its first vertices' XYZF2), so its packets are written into a
-        // copy of memory as they would be, and the judgements made with the VU's own arithmetic.
-        static thread_local std::vector<u32> sim;
-        sim.assign(mem, mem + 4096);
-        u32 o13 = vu.regs.vc[13] & 0x3FF, o14 = vu.regs.vc[14] & 0x3FF;
-        auto put = [&](u32 quad, const u32* w, int lanes) {
-            for (int l = 0; l < lanes; ++l) sim[((quad & 0x3FF) * 4) + l] = w[l];
-        };
-        auto vertices = [&](const Instance& it, u32 from, u32 to) {
-            for (u32 v = from; v < to; ++v) {
+        // and three past them (the loop's pipelining). Those three read memory as the run has written it by then -
+        // a full buffer's are this run's own packet (its tag, its first vertices' XYZF2) - so each of their
+        // quadwords is the packet word last written there (the instance writing, or the one before into that
+        // buffer), judged with the VU's own arithmetic.
+        const u32 o13 = vu.regs.vc[13] & 0x3FF, o14 = vu.regs.vc[14] & 0x3FF;
+        const u32 size = 1 + 3 * b->n4;             // (the quadwords an instance writes: its padding too)
+        const u32 early = b->n4 > 4 ? b->n4 - 4 : 0; // (the vertices it has written when the three are read)
+        auto quad = [&](u32 q, s32 i, u32* out) {
+            q &= 0x3FF;
+            const u32 mine = (i & 1) ? o14 : o13, other = (i & 1) ? o13 : o14;
+            s32 writer;
+            u32 base;
+            if (q >= mine && q < mine + size) writer = i, base = mine;
+            else if (q >= other && q < other + size) writer = i - 1, base = other;
+            else writer = -1, base = 0;
+            std::memcpy(out, mem + q * 4, 16);
+            for (; writer >= 0; writer -= 2) {
+                const u32 t = q - base;
+                if (t == 0) {
+                    const u32 tag[4] = {0xFFFF8000u | b->n, mem[933 * 4 + 1], mem[933 * 4 + 2], mem[933 * 4 + 3]};
+                    std::memcpy(out, tag, 16);
+                    return;
+                }
+                const u32 v = (t - 1) / 3;
+                if (writer == i && v >= early) continue;    // (not yet: what the one before left)
                 rw::GsVertex o;
-                rw::InstancedVertex(it.header, sim.data() + b->top * 4, v, &o);
-                put(o13 + 1 + 3 * v, o.stq, 3);
-                put(o13 + 2 + 3 * v, o.rgba, 4);
-                put(o13 + 3 + 3 * v, o.xyz, 3);
+                rw::InstancedVertex(b->instances[std::size_t(writer)].header, in, v, &o);
+                const u32 slot = (t - 1) % 3;
+                if (slot == 0) std::memcpy(out, o.stq, 12);
+                else if (slot == 1) std::memcpy(out, o.rgba, 16);
+                else std::memcpy(out, o.xyz, 12);
+                return;
             }
         };
         for (s32 i = 0; i <= last_b; ++i) {
             Instance& it = b->instances[std::size_t(i)];
-            const u32 tag[4] = {0xFFFF8000u | b->n, mem[933 * 4 + 1], mem[933 * 4 + 2], mem[933 * 4 + 3]};
-            put(o13, tag, 4);
-            const u32 early = b->n4 > 4 ? b->n4 - 4 : 0;
-            if (rw::B(it.header[2]) & rw::kRwPathB) {
-                clip = (clip << 12) & 0xFFFFFF;
-                u32 recent = 0;
-                for (u32 v = 0; v < b->n4 + 3; ++v) {
-                    if (v == b->n4) vertices(it, 0, early);
-                    const u32* q0 = sim.data() + ((b->top + 3 * v) & 0x3FF) * 4;
-                    u32 c[4];
+            if (!(rw::B(it.header[2]) & rw::kRwPathB)) continue;
+            clip = (clip << 12) & 0xFFFFFF;
+            u32 recent = 0;
+            for (u32 v = 0; v < b->n4 + 3; ++v) {
+                u32 j;
+                if (v < b->n4) {
+                    const u32* q0 = in + 12 * v;
+                    const float p[3] = {rw::F(q0[0]), rw::F(q0[1]), rw::F(q0[2])};
+                    float c[4];
+                    rw::InstancedClip(it.header, p, true, c);
+                    j = rw::Judge(c[0], c[1], c[2], c[3]);
+                } else {
+                    u32 q0[4], c[4];
+                    quad(b->top + 3 * v, i, q0);
                     rw::InstancedClipVu(it.header, q0, true, c);
-                    const u32 j = rw::JudgeVu(c);
-                    clip = ((clip << 6) | j) & 0xFFFFFF;
-                    recent = ((recent << 6) | j) & 0x3FFFF;
-                    if (v < b->n && recent) it.adc[v] = 1;
+                    j = rw::JudgeVu(c);
                 }
-                vertices(it, early, b->n4);
-            } else {
-                vertices(it, 0, b->n4);
+                clip = ((clip << 6) | j) & 0xFFFFFF;
+                recent = ((recent << 6) | j) & 0x3FFFF;
+                if (v < b->n && recent) it.adc[v] = 1;
             }
-            std::swap(o13, o14);
         }
     }
     for (Instance& it : b->instances) {
@@ -564,13 +587,32 @@ void CheckInstanced(Vu& vu, u32 pc, u64* pairs) {
     if (s.runs % 20000 == 0) SayCheck();
 }
 
+// PS2HOST_NATIVE_RW_STATS=1: why runs were left to the microcode, every 10,000.
+void Declined(const char* program, int reason) {
+    static const bool say = std::getenv("PS2HOST_NATIVE_RW_STATS") != nullptr;
+    static u64 counts[2][16] = {}, all = 0;
+    const int which = program[0] == 'c' ? 0 : 1;
+    ++counts[which][std::min(15, -reason)];
+    if (say && ++all % 10000 == 0) {
+        std::fprintf(stderr, "[rw native] declined:");
+        for (int w = 0; w < 2; ++w)
+            for (int r = 0; r < 16; ++r)
+                if (counts[w][r]) std::fprintf(stderr, " %s %d: %llu", w ? "instanced" : "cars", -r, (unsigned long long)counts[w][r]);
+        std::fprintf(stderr, "\n");
+    }
+}
+
 bool NativeInstanced(Vu& vu, u32 pc, u64* pairs) {
     u32* mem = reinterpret_cast<u32*>(vu.data.data());
-    if (pc == 0x0020 && Lo(mem, 932, 3) != 0) return false;
+    if (pc == 0x0020 && Lo(mem, 932, 3) != 0) {
+        Declined("instanced", -10);
+        return false;
+    }
     const u32 w932 = mem[932 * 4 + 3];
     mem[932 * 4 + 3] &= 0xFFFF0000u;            // (0x0EE8's first: 932.w = 0)
     Batch b;
-    if (DecideInstanced(vu, &b) < 0) {
+    if (const int why = DecideInstanced(vu, &b); why < 0) {
+        Declined("instanced", why);
         mem[932 * 4 + 3] = w932;
         return false;
     }
@@ -607,7 +649,10 @@ bool NativeInstanced(Vu& vu, u32 pc, u64* pairs) {
 }
 
 bool RunInstanced(Vu& vu, u32 pc, u64* pairs) {
-    if (pc != 0x0020 && pc != 0x0EE8) return false;
+    if (pc != 0x0020 && pc != 0x0EE8) {
+        if (pc != 0) Declined("instanced", -7);
+        return false;
+    }
     if (TheMode() == Mode::kCheck) {
         CheckInstanced(vu, pc, pairs);
         return true;
