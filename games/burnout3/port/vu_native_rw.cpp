@@ -728,11 +728,13 @@ struct WorldImage {
     bool lit;                   // 1332's specular alpha (its normals at TOP + 0xCC)
     u32 most;                   // the most vertices a batch has
     u32 packet;                 // path C's packets' vertices (a flush past it)
+    bool mirror = false;        // 0835's: the transform reflected about y = 1009.y for the run (spec_0835A68B.md)
 };
-const WorldImage kWorldImages[3] = {
+const WorldImage kWorldImages[4] = {
     {"RenderWare's world strips (Burnout 3, VU1 2678EB26)", 0x4A6CAC64BC3CF693ull, 0x1558, 0x1548, 0x057, 0x0A0, 0x0F3, true, false, 80, 57},
     {"RenderWare's lit strips (Burnout 3, VU1 1332C99F)", 0x83D58831DEC17E8Eull, 0x1920, 0x1910, 0x0D0, 0x119, 0x16C, true, true, 68, 46},
     {"RenderWare's prelit strips (Burnout 3, VU1 01CE30D5)", 0xA39D4CE658CE3C36ull, 0x1328, 0x1318, 0x057, 0x081, 0x0B2, false, false, 80, 57},
+    {"RenderWare's mirrored prelit strips (Burnout 3, VU1 0835A68B)", 0x35A220CC8F5E80D8ull, 0x13A8, 0x1398, 0x05F, 0x089, 0x0BA, false, false, 80, 57, true},
 };
 constexpr u32 kNormals = 0xCC;          // (1332's normal block: TOP + 0xCC, four quadwords a group of four)
 
@@ -746,6 +748,7 @@ struct World {
     u32 top, n, n4, quads;
     bool rebuild, path_b, path_c;
     float t[4][4], o[4];
+    float regs[4][4];                   // (the transform as the registers keep it: 0835's unmirrored)
     u32 vi12;
     float header[rw::kRwWHeaderQuads * 4];
     std::vector<u32> indices;
@@ -791,6 +794,20 @@ int DecideWorld(const Vu& vu, const WorldImage& img, World* w) {
     } else {
         for (int r = 0; r < 4; ++r) std::memcpy(w->t[r], vu.regs.vf[28 + r], 16);
         std::memcpy(w->o, vu.regs.vf[2], 16);
+    }
+    std::memcpy(w->regs, w->t, sizeof w->t);
+    if (img.mirror) {
+        // the prologue: t' = t + k m1 + k m1 (two roundings), m1' = -m1 (x, y, w); the epilogue restores the
+        // registers through 0 + v (a -0 or denormal x, y comes back +0)
+        const float k = Fl(mem, 1009, 1);
+        for (int l : {0, 1, 3}) {
+            float acc = rw::Add(w->t[3][l], 0.0f);
+            acc = rw::Madd(acc, w->t[1][l], k);
+            w->t[3][l] = rw::Madd(acc, w->t[1][l], k);
+            w->t[1][l] = rw::Sub(0.0f, w->t[1][l]);
+        }
+        for (int r : {1, 3})
+            for (int l : {0, 1}) w->regs[r][l] = rw::Add(0.0f, w->regs[r][l]);
     }
     // (a transform with no w, or not finite: every place at w 0 - the VU's saturations, not the GPU's - the microcode's)
     bool finite = false;
@@ -1367,9 +1384,9 @@ void CheckWorld(Vu& vu, u32 pc, u64* pairs) {
     if ((vu.clip & 0xFFFFFF) != clip_end && s.clip_differ++ < 6)
         std::fprintf(stderr, "[rw native] world check: CLIP microcode %06X twin %06X (n %u, path %c, image %d)\n", vu.clip & 0xFFFFFF,
                      clip_end, w.n, w.path_b ? 'B' : 'A', I);
-    if (w.rebuild) {
+    if (w.rebuild || img.mirror) {
         for (int r = 0; r < 4; ++r)
-            if (std::memcmp(w.t[r], vu.regs.vf[28 + r], 16) != 0) ++s.regs_differ;
+            if (std::memcmp(w.regs[r], vu.regs.vf[28 + r], 16) != 0) ++s.regs_differ;
         if (std::memcmp(w.o, vu.regs.vf[2], 16) != 0) ++s.regs_differ;
     }
     const u32* in = before.data() + w.top * 4;
@@ -1458,10 +1475,21 @@ bool NativeWorld(Vu& vu, u32 entry, u64* pairs) {
     const u32 clip_end = w.path_c ? pc.clip_end : WorldClipEnd(vu, img, w);
     // what the run leaves: 1013.w 0, the transform and 1013.y (rebuilt), the buffers swapped (the packet: vi14's)
     mem[1013 * 4 + 3] &= 0xFFFF0000u;
-    if (w.rebuild) {
-        for (int r = 0; r < 4; ++r) std::memcpy(vu.regs.vf[28 + r], w.t[r], 16);
+    if (w.rebuild || img.mirror) {
+        for (int r = 0; r < 4; ++r) std::memcpy(vu.regs.vf[28 + r], w.regs[r], 16);
         std::memcpy(vu.regs.vf[2], w.o, 16);
-        mem[1013 * 4 + 1] = (mem[1013 * 4 + 1] & 0xFFFF0000u) | w.vi12;
+    }
+    if (w.rebuild) mem[1013 * 4 + 1] = (mem[1013 * 4 + 1] & 0xFFFF0000u) | w.vi12;
+    if (img.mirror) {
+        // (what the prologue saves: 1011.w, 1012.w, 1014.z-1017.z; vf10.z-vf13.z the same; vf01.xyw 0)
+        std::memcpy(mem + 1011 * 4 + 3, &w.regs[1][3], 4);
+        std::memcpy(mem + 1012 * 4 + 3, &w.regs[3][3], 4);
+        const float saved[4] = {w.regs[1][0], w.regs[1][1], w.regs[3][0], w.regs[3][1]};
+        for (int i = 0; i < 4; ++i) {
+            std::memcpy(mem + (1014 + i) * 4 + 2, &saved[i], 4);
+            std::memcpy(&vu.regs.vf[10 + i][2], &saved[i], 4);
+        }
+        vu.regs.vf[1][0] = vu.regs.vf[1][1] = vu.regs.vf[1][3] = 0;
     }
     const u32* inputs = mem + w.top * 4;
     State& st = TheState();
@@ -1542,6 +1570,7 @@ void RegisterVuNativeRw() {
     ps2host::RegisterVuNative({kWorldImages[0].name, HoldsWorld<0>, RunWorld<0>});
     ps2host::RegisterVuNative({kWorldImages[1].name, HoldsWorld<1>, RunWorld<1>});
     ps2host::RegisterVuNative({kWorldImages[2].name, HoldsWorld<2>, RunWorld<2>});
+    ps2host::RegisterVuNative({kWorldImages[3].name, HoldsWorld<3>, RunWorld<3>});
     std::atexit([] {
         if (TheMode() == Mode::kCheck) SayCheck();
     });
