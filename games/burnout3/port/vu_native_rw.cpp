@@ -286,15 +286,15 @@ void Send(const Cars& k, const float* header, u32 flags, u64 key, u64 prim, cons
 }
 
 // The world's: its mesh `quads` quadwords from TOP (1332's normals past the vertices).
-void SendWorld(const Cars& k, const float* header, u32 flags, u64 key, u64 prim, const u32* inputs, u32 quads) {
-    const u32 hq = rw::kRwWHeaderQuads, ni = u32(k.indices.size());
+void SendWorld(const u32* indices, u32 ni, const float* header, u32 flags, u64 key, u64 prim, const u32* inputs, u32 quads) {
+    const u32 hq = rw::kRwWHeaderQuads;
     const u32 upload = (flags & 1) ? 1 + 4 * quads : 0;
     const u32 count = 7 + 4 * hq + ni + upload;
     u32* w = ps2host::GsNativeBegin(count);
     w[0] = flags, w[1] = u32(key), w[2] = u32(key >> 32), w[3] = u32(prim), w[4] = u32(prim >> 32);
     w[5] = hq, w[6] = ni;
     std::memcpy(w + 7, header, std::size_t(hq) * 16);
-    if (ni) std::memcpy(w + 7 + 4 * hq, k.indices.data(), std::size_t(ni) * 4);
+    if (ni) std::memcpy(w + 7 + 4 * hq, indices, std::size_t(ni) * 4);
     if (upload) {
         u32* m = w + 7 + 4 * hq + ni;
         m[0] = quads;
@@ -304,7 +304,7 @@ void SendWorld(const Cars& k, const float* header, u32 flags, u64 key, u64 prim,
 }
 
 bool Native(Vu& vu, u64* pairs) {
-    Cars k;
+    static thread_local Cars k;         // (reused: no allocation a run)
     if (const int why = Decide(vu, &k); why < 0) {
         Declined("cars", why);
         return false;
@@ -631,7 +631,7 @@ bool NativeInstanced(Vu& vu, u32 pc, u64* pairs) {
     }
     const u32 w932 = mem[932 * 4 + 3];
     mem[932 * 4 + 3] &= 0xFFFF0000u;            // (0x0EE8's first: 932.w = 0)
-    Batch b;
+    static thread_local Batch b;
     if (const int why = DecideInstanced(vu, &b); why < 0) {
         Declined("instanced", why);
         mem[932 * 4 + 3] = w932;
@@ -641,7 +641,7 @@ bool NativeInstanced(Vu& vu, u32 pc, u64* pairs) {
     State& st = TheState();
     const u64 key = Hash(0x165667B19E3779F9ull ^ b.n, inputs, std::size_t(12) * b.n4) | (u64(3) << 62);
     u32 vi13 = vu.regs.vc[13] & 0xFFFF, vi14 = vu.regs.vc[14] & 0xFFFF;
-    Cars shape;                                 // (SendSized's: the batch's size, an instance's indices)
+    static thread_local Cars shape;             // (SendSized's: the batch's size, an instance's indices)
     shape.n = b.n, shape.n4 = b.n4;
     for (u32 i = 0; i < b.count; ++i) {
         u32 flags = 0x100 | 0x200 | 4;
@@ -838,7 +838,23 @@ struct PathCEvent {
 
 struct PathC {
     int kind;                           // 0 culled, 1 fast, 2 clipped
-    std::vector<PathCEvent> events;
+    std::vector<PathCEvent> pool;       // (reused: the first `used` this batch's events)
+    u32 used = 0;
+    PathCEvent& Next(bool polygon) {
+        if (used == pool.size()) pool.emplace_back();
+        PathCEvent& e = pool[used++];
+        e.polygon = polygon;
+        e.words.clear(), e.indices.clear();
+        return e;
+    }
+    struct Range {
+        PathCEvent* b;
+        PathCEvent* e;
+        PathCEvent* begin() const { return b; }
+        PathCEvent* end() const { return e; }
+    };
+    Range events() { return Range{pool.data(), pool.data() + used}; }
+    Range events() const { return Range{const_cast<PathCEvent*>(pool.data()), const_cast<PathCEvent*>(pool.data()) + used}; }
     u32 kicks;                          // the microcode's kicks (its buffer swaps)
     u32 clip_end;
     std::vector<u32> written;           // what the first pass leaves in place: per vertex H (4 words), q1.w
@@ -928,7 +944,7 @@ void DecidePathC(const Vu& vu, const World& w, bool backface, u32 most, PathC* p
     } else {
         for (u32 i = 0; i < m; ++i) adc[i] = in[12 * i + 3] & 0xFFFF;
     }
-    pc->events.clear();
+    pc->used = 0;
     pc->kicks = 0;
     pc->written.resize(std::size_t(5) * m);
     for (u32 i = 0; i < m; ++i) {
@@ -946,13 +962,12 @@ void DecidePathC(const Vu& vu, const World& w, bool backface, u32 most, PathC* p
         pc->kind = 1;
         pc->kicks = 1;
         pc->clip_end = clip.r;
-        PathCEvent e{false, {}, {}};
+        PathCEvent& e = pc->Next(false);
         for (u32 t = 0; t + 2 < n; ++t)
             if (!(adc[t + 2] & 0x8000) && !(in[12 * (t + 2) + 3] & 0x8000)) {
                 // (the fast path's ADC: fog + itof4 of the flag word - bit 15 where the word has 0x8000)
                 e.indices.push_back(3 * t), e.indices.push_back(3 * t + 1), e.indices.push_back(3 * t + 2);
             }
-        pc->events.push_back(std::move(e));
         return;
     }
     pc->kind = 2;
@@ -963,15 +978,13 @@ void DecidePathC(const Vu& vu, const World& w, bool backface, u32 most, PathC* p
     (void)fog;
     PathCEvent* native = nullptr;
     auto triangle = [&](u32 c) {
-        if (!native) {
-            pc->events.push_back(PathCEvent{false, {}, {}});
-            native = &pc->events.back();
-        }
+        if (!native) native = &pc->Next(false);
         const u32 t = c - 2;
         native->indices.push_back(3 * t), native->indices.push_back(3 * t + 1), native->indices.push_back(3 * t + 2);
     };
     PathCEvent* polygons = nullptr;
-    std::vector<u32> flushes;
+    static thread_local std::vector<u32> flushes;
+    flushes.clear();
     u32 cnt = 0, k = 2;
     bool restart = true;
     clip.Push(J[0]), clip.Push(J[1]), clip.Push(J[2]);
@@ -1072,8 +1085,7 @@ void DecidePathC(const Vu& vu, const World& w, bool backface, u32 most, PathC* p
             if (!dead) {
                 // the polygon as a zig-zag strip: p0, p(n-1), p1, p(n-2), ... (ADC on the first two)
                 if (!polygons || native) {
-                    pc->events.push_back(PathCEvent{true, {}, {}});
-                    polygons = &pc->events.back();
+                    polygons = &pc->Next(true);
                     native = nullptr;
                 }
                 const u32* corner[3] = {in + 12 * a, in + 12 * b, in + 12 * c};
@@ -1082,11 +1094,8 @@ void DecidePathC(const Vu& vu, const World& w, bool backface, u32 most, PathC* p
                     uv[j][0] = rw::Itof12(corner[j][4]), uv[j][1] = rw::Itof12(corner[j][5]);
                     u32 rgba[4];
                     std::memcpy(rgba, corner[j] + 8, 16);
-                    if (rw::Mode(w.header) & (rw::kRwWLit | rw::kRwWAlphaZero)) {
-                        rw::GsVertex o;
-                        rw::WorldVertex(w.header, in, j == 0 ? a : j == 1 ? b : c, &o);
-                        rgba[3] = o.rgba[3];
-                    }
+                    if (rw::Mode(w.header) & (rw::kRwWLit | rw::kRwWAlphaZero))
+                        rgba[3] = rw::WorldAlpha(w.header, in, j == 0 ? a : j == 1 ? b : c);
                     for (int l = 0; l < 4; ++l) col[j][l] = rw::Itof0(rgba[l]);
                 }
                 const float* c02 = w.o;
@@ -1190,7 +1199,7 @@ void EventTriangles(const World& w, const u32* in, const PathC& pc, std::vector<
     float header[rw::kRwWHeaderQuads * 4];
     std::memcpy(header, w.header, sizeof header);
     SetMode(header, rw::Mode(w.header) | rw::kRwWFog);
-    for (const PathCEvent& e : pc.events) {
+    for (const PathCEvent& e : pc.events()) {
         if (e.polygon) {
             std::vector<u32> packet = {0x8000u | u32(e.words.size() / 12), 0, 0, 0};
             packet.insert(packet.end(), e.words.begin(), e.words.end());
@@ -1219,15 +1228,13 @@ void SendPathC(Vu& vu, const World& w, const PathC& pc, u64 key, bool upload, bo
     std::memcpy(header, w.header, sizeof header);
     static const bool no_fog = std::getenv("PS2HOST_RW_TEST_NOFOG") != nullptr;
     SetMode(header, (rw::Mode(w.header) & ~(rw::kRwWCull | rw::kRwWGuard)) | (no_fog ? 0u : rw::kRwWFog));  // (the CPU's triangles)
-    for (const PathCEvent& e : pc.events) {
+    for (const PathCEvent& e : pc.events()) {
         if (!e.polygon) {
             if (e.indices.empty()) continue;
-            Cars shape;
-            shape.indices = e.indices;
             u32 flags = 0x100 | 0x200 | 4;
             if (first && upload) flags |= 1 | (release ? 2u : 0u);
             first = false;
-            SendWorld(shape, header, flags, key, prim, inputs, w.quads);
+            SendWorld(e.indices.data(), u32(e.indices.size()), header, flags, key, prim, inputs, w.quads);
             continue;
         }
         // its polygons, as packets of the microcode's (at most 57 vertices each) in the output buffer, kicked
@@ -1378,7 +1385,7 @@ void CheckWorld(Vu& vu, u32 pc, u64* pairs) {
 template <int I>
 bool NativeWorld(Vu& vu, u32 entry, u64* pairs) {
     const WorldImage& img = kWorldImages[I];
-    World w;
+    static thread_local World w;
     if (const int why = DecideWorld(vu, img, &w); why < 0) {
         Declined("world", why);
         return false;
@@ -1401,15 +1408,11 @@ bool NativeWorld(Vu& vu, u32 entry, u64* pairs) {
         const u32* in = mem + w.top * 4;
         static thread_local std::vector<u32> alpha;
         alpha.resize(w.n4);
-        for (u32 v = 0; v < w.n4; ++v) {
-            rw::GsVertex o;
-            rw::WorldVertex(w.header, in, v, &o);
-            alpha[v] = o.rgba[3];
-        }
+        for (u32 v = 0; v < w.n4; ++v) alpha[v] = rw::WorldAlpha(w.header, in, v);
         for (u32 v = 0; v < w.n4; ++v) mem[((w.top + 3 * v + 2) & 0x3FF) * 4 + 3] = alpha[v];
         SetMode(w.header, rw::Mode(w.header) & ~(rw::kRwWLit | rw::kRwWAlphaZero));
     }
-    PathC pc;
+    static thread_local PathC pc;
     if (w.path_c) {
         DecidePathC(vu, w, img.cull, img.packet, &pc);
         // PS2HOST_NATIVE_RW_PATHC=fast (a test): only the batches all inside (the fast path) natively; =0 none
@@ -1471,9 +1474,7 @@ bool NativeWorld(Vu& vu, u32 entry, u64* pairs) {
             mem[b * 4 + 1] = mem[1006 * 4 + 1], mem[b * 4 + 2] = mem[1006 * 4 + 2], mem[b * 4 + 3] = mem[1006 * 4 + 3];
         if (pc.kicks & 1) std::swap(vu.regs.vc[13], vu.regs.vc[14]);
     } else {
-        Cars shape;                             // (SendWorld's: the indices)
-        shape.indices.swap(w.indices);
-        SendWorld(shape, w.header, flags, key, (tag1 >> 15) & 0x7FF, inputs, w.quads);
+        SendWorld(w.indices.data(), u32(w.indices.size()), w.header, flags, key, (tag1 >> 15) & 0x7FF, inputs, w.quads);
         std::swap(vu.regs.vc[13], vu.regs.vc[14]);
     }
     ps2host::VuNativeAccess::SetClip(vu, clip_end);
