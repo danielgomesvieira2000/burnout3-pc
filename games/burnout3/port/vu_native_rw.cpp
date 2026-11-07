@@ -283,6 +283,24 @@ void Send(const Cars& k, const float* header, u32 flags, u64 key, u64 prim, cons
     SendSized(k, header, rw::kRwHeaderQuads, flags, key, prim, inputs);
 }
 
+// The world's: its mesh `quads` quadwords from TOP (1332's normals past the vertices).
+void SendWorld(const Cars& k, const float* header, u32 flags, u64 key, u64 prim, const u32* inputs, u32 quads) {
+    const u32 hq = rw::kRwWHeaderQuads, ni = u32(k.indices.size());
+    const u32 upload = (flags & 1) ? 1 + 4 * quads : 0;
+    const u32 count = 7 + 4 * hq + ni + upload;
+    u32* w = ps2host::GsNativeBegin(count);
+    w[0] = flags, w[1] = u32(key), w[2] = u32(key >> 32), w[3] = u32(prim), w[4] = u32(prim >> 32);
+    w[5] = hq, w[6] = ni;
+    std::memcpy(w + 7, header, std::size_t(hq) * 16);
+    if (ni) std::memcpy(w + 7 + 4 * hq, k.indices.data(), std::size_t(ni) * 4);
+    if (upload) {
+        u32* m = w + 7 + 4 * hq + ni;
+        m[0] = quads;
+        std::memcpy(m + 1, inputs, std::size_t(quads) * 16);
+    }
+    ps2host::GsNativeEnd(count);
+}
+
 bool Native(Vu& vu, u64* pairs) {
     Cars k;
     if (const int why = Decide(vu, &k); why < 0) {
@@ -590,14 +608,15 @@ void CheckInstanced(Vu& vu, u32 pc, u64* pairs) {
 // PS2HOST_NATIVE_RW_STATS=1: why runs were left to the microcode, every 10,000.
 void Declined(const char* program, int reason) {
     static const bool say = std::getenv("PS2HOST_NATIVE_RW_STATS") != nullptr;
-    static u64 counts[2][16] = {}, all = 0;
-    const int which = program[0] == 'c' ? 0 : 1;
+    static u64 counts[3][16] = {}, all = 0;
+    const int which = program[0] == 'c' ? 0 : program[0] == 'i' ? 1 : 2;
     ++counts[which][std::min(15, -reason)];
     if (say && ++all % 10000 == 0) {
         std::fprintf(stderr, "[rw native] declined:");
-        for (int w = 0; w < 2; ++w)
+        static const char* const names[3] = {"cars", "instanced", "world"};
+        for (int w = 0; w < 3; ++w)
             for (int r = 0; r < 16; ++r)
-                if (counts[w][r]) std::fprintf(stderr, " %s %d: %llu", w ? "instanced" : "cars", -r, (unsigned long long)counts[w][r]);
+                if (counts[w][r]) std::fprintf(stderr, " %s %d: %llu", names[w], -r, (unsigned long long)counts[w][r]);
         std::fprintf(stderr, "\n");
     }
 }
@@ -660,11 +679,297 @@ bool RunInstanced(Vu& vu, u32 pc, u64* pairs) {
     return NativeInstanced(vu, pc, pairs);
 }
 
+// ---------------------------------------------------------------- the world's strips (VU1 2678EB26, 1332C99F, 01CE30D5)
+//
+// RenderWare's strip pipeline in three images (build/native/spec_2678EB26.md, spec_1332C99F.md, spec_01CE30D5.md):
+// a batch of N vertices at TOP drawn as one strip, the path chosen by 1013.x (cached in 1013.y; 1013.w != 0 the
+// transform rebuilt into vf28-vf31, vf02). Paths A and B here (B: the guard band's ADC); C - fog and the six
+// planes' clipper - and the paths that draw nothing are the microcode's.
+
+struct WorldImage {
+    const char* name;
+    u64 hash;                   // VuNativeHash of instruction memory [0, end)
+    u32 end, stub;              // (the stub: MSCNT continues there, `jr vi15` to 0x0020)
+    u32 vi12_a, vi12_b;         // the dispatch's jump targets (pairs) of paths A and B
+    bool cull;                  // the screen winding's ADC (2678's, 1332's)
+    bool lit;                   // 1332's specular alpha (its normals at TOP + 0xCC)
+    u32 most;                   // the most vertices a batch has
+};
+const WorldImage kWorldImages[3] = {
+    {"RenderWare's world strips (Burnout 3, VU1 2678EB26)", 0x4A6CAC64BC3CF693ull, 0x1558, 0x1548, 0x057, 0x0A0, true, false, 80},
+    {"RenderWare's lit strips (Burnout 3, VU1 1332C99F)", 0x83D58831DEC17E8Eull, 0x1920, 0x1910, 0x0D0, 0x119, true, true, 68},
+    {"RenderWare's prelit strips (Burnout 3, VU1 01CE30D5)", 0xA39D4CE658CE3C36ull, 0x1328, 0x1318, 0x057, 0x081, false, false, 80},
+};
+constexpr u32 kNormals = 0xCC;          // (1332's normal block: TOP + 0xCC, four quadwords a group of four)
+
+template <int I>
+bool HoldsWorld(const Vu& vu) {
+    if (TheMode() == Mode::kOff || (TheMode() == Mode::kOn && !ps2host::GsNativeDraws())) return false;
+    return ps2host::VuNativeHash(vu.micro.data(), kWorldImages[I].end, 0) == kWorldImages[I].hash;
+}
+
+struct World {
+    u32 top, n, n4, quads;
+    bool rebuild, path_b;
+    float t[4][4], o[4];
+    u32 vi12;
+    float header[rw::kRwWHeaderQuads * 4];
+    std::vector<u32> indices;
+};
+
+// The dispatch's target from 1013.x (all three images alike; their targets their own).
+u32 WorldTarget(const WorldImage& img, u32 x, u32 c_target) {
+    if (!(x & 2)) return (x & 1) ? 0 : img.vi12_a;
+    if ((x & 8) && !(x & 4)) return c_target;
+    return (x & 1) ? 0 : img.vi12_b;
+}
+
+int DecideWorld(const Vu& vu, const WorldImage& img, World* w) {
+    const u32* mem = reinterpret_cast<const u32*>(vu.data.data());
+    if (Lo(mem, 1005, 0) != 0) return -11;                 // (the S scroll: never seen)
+    w->rebuild = Lo(mem, 1013, 3) != 0;
+    w->vi12 = w->rebuild ? WorldTarget(img, Lo(mem, 1013, 0), 0xFFFF) : Lo(mem, 1013, 1);
+    if (w->vi12 == img.vi12_a) w->path_b = false;
+    else if (w->vi12 == img.vi12_b) w->path_b = true;
+    else return w->vi12 == 0xFFFF ? -12 : -13;              // (C: the clipper's; or a path drawing nothing)
+    w->top = vu.top & 0x3FF;
+    w->n = vu.itop & 0x3FF;
+    if (w->n < 3 || w->n > img.most) return -14;
+    w->n4 = (w->n + 3) & ~3u;
+    w->quads = img.lit ? kNormals + w->n4 : 3 * w->n4;
+    if (w->top + w->quads > 1024) return -15;
+    if (w->rebuild) {
+        // vf28-vf31 = 1014-1017's x, y, w (z: 0, 0, 0, 1), less half their w in x and y, by 1018; vf02 = 1019
+        for (int r = 0; r < 4; ++r) {
+            for (int l : {0, 1, 3}) w->t[r][l] = Fl(mem, 1014 + r, l);
+            w->t[r][2] = r == 3 ? 1.0f : 0.0f;
+            const float h = rw::Mul(w->t[r][3], 0.5f);
+            w->t[r][0] = rw::Sub(w->t[r][0], h);
+            w->t[r][1] = rw::Sub(w->t[r][1], h);
+        }
+        for (int r = 0; r < 4; ++r) {
+            w->t[r][0] = rw::Mul(w->t[r][0], Fl(mem, 1018, 0));
+            w->t[r][1] = rw::Mul(w->t[r][1], Fl(mem, 1018, 1));
+        }
+        w->t[3][2] = rw::Mul(w->t[3][2], Fl(mem, 1018, 2));
+        for (int l = 0; l < 3; ++l) w->o[l] = Fl(mem, 1019, l);
+        w->o[3] = 0.0f;
+    } else {
+        for (int r = 0; r < 4; ++r) std::memcpy(w->t[r], vu.regs.vf[28 + r], 16);
+        std::memcpy(w->o, vu.regs.vf[2], 16);
+    }
+    // (a transform with no w, or not finite: every place at w 0 - the VU's saturations, not the GPU's - the microcode's)
+    bool finite = false;
+    for (int r = 0; r < 4; ++r) {
+        if (w->t[r][3] != 0.0f) finite = true;
+        for (int l = 0; l < 4; ++l)
+            if (!std::isfinite(w->t[r][l])) return -16;
+    }
+    if (!finite) return -16;
+    float* h = w->header;
+    std::memset(h, 0, sizeof w->header);
+    u32 mode = rw::kRwWorld | (img.cull ? rw::kRwWCull : 0u) | (w->path_b ? rw::kRwWGuard : 0u);
+    if (img.lit) mode |= Lo(mem, 1013, 2) != 0 ? rw::kRwWAlphaZero : rw::kRwWLit;
+    SetMode(h, mode);
+    const u32 first = kNormals;
+    std::memcpy(h + 4 * rw::kRwMisc + 3, &first, 4);
+    for (int r = 0; r < 4; ++r) std::memcpy(h + 4 * (rw::kRwWT + r), w->t[r], 16);
+    std::memcpy(h + 4 * rw::kRwWO, w->o, 16);
+    std::memcpy(h + 4 * rw::kRwWScale, mem + 1018 * 4, 2 * 16);    // 1018-1019
+    std::memcpy(h + 4 * rw::kRwWG0, mem + 1022 * 4, 2 * 16);       // 1022-1023
+    std::memcpy(h + 4 * rw::kRwWL, mem + 1007 * 4, 3 * 16);        // 1007-1009
+    const u32 base = ((Lo(mem, 1013, 2) + 0x7FE0) | 0x7FE0) & 0xFFFF;
+    std::memcpy(h + 4 * rw::kRwWBase, &base, 4);
+    if (img.lit) {
+        // the lighting's constants: L by 0.000124, e by 0.01, and K0 = itof0(bits(2s)) - e itof0(bits(1.0))
+        const float i1 = rw::F(0x3C23D70Au), i2 = rw::F(0x39020610u);
+        float* k = h + 4 * rw::kRwWK;
+        for (int l = 0; l < 3; ++l) k[l] = rw::Mul(Fl(mem, 1007, l), i2);
+        k[3] = rw::Mul(Fl(mem, 1007, 3), i1);
+        const float s = Fl(mem, 1008, 3);
+        h[4 * rw::kRwWBase + 1] = rw::Sub(rw::Itof0(rw::B(rw::Add(s, s))), rw::Mul(Fl(mem, 1007, 3), rw::Itof0(0x3F800000u)));
+    }
+    const u32* in = mem + w->top * 4;
+    w->indices.clear();
+    for (u32 t = 0; t + 2 < w->n; ++t) {
+        if (in[12 * (t + 2) + 3] & 0x8000) continue;
+        w->indices.push_back(3 * t);
+        w->indices.push_back(3 * t + 1);
+        w->indices.push_back(3 * t + 2);
+    }
+    return 1;
+}
+
+// Path B's CLIP as the microcode leaves it: each vertex's judgement after what the run began with, and one more
+// (the loop's pipelining: the quadwords past the batch, as memory has them - with the VU's own arithmetic).
+u32 WorldClipEnd(const Vu& vu, const WorldImage& img, const World& w) {
+    u32 clip = vu.clip & 0xFFFFFF;
+    if (!w.path_b) return clip;
+    const u32* mem = reinterpret_cast<const u32*>(vu.data.data());
+    const u32* in = mem + w.top * 4;
+    const u32 judged = img.cull ? (w.n + 1) & ~1u : w.n;     // (2678's and 1332's loops: two vertices an iteration)
+    const u32 from = judged > 4 ? judged - 4 : 0;
+    clip = (clip << (6 * std::min(judged, 4u))) & 0xFFFFFF;
+    for (u32 v = from; v < judged; ++v) {
+        const u32 j = v < w.n ? rw::WorldJudge(w.header, in, v) : rw::WorldJudgeVu(w.header, mem + ((w.top + 3 * v) & 0x3FF) * 4);
+        clip |= j << (6 * (judged - 1 - v));
+    }
+    return clip & 0xFFFFFF;
+}
+
+template <int I>
+void CheckWorld(Vu& vu, u32 pc, u64* pairs) {
+    const WorldImage& img = kWorldImages[I];
+    static thread_local std::vector<u32> before;
+    u32* mem = reinterpret_cast<u32*>(vu.data.data());
+    World w;
+    const int decided = DecideWorld(vu, img, &w);
+    const u32 clip_end = decided > 0 ? WorldClipEnd(vu, img, w) : 0;
+    before.assign(mem, mem + 4096);
+    std::vector<u32> kicked;
+    auto saved_block = vu.on_kick_block;
+    auto saved = vu.on_kick;
+    if (saved_block)
+        vu.on_kick_block = [&](const u32* x, u32 c) { kicked.insert(kicked.end(), x, x + c); saved_block(x, c); };
+    else
+        vu.on_kick = [&](u64 lo, u64 hi) {
+            const u32 q[4] = {u32(lo), u32(lo >> 32), u32(hi), u32(hi >> 32)};
+            kicked.insert(kicked.end(), q, q + 4);
+            if (saved) saved(lo, hi);
+        };
+    *pairs = vu.RunEmulated(pc, u64(1) << 40);
+    vu.on_kick_block = saved_block;
+    vu.on_kick = saved;
+    if (decided < 0) return;
+    CheckStats& s = TheCheck();
+    ++s.runs;
+    if (kicked.size() != std::size_t(4) * (1 + 3 * w.n)) {
+        if (s.told++ < 12)
+            std::fprintf(stderr, "[rw native] world check (%s): run %llu kicked %zu words, the twin %u\n", img.name,
+                         (unsigned long long)s.runs, kicked.size(), 4 * (1 + 3 * w.n));
+        ++s.differ;
+        return;
+    }
+    if ((vu.clip & 0xFFFFFF) != clip_end && s.clip_differ++ < 6)
+        std::fprintf(stderr, "[rw native] world check: CLIP microcode %06X twin %06X (n %u, path %c, image %d)\n", vu.clip & 0xFFFFFF,
+                     clip_end, w.n, w.path_b ? 'B' : 'A', I);
+    if (w.rebuild) {
+        for (int r = 0; r < 4; ++r)
+            if (std::memcmp(w.t[r], vu.regs.vf[28 + r], 16) != 0) ++s.regs_differ;
+        if (std::memcmp(w.o, vu.regs.vf[2], 16) != 0) ++s.regs_differ;
+    }
+    const u32* in = before.data() + w.top * 4;
+    for (u32 v = 0; v < w.n; ++v) {
+        rw::GsVertex o;
+        rw::WorldVertex(w.header, in, v, &o);
+        const u32* x = kicked.data() + 4 + 12 * v;
+        const u32 mine[10] = {o.stq[0], o.stq[1], o.stq[2], o.rgba[0], o.rgba[1], o.rgba[2], o.rgba[3],
+                              o.xyz[0], o.xyz[1], o.xyz[2]};
+        const u32 theirs[10] = {x[0], x[1], x[2], x[4], x[5], x[6], x[7], x[8], x[9], x[10]};
+        for (int i = 0; i < 10; ++i) {
+            ++s.words;
+            if (mine[i] != theirs[i]) {
+                ++s.differ;
+                if (s.told++ < 12)
+                    std::fprintf(stderr, "[rw native] world check (%s): run %llu vertex %u word %d: twin %08X, microcode %08X (path %c)\n",
+                                 img.name, (unsigned long long)s.runs, v, i, mine[i], theirs[i], w.path_b ? 'B' : 'A');
+            }
+        }
+        if (v >= 2) {
+            const u32 drawn = rw::WorldDrawn(w.header, in, v) ? 0u : 1u;
+            if (((x[11] >> 15) & 1) != drawn && s.adc_differ++ < 6) {
+                float a[2], b[2], c[2];
+                rw::WorldScreen(w.header, in, v - 2, a);
+                rw::WorldScreen(w.header, in, v - 1, b);
+                rw::WorldScreen(w.header, in, v, c);
+                std::fprintf(stderr, "[rw native] world check (%s): run %llu vertex %u of %u ADC: microcode %u (w %08X), twin %u; mode %X base %X, 1013 %X %X %X %X; S %g,%g %g,%g %g,%g; flags %X %X %X\n",
+                             img.name, (unsigned long long)s.runs, v, w.n, (x[11] >> 15) & 1, x[11], drawn,
+                             rw::Mode(w.header), rw::B(w.header[4 * rw::kRwWBase]), before[1013 * 4], before[1013 * 4 + 1],
+                             before[1013 * 4 + 2], before[1013 * 4 + 3], a[0], a[1], b[0], b[1], c[0], c[1],
+                             in[12 * (v - 2) + 3], in[12 * (v - 1) + 3], in[12 * v + 3]);
+                if (s.adc_differ == 1)
+                    for (int r = 0; r < 6; ++r)
+                        std::fprintf(stderr, "[rw native]   header %d: %08X %08X %08X %08X; mem %u: %08X %08X %08X %08X\n", r,
+                                     rw::B(w.header[4 * (1 + r)]), rw::B(w.header[4 * (1 + r) + 1]), rw::B(w.header[4 * (1 + r) + 2]),
+                                     rw::B(w.header[4 * (1 + r) + 3]), 1014 + r, before[(1014 + r) * 4], before[(1014 + r) * 4 + 1],
+                                     before[(1014 + r) * 4 + 2], before[(1014 + r) * 4 + 3]);
+            }
+        }
+    }
+    if (s.runs % 20000 == 0) SayCheck();
+}
+
+template <int I>
+bool NativeWorld(Vu& vu, u64* pairs) {
+    const WorldImage& img = kWorldImages[I];
+    World w;
+    if (const int why = DecideWorld(vu, img, &w); why < 0) {
+        Declined("world", why);
+        return false;
+    }
+    u32* mem = reinterpret_cast<u32*>(vu.data.data());
+    const u32 clip_end = WorldClipEnd(vu, img, w);
+    // what the run leaves: 1013.w 0, the transform and 1013.y (rebuilt), the buffers swapped (the packet: vi14's)
+    mem[1013 * 4 + 3] &= 0xFFFF0000u;
+    if (w.rebuild) {
+        for (int r = 0; r < 4; ++r) std::memcpy(vu.regs.vf[28 + r], w.t[r], 16);
+        std::memcpy(vu.regs.vf[2], w.o, 16);
+        mem[1013 * 4 + 1] = (mem[1013 * 4 + 1] & 0xFFFF0000u) | w.vi12;
+    }
+    const u32* inputs = mem + w.top * 4;
+    State& st = TheState();
+    const u64 key = Hash(0x2545F4914F6CDD1Dull ^ (u64(I) << 56) ^ w.n, inputs, std::size_t(4) * w.quads) | (u64(3) << 62);
+    u32 flags = 0x100 | 0x200 | 4;
+    if (!st.uploaded.count(key)) {
+        if (st.uploaded.size() >= 20000 || st.uploaded_quads > (u64(16) << 20) / 16) {
+            flags |= 2;
+            st.uploaded.clear();
+            st.uploaded_quads = 0;
+        }
+        flags |= 1;
+        st.uploaded.insert(key);
+        st.uploaded_quads += w.quads;
+    }
+    const u32 tag1 = mem[1006 * 4 + 1];
+    Cars shape;                                 // (SendSized's: the indices, the mesh's quadwords)
+    shape.n4 = w.quads / 3;
+    shape.indices.swap(w.indices);
+    SendWorld(shape, w.header, flags, key, (tag1 >> 15) & 0x7FF, inputs, w.quads);
+    std::swap(vu.regs.vc[13], vu.regs.vc[14]);
+    ps2host::VuNativeAccess::SetClip(vu, clip_end);
+    vu.regs.vc[15] = 4;
+    vu.resume = img.stub;
+    *pairs = 60 + 12 * u64(w.n);
+    ++st.runs;
+    return true;
+}
+
+template <int I>
+bool RunWorld(Vu& vu, u32 pc, u64* pairs) {
+    const WorldImage& img = kWorldImages[I];
+    if (pc != 0x0020 && pc != img.stub) {
+        if (pc != 0) Declined("world", -7);
+        return false;
+    }
+    if (pc == img.stub && (vu.regs.vc[15] & 0xFFFF) != 4) {
+        Declined("world", -8);
+        return false;
+    }
+    if (TheMode() == Mode::kCheck) {
+        CheckWorld<I>(vu, pc, pairs);
+        return true;
+    }
+    return NativeWorld<I>(vu, pairs);
+}
+
 }  // namespace
 
 void RegisterVuNativeRw() {
     ps2host::RegisterVuNative({"RenderWare's cars (Burnout 3, VU1 7E86891B)", Holds, Run});
     ps2host::RegisterVuNative({"RenderWare's instanced strips (Burnout 3, VU1 D4B61373)", HoldsInstanced, RunInstanced});
+    ps2host::RegisterVuNative({kWorldImages[0].name, HoldsWorld<0>, RunWorld<0>});
+    ps2host::RegisterVuNative({kWorldImages[1].name, HoldsWorld<1>, RunWorld<1>});
+    ps2host::RegisterVuNative({kWorldImages[2].name, HoldsWorld<2>, RunWorld<2>});
     std::atexit([] {
         if (TheMode() == Mode::kCheck) SayCheck();
     });
