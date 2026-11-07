@@ -21,7 +21,7 @@ pictures: every scripted run is as recorded.
 | 1332C99F | lit strips (car bodies, the garage's): 2678's paths with a specular alpha | 11% | all |
 | 01CE30D5 | prelit strips (track, scenery): paths A, B, C | 8% | all |
 | F504D280 | the sky dome (generated, its own clipper) | 13% | no: the microcode |
-| 0835A68B | 01CE's mirrored (reflection) pass | 3% | no |
+| 0835A68B | 01CE's mirrored (reflection) pass | 3% | all (the mirror's prologue on the CPU) |
 
 Each program is registered by a hash of its code (`VuNativeHash` over its instruction memory range), so the
 images that share code (B9F6 with 2678, 34C3 with D4B6) are covered too.
@@ -72,9 +72,9 @@ Found on the way (each a picture or a word that differed):
 | | VIF1 worker | GS thread |
 | --- | --- | --- |
 | 60, native off | 18.9% | 18.2% |
-| 60, native on | 18.1% | 14.8% |
-| 120 at 2x, native off | 42.4% | 45.9% |
-| 120 at 2x, native on | 30.4% | 33.6% |
+| 60, native on | 14.1% | 14.5% |
+| 120 at 2x, native off | 42.4% | 46.1% |
+| 120 at 2x, native on | 29.6% | 34.0% |
 
 VU1's time in the scripted race (virtual time, `PS2HOST_VU_PROFILE`): 5.8 s -> 3.5 s; what is left is mostly the
 sky dome and the native programs' CPU share. The VIF1 worker's samples at 120: VIF1's unpacking 6.7%, path C's
@@ -86,5 +86,6 @@ PC SETTINGS > VIDEO > MSAA (off, 2x, 4x, 8x): the engine's multisampled 3D (ever
 
 ## Next
 
-The sky dome (F504D280: generated geometry, its own clipper), 0835A68B's mirrored pass, the enhanced draws
+The sky dome (F504D280: generated geometry, its own clipper - under 2% of the VIF1 worker in real time, with
+the other microcode left), the enhanced draws
 (precise geometry, per-pixel reflections for the cars' env pass) on the GPU path the native programs opened.
