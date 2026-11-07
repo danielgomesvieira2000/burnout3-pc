@@ -66,22 +66,32 @@ bool Holds(const Vu& vu) {
 u32 Lo(const u32* mem, u32 quad, int lane) { return mem[quad * 4 + lane] & 0xFFFF; }
 float Fl(const u32* mem, u32 quad, int lane) { return rw::F(mem[quad * 4 + lane]); }
 
+constexpr u32 kPalette = 64;            // the most palette rows a skinned batch's header carries
+
 // What a run of the cars' program decides from VU1's state as it starts.
 struct Cars {
     u32 top, n, n4;
     bool rebuild, path_a, guard, prefix;
     float c[4][4], o[4];                // the transform (vf28-vf31) and vf02 - rebuilt, or as the registers hold them
     u32 vi12;
-    float header[rw::kRwHeaderQuads * 4];
+    float header[(rw::kRwHeaderQuads + kPalette) * 4];
+    u32 header_quads;                   // (with the skinning's palette)
+    bool skin;
     std::vector<u32> indices;           // the strip's triangles without ADC
     std::vector<u32> adc;               // per vertex: XYZF2's bit 15 as the microcode leaves it
     u32 clip_end;                       // the CLIP flag after the run
 };
 
+// A skinned vertex's place (the palette read from data memory).
+void Skinned(const u32* mem, const u32* in, u32 v, float* p) {
+    float n[3];
+    rw::CarsSkin(in, v, Fl(mem, 970, 3), [&](u32 a) { return reinterpret_cast<const float*>(mem + (a & 0x3FF) * 4); }, p, n);
+}
+
 // -1: not this way (the microcode's).
 int Decide(const Vu& vu, Cars* k) {
     const u32* mem = reinterpret_cast<const u32*>(vu.data.data());
-    if (Lo(mem, 1013, 2) != 0) return -1;                  // (the skinning)
+    k->skin = Lo(mem, 1013, 2) != 0;                     // (the skinning: two bones a vertex)
     k->top = vu.top & 0x3FF;
     k->n = vu.itop & 0x3FF;
     if (k->n == 0 || k->n > 52) return -2;
@@ -131,6 +141,23 @@ int Decide(const Vu& vu, Cars* k) {
     std::memcpy(h + 4 * rw::kRwM, mem + 966 * 4, 8 * 16);           // 966-973
     std::memcpy(h + 4 * rw::kRwC0, mem + 1010 * 4, 3 * 16);         // 1010-1012
     std::memcpy(h + 4 * rw::kRwGuard, mem + 1022 * 4, 2 * 16);      // 1022-1023
+    k->header_quads = rw::kRwHeaderQuads;
+    if (k->skin) {
+        // the palette rows the batch's words reach (974 + each, four rows; addresses mod 1024), as one window
+        u32 lo = 0x400, hi = 0;
+        const u32* in = mem + k->top * 4;
+        for (u32 g = 0; g < k->n4 / 4; ++g)
+            for (u32 l = 0; l < 4; ++l)
+                for (u32 which : {1u, 3u}) {
+                    const u32 a = (974 + (in[12 * (4 * g + which) + 4 + l] & 0xFFFF)) & 0x3FF;
+                    if (a + 3 > 0x3FF) return -1;
+                    lo = std::min(lo, a), hi = std::max(hi, a + 3);
+                }
+        if (hi - lo + 1 > kPalette) return -1;
+        std::memcpy(h + 4 * rw::kRwMisc + 3, &lo, 4);
+        std::memcpy(h + 4 * rw::kRwHeaderQuads, mem + lo * 4, std::size_t(hi - lo + 1) * 16);
+        k->header_quads = rw::kRwHeaderQuads + (hi - lo + 1);
+    }
     const bool t4 = k->guard && k->path_a;
     if (t4) {
         // the guard band's matrix: G_k = (ck.x igx, ck.y igy, zB ck.w, ck.w); G_3's z zA + zB c3.w
@@ -151,7 +178,8 @@ int Decide(const Vu& vu, Cars* k) {
         const u32* q0 = in + 12 * v;
         bool hit = false;
         if (k->guard) {
-            const float p[3] = {rw::F(q0[0]), rw::F(q0[1]), rw::F(q0[2])};
+            float p[3] = {rw::F(q0[0]), rw::F(q0[1]), rw::F(q0[2])};
+            if (k->skin) Skinned(mem, in, v, p);
             u32 j;
             if (t4) {
                 float g[4];
@@ -170,7 +198,8 @@ int Decide(const Vu& vu, Cars* k) {
     if (t4) {
         // (T4 judges one more: the quadword after the batch, as memory has it)
         const u32* q = in + 12 * k->n;
-        const float p[3] = {rw::F(q[0]), rw::F(q[1]), rw::F(q[2])};
+        float p[3] = {rw::F(q[0]), rw::F(q[1]), rw::F(q[2])};
+        if (k->skin && k->n < k->n4) Skinned(mem, in, k->n, p);     // (a padding vertex: skinned in place)
         float g[4];
         rw::GuardOf(h, p, g);
         clip = ((clip << 6) | rw::Judge(g[0], g[1], g[2], g[3])) & 0xFFFFFF;
@@ -223,7 +252,8 @@ void Check(Vu& vu, u32 pc, u64* pairs) {
     if ((vu.clip & 0xFFFFFF) != k.clip_end) ++s.clip_differ;
     const u32* out = mem + b * 4;
     for (int stream = 0; stream < (k.path_a ? 2 : 1); ++stream) {
-        SetMode(k.header, (stream ? rw::kRwEnvStream : 0u) | (k.guard && k.path_a ? rw::kRwGuardPlace : 0u));
+        SetMode(k.header, (stream ? rw::kRwEnvStream : 0u) | (k.guard && k.path_a ? rw::kRwGuardPlace : 0u) |
+                              (k.skin ? rw::kRwSkin : 0u));
         for (u32 v = 0; v < k.n; ++v) {
             rw::GsVertex o;
             rw::CarsVertex(k.header, before.data() + k.top * 4, v, &o);
@@ -353,11 +383,12 @@ bool Native(Vu& vu, u64* pairs) {
         st.uploaded_quads += u64(3) * k.n4;
     }
     const bool t4 = k.guard && k.path_a;
-    SetMode(k.header, t4 ? rw::kRwGuardPlace : 0u);
-    Send(k, k.header, flags, key, 0x5C, inputs);
+    const u32 skin = k.skin ? rw::kRwSkin : 0u;
+    SetMode(k.header, (t4 ? rw::kRwGuardPlace : 0u) | skin);
+    SendSized(k, k.header, k.header_quads, flags, key, 0x5C, inputs);
     if (k.path_a) {
-        SetMode(k.header, rw::kRwEnvStream | (t4 ? rw::kRwGuardPlace : 0u));
-        Send(k, k.header, 0x100 | 0x200 | 4, key, 0x25C, inputs);
+        SetMode(k.header, rw::kRwEnvStream | (t4 ? rw::kRwGuardPlace : 0u) | skin);
+        SendSized(k, k.header, k.header_quads, 0x100 | 0x200 | 4, key, 0x25C, inputs);
     }
     ps2host::VuNativeAccess::SetClip(vu, k.clip_end);
     vu.regs.vc[15] = 4;
