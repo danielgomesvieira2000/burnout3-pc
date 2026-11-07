@@ -38,6 +38,7 @@ namespace {
 using ps2host::Vu;
 using u32 = std::uint32_t;
 using u64 = std::uint64_t;
+using s32 = std::int32_t;
 namespace rw = ps2host::rw_native;
 
 constexpr u64 kCarsHash = 0x1C18B5ADDF2729D4ull;   // FNV-1a 64 over instruction memory 0x0000-0x14EF
@@ -264,8 +265,8 @@ u64 Hash(u64 h, const u32* p, size_t words) {
     return h;
 }
 
-void Send(const Cars& k, const float* header, u32 flags, u64 key, u64 prim, const u32* inputs) {
-    const u32 hq = rw::kRwHeaderQuads, ni = u32(k.indices.size());
+void SendSized(const Cars& k, const float* header, u32 hq, u32 flags, u64 key, u64 prim, const u32* inputs) {
+    const u32 ni = u32(k.indices.size());
     const u32 upload = (flags & 1) ? 1 + 12 * k.n4 : 0;
     const u32 count = 7 + 4 * hq + ni + upload;
     u32* w = ps2host::GsNativeBegin(count);
@@ -279,6 +280,10 @@ void Send(const Cars& k, const float* header, u32 flags, u64 key, u64 prim, cons
         std::memcpy(m + 1, inputs, std::size_t(12) * k.n4 * 4);
     }
     ps2host::GsNativeEnd(count);
+}
+
+void Send(const Cars& k, const float* header, u32 flags, u64 key, u64 prim, const u32* inputs) {
+    SendSized(k, header, rw::kRwHeaderQuads, flags, key, prim, inputs);
 }
 
 bool Native(Vu& vu, u64* pairs) {
@@ -350,10 +355,271 @@ bool Run(Vu& vu, u32 pc, u64* pairs) {
     return Native(vu, pairs);
 }
 
+// ---------------------------------------------------------------- the instanced strips (VU1 D4B61373, 34C3CF67)
+//
+// A batch (N <= 76 vertices at TOP) drawn once an instance (932.x + 1 of them, blocks of five quadwords from 934):
+// each instance's matrix the camera's (1014-1017) by its rows, its colour 938 (or path C's light), path B (937.z:
+// the guard band's ADC) or C (932.y: the lighting); one packet an instance, the output buffers swapped after each.
+// Entered at 0x0020 (after the init at 0x0000) or 0x0EE8 (the next batch: 932.w = 0); ends at the E of 0x0ED8.
+
+constexpr u64 kInstancedHash = 0xBB40CD00AA6B0D13ull;  // FNV-1a 64 over instruction memory 0x0000-0x0EEF
+constexpr u32 kInstancedEnd = 0xEF0;
+constexpr u32 kInstancedResume = 0x0EE8;
+
+bool HoldsInstanced(const Vu& vu) {
+    if (TheMode() == Mode::kOff || (TheMode() == Mode::kOn && !ps2host::GsNativeDraws())) return false;
+    u64 h = 1469598103934665603ull;
+    for (u32 i = 0; i < kInstancedEnd; ++i) h = (h ^ vu.micro.data()[i]) * 1099511628211ull;
+    return h == kInstancedHash;
+}
+
+struct Instance {
+    float header[rw::kRwIHeaderQuads * 4];
+    std::vector<u32> indices;
+    std::vector<u32> adc;
+};
+
+struct Batch {
+    u32 top, n, n4, prim, count;
+    std::vector<Instance> instances;
+    u32 clip_end;
+};
+
+s32 S16(u32 v) { return s32(std::int16_t(v & 0xFFFF)); }
+
+// The batch's instances as the microcode would draw them (932.w 0: from the first); -1: not this way.
+int DecideInstanced(const Vu& vu, Batch* b) {
+    const u32* mem = reinterpret_cast<const u32*>(vu.data.data());
+    b->top = vu.top & 0x3FF;
+    b->n = vu.itop & 0x3FF;
+    if (b->n == 0 || b->n > 76) return -1;
+    b->n4 = (b->n + 3) & ~3u;
+    if (b->top + 3 * (b->n4 + 3) > 1024) return -1;
+    const u32 tag1 = mem[933 * 4 + 1];
+    if (!((tag1 >> 14) & 1) || mem[933 * 4 + 2] != 0x412) return -1;   // (PRE, and ST RGBAQ XYZF2)
+    b->prim = (tag1 >> 15) & 0x7FF;
+    const bool lit = Lo(mem, 932, 1) != 0;
+    const s32 last = S16(mem[932 * 4]);
+    b->count = last > 0 ? u32(last) + 1 : 1;
+    if (b->count > 15) return -1;
+    float V[4][4], S[4], off[4];
+    for (int r = 0; r < 4; ++r) std::memcpy(V[r], mem + (1014 + r) * 4, 16);
+    std::memcpy(S, mem + 1018 * 4, 16);
+    std::memcpy(off, mem + 1019 * 4, 16);
+    const float far = Fl(mem, 1022, 3), near = Fl(mem, 1023, 3);
+    const u32* in = mem + b->top * 4;
+    u32 clip = vu.clip & 0xFFFFFF;
+    b->instances.resize(b->count);
+    s32 last_b = -1;
+    for (u32 i = 0; i < b->count; ++i) {
+        const u32 block = 934 + 5 * i;
+        const bool path_b = Lo(mem, block + 3, 2) != 0;
+        if (path_b && lit) return -1;                   // (C with B: never seen)
+        if (path_b) last_b = s32(i);
+        Instance& it = b->instances[i];
+        float* h = it.header;
+        std::memset(h, 0, sizeof it.header);
+        float R[4][4], M[4][4];
+        for (int r = 0; r < 4; ++r) std::memcpy(R[r], mem + (block + r) * 4, 16);
+        rw::InstanceMatrix(V, R, S, far, near, path_b, M);
+        const u32 mode = rw::kRwInstanced | (path_b ? rw::kRwPathB : 0u) | (lit ? rw::kRwPathC : 0u);
+        SetMode(h, mode);
+        for (int r = 0; r < 4; ++r) std::memcpy(h + 4 * (rw::kRwIM + r), M[r], 16);
+        std::memcpy(h + 4 * rw::kRwIS, S, 16);
+        std::memcpy(h + 4 * rw::kRwIOff, off, 16);
+        std::memcpy(h + 4 * rw::kRwIColour, mem + (block + 4) * 4, 16);
+        h[4 * rw::kRwIAB + 0] = Fl(mem, block, 2);
+        h[4 * rw::kRwIAB + 1] = Fl(mem, block + 1, 2);
+        it.adc.assign(b->n, 0);
+    }
+    if (last_b >= 0) {
+        // Path B's judgements, CLIP as the microcode leaves it: two of vf00, then each vertex of the groups of four
+        // and three past them (the loop's pipelining) - which read memory as the run has written it by then (a full
+        // buffer's are this run's own packet: its tag, its first vertices' XYZF2), so its packets are written into a
+        // copy of memory as they would be, and the judgements made with the VU's own arithmetic.
+        static thread_local std::vector<u32> sim;
+        sim.assign(mem, mem + 4096);
+        u32 o13 = vu.regs.vc[13] & 0x3FF, o14 = vu.regs.vc[14] & 0x3FF;
+        auto put = [&](u32 quad, const u32* w, int lanes) {
+            for (int l = 0; l < lanes; ++l) sim[((quad & 0x3FF) * 4) + l] = w[l];
+        };
+        auto vertices = [&](const Instance& it, u32 from, u32 to) {
+            for (u32 v = from; v < to; ++v) {
+                rw::GsVertex o;
+                rw::InstancedVertex(it.header, sim.data() + b->top * 4, v, &o);
+                put(o13 + 1 + 3 * v, o.stq, 3);
+                put(o13 + 2 + 3 * v, o.rgba, 4);
+                put(o13 + 3 + 3 * v, o.xyz, 3);
+            }
+        };
+        for (s32 i = 0; i <= last_b; ++i) {
+            Instance& it = b->instances[std::size_t(i)];
+            const u32 tag[4] = {0xFFFF8000u | b->n, mem[933 * 4 + 1], mem[933 * 4 + 2], mem[933 * 4 + 3]};
+            put(o13, tag, 4);
+            const u32 early = b->n4 > 4 ? b->n4 - 4 : 0;
+            if (rw::B(it.header[2]) & rw::kRwPathB) {
+                clip = (clip << 12) & 0xFFFFFF;
+                u32 recent = 0;
+                for (u32 v = 0; v < b->n4 + 3; ++v) {
+                    if (v == b->n4) vertices(it, 0, early);
+                    const u32* q0 = sim.data() + ((b->top + 3 * v) & 0x3FF) * 4;
+                    u32 c[4];
+                    rw::InstancedClipVu(it.header, q0, true, c);
+                    const u32 j = rw::JudgeVu(c);
+                    clip = ((clip << 6) | j) & 0xFFFFFF;
+                    recent = ((recent << 6) | j) & 0x3FFFF;
+                    if (v < b->n && recent) it.adc[v] = 1;
+                }
+                vertices(it, early, b->n4);
+            } else {
+                vertices(it, 0, b->n4);
+            }
+            std::swap(o13, o14);
+        }
+    }
+    for (Instance& it : b->instances) {
+        it.indices.clear();
+        for (u32 v = 0; v < b->n; ++v) {
+            if (in[12 * v + 3] & 0x8000) it.adc[v] = 1;
+            if (v >= 2 && !it.adc[v]) {
+                it.indices.push_back(v - 2);
+                it.indices.push_back(v - 1);
+                it.indices.push_back(v);
+            }
+        }
+    }
+    b->clip_end = clip;
+    return 1;
+}
+
+void CheckInstanced(Vu& vu, u32 pc, u64* pairs) {
+    static thread_local std::vector<u32> before;
+    u32* mem = reinterpret_cast<u32*>(vu.data.data());
+    Batch b;
+    int decided = -1;
+    if (pc == 0x0EE8 || Lo(mem, 932, 3) == 0) {
+        const u32 w932 = mem[932 * 4 + 3];
+        mem[932 * 4 + 3] &= 0xFFFF0000u;        // (as 0x0EE8 does first; 0x0020's is 0 already)
+        decided = DecideInstanced(vu, &b);
+        mem[932 * 4 + 3] = w932;
+    }
+    before.assign(mem, mem + 4096);
+    std::vector<u32> kicked;
+    auto saved_block = vu.on_kick_block;
+    auto saved = vu.on_kick;
+    if (saved_block)
+        vu.on_kick_block = [&](const u32* w, u32 c) { kicked.insert(kicked.end(), w, w + c); saved_block(w, c); };
+    else
+        vu.on_kick = [&](u64 lo, u64 hi) {
+            const u32 q[4] = {u32(lo), u32(lo >> 32), u32(hi), u32(hi >> 32)};
+            kicked.insert(kicked.end(), q, q + 4);
+            if (saved) saved(lo, hi);
+        };
+    *pairs = vu.RunEmulated(pc, u64(1) << 40);
+    vu.on_kick_block = saved_block;
+    vu.on_kick = saved;
+    if (decided < 0) return;
+    CheckStats& s = TheCheck();
+    ++s.runs;
+    const std::size_t per = std::size_t(4) * (1 + 3 * b.n);
+    if (kicked.size() != per * b.count) {
+        if (s.told++ < 12)
+            std::fprintf(stderr, "[rw native] instanced check: run %llu kicked %zu words, the twin %zu\n",
+                         (unsigned long long)s.runs, kicked.size(), per * b.count);
+        ++s.differ;
+        return;
+    }
+    if ((vu.clip & 0xFFFFFF) != b.clip_end && s.clip_differ++ < 8) {
+        u32 paths = 0;
+        for (const Instance& it : b.instances) paths = paths * 10 + (rw::B(it.header[2]) & 3);
+        std::fprintf(stderr, "[rw native] instanced CLIP: microcode %06X twin %06X, n %u, instances %u, paths %u\n",
+                     vu.clip & 0xFFFFFF, b.clip_end, b.n, b.count, paths);
+    }
+    if (Lo(mem, 932, 2) != 0xFFFF || Lo(mem, 932, 3) != 5 * b.count) ++s.regs_differ;
+    for (u32 i = 0; i < b.count; ++i) {
+        const u32* packet = kicked.data() + per * i;
+        if (((packet[1] >> 15) & 0x7FF) != b.prim) ++s.differ;
+        for (u32 v = 0; v < b.n; ++v) {
+            rw::GsVertex o;
+            rw::InstancedVertex(b.instances[i].header, before.data() + b.top * 4, v, &o);
+            const u32* w = packet + 4 + 12 * v;
+            const u32 mine[10] = {o.stq[0], o.stq[1], o.stq[2], o.rgba[0], o.rgba[1], o.rgba[2], o.rgba[3],
+                                  o.xyz[0], o.xyz[1], o.xyz[2]};
+            const u32 theirs[10] = {w[0], w[1], w[2], w[4], w[5], w[6], w[7], w[8], w[9], w[10]};
+            for (int x = 0; x < 10; ++x) {
+                ++s.words;
+                if (mine[x] != theirs[x]) {
+                    ++s.differ;
+                    if (s.told++ < 12)
+                        std::fprintf(stderr, "[rw native] instanced check: run %llu instance %u vertex %u word %d: twin %08X, microcode %08X (mode %X)\n",
+                                     (unsigned long long)s.runs, i, v, x, mine[x], theirs[x],
+                                     rw::B(b.instances[i].header[2]));
+                }
+            }
+            if (v >= 2 && ((w[11] >> 15) & 1) != b.instances[i].adc[v] && s.adc_differ++ < 6)
+                std::fprintf(stderr, "[rw native] instanced check: run %llu instance %u vertex %u ADC differs\n",
+                             (unsigned long long)s.runs, i, v);
+        }
+    }
+    if (s.runs % 20000 == 0) SayCheck();
+}
+
+bool NativeInstanced(Vu& vu, u32 pc, u64* pairs) {
+    u32* mem = reinterpret_cast<u32*>(vu.data.data());
+    if (pc == 0x0020 && Lo(mem, 932, 3) != 0) return false;
+    const u32 w932 = mem[932 * 4 + 3];
+    mem[932 * 4 + 3] &= 0xFFFF0000u;            // (0x0EE8's first: 932.w = 0)
+    Batch b;
+    if (DecideInstanced(vu, &b) < 0) {
+        mem[932 * 4 + 3] = w932;
+        return false;
+    }
+    const u32* inputs = mem + b.top * 4;
+    State& st = TheState();
+    const u64 key = Hash(0x165667B19E3779F9ull ^ b.n, inputs, std::size_t(12) * b.n4) | (u64(3) << 62);
+    u32 vi13 = vu.regs.vc[13] & 0xFFFF, vi14 = vu.regs.vc[14] & 0xFFFF;
+    Cars shape;                                 // (SendSized's: the batch's size, an instance's indices)
+    shape.n = b.n, shape.n4 = b.n4;
+    for (u32 i = 0; i < b.count; ++i) {
+        u32 flags = 0x100 | 0x200 | 4;
+        if (i == 0 && !st.uploaded.count(key)) {
+            if (st.uploaded.size() >= 20000 || st.uploaded_quads > (u64(16) << 20) / 16) {
+                flags |= 2;
+                st.uploaded.clear();
+                st.uploaded_quads = 0;
+            }
+            flags |= 1;
+            st.uploaded.insert(key);
+            st.uploaded_quads += u64(3) * b.n4;
+        }
+        shape.indices.swap(b.instances[i].indices);
+        SendSized(shape, b.instances[i].header, rw::kRwIHeaderQuads, flags, key, b.prim, inputs);
+        std::swap(vi13, vi14);
+    }
+    vu.regs.vc[13] = vi13, vu.regs.vc[14] = vi14;
+    mem[932 * 4 + 2] = 0xFFFF;
+    mem[932 * 4 + 3] = 5 * b.count;
+    ps2host::VuNativeAccess::SetClip(vu, b.clip_end);
+    vu.resume = kInstancedResume;
+    *pairs = 60 + u64(b.count) * (50 + 36 * u64(b.n4));
+    ++st.runs;
+    return true;
+}
+
+bool RunInstanced(Vu& vu, u32 pc, u64* pairs) {
+    if (pc != 0x0020 && pc != 0x0EE8) return false;
+    if (TheMode() == Mode::kCheck) {
+        CheckInstanced(vu, pc, pairs);
+        return true;
+    }
+    return NativeInstanced(vu, pc, pairs);
+}
+
 }  // namespace
 
 void RegisterVuNativeRw() {
     ps2host::RegisterVuNative({"RenderWare's cars (Burnout 3, VU1 7E86891B)", Holds, Run});
+    ps2host::RegisterVuNative({"RenderWare's instanced strips (Burnout 3, VU1 D4B61373)", HoldsInstanced, RunInstanced});
     std::atexit([] {
         if (TheMode() == Mode::kCheck) SayCheck();
     });
