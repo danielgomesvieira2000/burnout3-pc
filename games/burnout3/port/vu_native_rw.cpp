@@ -292,7 +292,7 @@ struct State {
 };
 State& TheState() { static State s; return s; }
 
-u64 Hash(u64 h, const u32* p, size_t words) { return ps2host::VuNativeHash(p, words * 4, h); }
+u64 Hash(u64 h, const u32* p, size_t words) { return ps2host::VuMeshHash(p, words * 4, h); }
 
 void SendSized(const Cars& k, const float* header, u32 hq, u32 flags, u64 key, u64 prim, const u32* inputs) {
     const u32 ni = u32(k.indices.size());
