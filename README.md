@@ -37,6 +37,10 @@ wrong, press **F12** at that moment and attach the folder it writes to
   screen (up to 4x). Vulkan (1.3, 1.2 or 1.1) first, Direct3D 11 where there is no
   Vulkan (Intel HD 4000/4600 and other older GPUs) - the same pictures from
   either (PC SETTINGS > VIDEO > RENDERER).
+- **A native renderer**: the PS2's vector unit programs that transform the
+  cars, the world and the trackside (RenderWare's VU1 microcode) run as GPU
+  shaders, not on the processor - the same pictures, with far less work for
+  the CPU ([NATIVE_RENDERER.md](games/burnout3/docs/NATIVE_RENDERER.md)).
 - **Modern graphics** (PC SETTINGS > GRAPHICS, a PRESET row on top:
   ORIGINAL or MODERN, MODERN by default, then each one on its own): a
   lighting grade, ambient occlusion, a modern glow and the camera's own
@@ -204,7 +208,7 @@ workflow it follows is in the engine's skills (`engine/.claude/skills`).
 - The World Tour map: pointing with the mouse.
 - The other releases of the game (PAL, NTSC-J).
 - Steering wheel support, with force feedback.
-- Linux, macOS and Android ports.
+- Linux and Android out of experimental (real devices); a macOS port.
 
 ## Building it
 

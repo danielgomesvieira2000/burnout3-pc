@@ -61,8 +61,9 @@ real Linux PCs - tell us how it runs (with burnout3.log).
 The linux-x64 download is the same game for Linux on a 64-bit PC:
 
 * A Linux from 2022 or later (glibc 2.35: Ubuntu 22.04, Debian 12,
-  SteamOS 3, Fedora 36 and later) on a processor with AVX2 (Intel Haswell
-  / AMD Ryzen or newer); X11 or Wayland
+  SteamOS 3, Fedora 36 and later); X11 or Wayland. As on Windows, burnout3
+  is built for processors with AVX2 and starts burnout3-sse4, beside it,
+  on one without
 * A Vulkan driver (1.1 or later): Mesa's for AMD and Intel (most
   distributions have it), NVIDIA's own for NVIDIA
 * Unpack it somewhere you can write to and run ./burnout3. It keeps its
@@ -172,7 +173,9 @@ long gone) has four pages and the game's hidden menu (Triangle goes back):
              anti-aliasing: off, FXAA (edges smoothed, almost free), SMAA
              (edges smoothed more carefully, still light), or SSAA 2X
              (drawn twice as sharp and averaged down - the cleanest, and
-             the heaviest on the GPU), and GPU BOOST (on by default, an
+             the heaviest on the GPU), MSAA (OFF, 2X, 4X or 8X: the 3D's
+             edges drawn with that many samples a pixel - clean, steady
+             edges, at a cost to the GPU), and GPU BOOST (on by default, an
              NVIDIA GPU's: its clocks kept up through menus and loading
              screens, so a race's start does not stutter while it wakes up;
              OFF saves a laptop's battery), and RENDERER: AUTO (Vulkan,
