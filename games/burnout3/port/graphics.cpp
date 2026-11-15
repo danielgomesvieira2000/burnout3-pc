@@ -842,6 +842,9 @@ void GraphicsFrame() {
     // player's filter, forced on the 3D.
     const std::string textures = Graphics("textures");
     ps2host::SetGpuModernTextures(textures == "modern");
+    // (drawn larger: no half pixel out at the picture's top and left edges - the blur and the glow draw the last
+    // picture back over itself each frame, and a primitive stretched at the edge stretched them with it)
+    ps2host::SetGpuEdgeReach(false);
     if (textures == "nearest") ps2host::SetGpuTextureFilter(1);
     else if (textures == "bilinear") ps2host::SetGpuTextureFilter(2);
     else if (textures == "trilinear") ps2host::SetGpuTextureFilter(3);
