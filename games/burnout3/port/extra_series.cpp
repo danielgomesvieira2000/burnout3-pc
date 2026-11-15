@@ -50,6 +50,7 @@ void F_003EAE40(lifted::Context& c);
 void F_0042DA70(lifted::Context& c);
 void F_0030B6E0(lifted::Context& c);
 void F_0042CFA0(lifted::Context& c);
+void F_003120E0(lifted::Context& c);
 
 // The cars' pictures (tools/extra_pictures.py, from port/extra_pictures/):
 // a null ID ends the list.
@@ -235,11 +236,12 @@ u64 g_last_id = 0;      // the last ID 0x003EB060 was asked for
    values, the two at 0x00276B00 and 0x00383A70), the camera's (the bumper
    and look-back cameras' offsets), else the handling's (the physics, the
    garage's stats) - but its own where the garage's column finds a car's
-   model by its name (0x00427080, 0x004277C0). */
+   model by its name (0x00427080, 0x004277C0) and where the online lobby
+   finds a player's car's picture by it (0x0033F620). */
 void Name(lifted::Context& c) {
     if (const ExtraCar* car = Find(c.r[4])) {
         switch (u32(c.r[31])) {
-        case 0x004271ECu: case 0x00427818u: break;
+        case 0x004271ECu: case 0x00427818u: case 0x0033F6BCu: break;
         case 0x0028BA5Cu: case 0x0028C7BCu: case 0x00276B64u: case 0x00383B64u: c.r[4] = car->sound; break;
         case 0x002F888Cu: c.r[4] = car->camera; break;
         default: c.r[4] = car->handling; break;
@@ -319,6 +321,18 @@ void SelectSetUp(lifted::Context& c) {
     F_0042CFA0(c);
 }
 
+/* 0x003120E0(?, car): a car's series by its folder (COMP 0 ... HEVY 6), as
+   the online game options' check (0x00311EA0, returning to 0x00311ED0)
+   asks for the player's car: there a race without a series lock takes a
+   series below 6 only ("CAR SERIES HAVE CHANGED FOR THIS EVENT"), a locked
+   one its own. The HEAVYWEIGHTS and the EXTRA SERIES are answered -1 there:
+   any race without a lock, none with one. */
+void OnlineSeries(lifted::Context& c) {
+    const u32 ra = u32(c.r[31]);
+    F_003120E0(c);
+    if (ra == 0x00311ED0u && s32(c.r[2]) >= 6) c.r[2] = u64(s64(-1));
+}
+
 void WriteString(u32 at, const char* text) {
     u32 i = 0;
     for (; text[i] && i + 1 < kStringChars; ++i) generated::Write16(at + 2 * i, u8(text[i]));
@@ -366,5 +380,6 @@ void RegisterExtraSeries() {
     ps2host::Override(0x003EAE40u, CarName, "a car's name: the EXTRA SERIES' cars'");
     ps2host::Override(0x0042DA70u, SeriesName, "a series' name: EXTRA SERIES");
     ps2host::Override(0x0030B6E0u, RivalCar, "a rival's car: the EXTRA SERIES' cars");
+    ps2host::Override(0x003120E0u, OnlineSeries, "a car's series, as the online game options check it: HEAVYWEIGHTS and EXTRA SERIES in any race without a lock");
     ps2host::Override(0x0042CFA0u, SelectSetUp, "the car select set up: HEAVYWEIGHTS always, EXTRA SERIES kept");
 }
